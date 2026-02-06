@@ -1,4 +1,4 @@
-// V12.0 SIMA ALPHA - Single-Instance Multi-Account Copy Trading Engine
+// V12.9 REPAIRED - Single-Instance Multi-Account Copy Trading Engine
 // Based on UniversalORStrategyV10_3.cs (BUILD 1702)
 // SIMA Architecture: One strategy instance on Master account broadcasts to all Apex accounts
 //
@@ -1030,13 +1030,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 ResetOR();
 
-                Print(string.Format("UniversalORStrategy V12.3 | {0} | Tick: {1} | PV: ${2}", symbol, tickSize, pointValue));
+                Print(string.Format("UniversalORStrategy V12.9 REPAIRED | {0} | Tick: {1} | PV: ${2}", symbol, tickSize, pointValue));
                 Print(string.Format("Session: {0} - {1} {2} | OR: {3} min",
                     SessionStart.ToString("HH:mm"), SessionEnd.ToString("HH:mm"), SelectedTimeZone, (int)ORTimeframe));
                 Print(string.Format("OR Targets: T1={0}pt T2={1}xOR T3={2}xOR | Stop={3}xOR", Target1FixedPoints, Target2Multiplier, Target3Multiplier, StopMultiplier));
                 Print(string.Format("RMA: Enabled={0} ATR({1}) Stop={2}xATR T1={3}xATR T2={4}xATR",
                     RMAEnabled, RMAATRPeriod, RMAStopATRMultiplier, RMAT1ATRMultiplier, RMAT2ATRMultiplier));
-                Print("V12.3 SIMA: Definitive Chart-Click Fix + Logic Refresh");
+                Print("V12.9 REPAIRED: Definitive Chart-Click Fix + Logic Refresh");
                 Print(string.Format("TREND: Enabled={0} E1Stop={1}xATR E2Trail={2}xATR", TRENDEnabled, TRENDEntry1ATRMultiplier, TRENDEntry2ATRMultiplier));
                 Print(string.Format("FFMA: Enabled={0} Distance={1}pt RSI={2}/{3}", FFMAEnabled, FFMAEMADistance, FFMARSIOversold, FFMARSIOverbought));
                 Print(string.Format("V12 SIMA: {0} | AccountPrefix: \"{1}\"", EnableSIMA ? "ENABLED - Fleet mode" : "DISABLED - Single account", AccountPrefix));
@@ -3276,7 +3276,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // V8.1: Entry order price changed
+                // V12: Entry order price changed
                 // This detects when user drags the order line to a new price
                 if (entryOrders.Values.Contains(order) && (orderState == OrderState.Accepted || orderState == OrderState.Working))
                 {
@@ -3299,7 +3299,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 double oldPrice = pos.EntryPrice;
                                 pos.EntryPrice = newPrice;
                                 
-                                Print(string.Format("V8.1: Entry order MOVED: {0} | {1:F2} → {2:F2}", entryName, oldPrice, newPrice));
+                                Print(string.Format("V12: Entry order MOVED: {0} | {1:F2} → {2:F2}", entryName, oldPrice, newPrice));
                                 
                                 // V12 SIMA: Legacy slave broadcast removed
                             }
@@ -3345,7 +3345,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
 
-                // V8.1: Entry order cancelled
+                // V12: Entry order cancelled
                 if (entryOrders.Values.Contains(order) && orderState == OrderState.Cancelled)
                 {
                     // V8.30: Thread-safe snapshot iteration
@@ -3357,7 +3357,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         if (entryOrders.TryGetValue(entryName, out var entryOrder) && entryOrder == order && !pos.EntryFilled)
                         {
-                            Print(string.Format("V8.1: Entry order CANCELLED: {0}", entryName));
+                            Print(string.Format("V12: Entry order CANCELLED: {0}", entryName));
 
                             // Clean up local state
                             CleanupPosition(entryName);
@@ -8579,7 +8579,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             simaAccountCount = 0;
             Print("[SIMA] ═══════════════════════════════════════════════════");
-            Print("[SIMA] V12 SIMA ALPHA - Multi-Account Engine Initializing");
+            Print("[SIMA] V12.9 REPAIRED - Multi-Account Engine Initializing");
             Print($"[SIMA] Account Prefix Filter: \"{AccountPrefix}\"");
             Print("[SIMA] ───────────────────────────────────────────────────");
 
@@ -9307,4 +9307,4 @@ namespace NinjaTrader.NinjaScript.Strategies
 
     }
 }
-// V12 SIMA ALPHA - Single-Instance Multi-Account Copy Trading Engine
+// V12.9 REPAIRED - Single-Instance Multi-Account Copy Trading Engine
