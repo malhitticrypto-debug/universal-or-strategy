@@ -194,7 +194,7 @@ namespace NinjaTrader.NinjaScript.Indicators
         private Button t1Button, t2Button, t3Button, t4Button, t5Button;
         private Button trim25Button, trim50Button, beButton, trailButton;
         private TextBox trailDistInput;
-        private Button flattenButton;
+        private Button flattenButton, cancelButton;
         private TextBlock lastPriceText;
 
         // UI Components - Section 2: Telemetry
@@ -1402,12 +1402,25 @@ namespace NinjaTrader.NinjaScript.Indicators
 
             rightCol.Children.Add(trailRow);
 
-            // FLATTEN button
+            // CANCEL + FLATTEN row (50/50 split)
+            Grid cancelFlattenRow = new Grid { Margin = new Thickness(0, 2, 0, 0) };
+            cancelFlattenRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            cancelFlattenRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            cancelButton = CreateButton("CANCEL", double.NaN, RedBg, RedFg, RedBorder);
+            cancelButton.FontWeight = FontWeights.Bold;
+            cancelButton.Click += (s, e) => { SendCommand("CANCEL_ALL"); TriggerGlow(RedFg); };
+            Grid.SetColumn(cancelButton, 0);
+            cancelFlattenRow.Children.Add(cancelButton);
+
             flattenButton = CreateButton("FLATTEN", double.NaN, RedBg, RedFg, RedBorder);
-            flattenButton.Margin = new Thickness(0, 2, 0, 0);
             flattenButton.FontWeight = FontWeights.Bold;
+            flattenButton.Margin = new Thickness(2, 0, 0, 0);
             flattenButton.Click += (s, e) => { SendCommand("FLATTEN"); TriggerGlow(RedFg); };
-            rightCol.Children.Add(flattenButton);
+            Grid.SetColumn(flattenButton, 1);
+            cancelFlattenRow.Children.Add(flattenButton);
+
+            rightCol.Children.Add(cancelFlattenRow);
 
             Grid.SetColumn(rightCol, 1);
             mainGrid.Children.Add(rightCol);

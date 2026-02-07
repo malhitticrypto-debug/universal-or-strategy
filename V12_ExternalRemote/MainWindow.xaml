@@ -1,0 +1,670 @@
+<Window x:Class="V12_ExternalRemote.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="V12 PRO MASTER"
+        Height="155" Width="1650"
+        ResizeMode="CanResizeWithGrip"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <!-- V12 Color Palette -->
+        <SolidColorBrush x:Key="BgDeep" Color="#020617"/>
+        <SolidColorBrush x:Key="BgSlate" Color="#0f172a"/>
+        <SolidColorBrush x:Key="BorderSlate" Color="#1e293b"/>
+        <SolidColorBrush x:Key="BtnBg" Color="#171717"/>
+        <SolidColorBrush x:Key="BtnBorder" Color="#262626"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#d4d4d4"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#737373"/>
+        <SolidColorBrush x:Key="CyanBrush" Color="#22d3ee"/>
+
+        <!-- V12 Base Button Style -->
+        <Style x:Key="V12Btn" TargetType="Button">
+            <Setter Property="Background" Value="#171717"/>
+            <Setter Property="Foreground" Value="#d4d4d4"/>
+            <Setter Property="BorderBrush" Value="#262626"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="3" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" Value="#262626"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Green Submit Button -->
+        <Style x:Key="SubmitBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#064e3b"/>
+            <Setter Property="Foreground" Value="#4ade80"/>
+            <Setter Property="BorderBrush" Value="#059669"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <!-- Red Flatten Button -->
+        <Style x:Key="FlattenBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#7f1d1d"/>
+            <Setter Property="Foreground" Value="#fca5a5"/>
+            <Setter Property="BorderBrush" Value="#dc2626"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <!-- Red Cancel Button -->
+        <Style x:Key="CancelBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#7f1d1d"/>
+            <Setter Property="Foreground" Value="#fca5a5"/>
+            <Setter Property="BorderBrush" Value="#dc2626"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+        </Style>
+
+        <!-- Orange RMA Button -->
+        <Style x:Key="RmaBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#7c2d12"/>
+            <Setter Property="Foreground" Value="#fb923c"/>
+            <Setter Property="BorderBrush" Value="#ea580c"/>
+        </Style>
+
+        <!-- Green MOMO Button -->
+        <Style x:Key="MomoBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#064e3b"/>
+            <Setter Property="Foreground" Value="#4ade80"/>
+            <Setter Property="BorderBrush" Value="#059669"/>
+        </Style>
+
+        <!-- Pink FFMA Button -->
+        <Style x:Key="FfmaBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#4a044e"/>
+            <Setter Property="Foreground" Value="#f472b6"/>
+            <Setter Property="BorderBrush" Value="#a21caf"/>
+        </Style>
+
+        <!-- Cyan Button -->
+        <Style x:Key="CyanBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#164e63"/>
+            <Setter Property="Foreground" Value="#22d3ee"/>
+            <Setter Property="BorderBrush" Value="#0891b2"/>
+        </Style>
+
+        <!-- Dashed Border OR Button -->
+        <Style x:Key="OrDashedBtn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#0f172a"/>
+            <Setter Property="Foreground" Value="#22d3ee"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" 
+                                BorderBrush="#22d3ee" BorderThickness="1" CornerRadius="3" 
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="BorderBrush" Value="#22d3ee"/>
+                                </Style>
+                            </Border.Style>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- T1 Green Target -->
+        <Style x:Key="T1Btn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#064e3b"/>
+            <Setter Property="Foreground" Value="#4ade80"/>
+            <Setter Property="BorderBrush" Value="#059669"/>
+            <Setter Property="MinWidth" Value="28"/>
+        </Style>
+
+        <!-- T2 Yellow Target -->
+        <Style x:Key="T2Btn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#422006"/>
+            <Setter Property="Foreground" Value="#fbbf24"/>
+            <Setter Property="BorderBrush" Value="#d97706"/>
+            <Setter Property="MinWidth" Value="28"/>
+        </Style>
+
+        <!-- T3/T5 Orange Target -->
+        <Style x:Key="T3Btn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#7c2d12"/>
+            <Setter Property="Foreground" Value="#fb923c"/>
+            <Setter Property="BorderBrush" Value="#ea580c"/>
+            <Setter Property="MinWidth" Value="28"/>
+        </Style>
+
+        <!-- T4 Red Target -->
+        <Style x:Key="T4Btn" TargetType="Button" BasedOn="{StaticResource V12Btn}">
+            <Setter Property="Background" Value="#450a0a"/>
+            <Setter Property="Foreground" Value="#f87171"/>
+            <Setter Property="BorderBrush" Value="#dc2626"/>
+            <Setter Property="MinWidth" Value="28"/>
+        </Style>
+
+        <!-- Bullish Indicator -->
+        <Style x:Key="BullishIndicator" TargetType="Border">
+            <Setter Property="Background" Value="#064e3b"/>
+            <Setter Property="BorderBrush" Value="#22c55e"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="Padding" Value="8,2"/>
+        </Style>
+
+        <!-- Small Input Box -->
+        <Style x:Key="SmallInput" TargetType="TextBox">
+            <Setter Property="Background" Value="#0f172a"/>
+            <Setter Property="Foreground" Value="#d4d4d4"/>
+            <Setter Property="BorderBrush" Value="#262626"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- ComboBox Style -->
+        <Style x:Key="V12Combo" TargetType="ComboBox">
+            <Setter Property="Background" Value="#171717"/>
+            <Setter Property="Foreground" Value="#d4d4d4"/>
+            <Setter Property="BorderBrush" Value="#262626"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="FontSize" Value="9"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton Name="ToggleButton" 
+                                          BorderBrush="{TemplateBinding BorderBrush}" 
+                                          Background="{TemplateBinding Background}" 
+                                          Foreground="{TemplateBinding Foreground}"
+                                          Grid.Column="2" 
+                                          Focusable="false" 
+                                          IsChecked="{Binding Path=IsDropDownOpen,Mode=TwoWay,RelativeSource={RelativeSource TemplatedParent}}" 
+                                          ClickMode="Press">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="Border" 
+                                                Background="{TemplateBinding Background}" 
+                                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                                BorderThickness="1" 
+                                                CornerRadius="2">
+                                            <Path x:Name="Arrow" 
+                                                  Grid.Column="1" 
+                                                  Fill="{TemplateBinding Foreground}" 
+                                                  HorizontalAlignment="Right" 
+                                                  VerticalAlignment="Center" 
+                                                  Margin="0,0,6,0" 
+                                                  Data="M 0 0 L 4 4 L 8 0 Z"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                            </ToggleButton>
+                            <ContentPresenter Name="ContentSite" 
+                                              IsHitTestVisible="False" 
+                                              Content="{TemplateBinding SelectionBoxItem}" 
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" 
+                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}" 
+                                              Margin="6,0,20,0" 
+                                              VerticalAlignment="Center" 
+                                              HorizontalAlignment="Left" />
+                            <Popup Name="Popup" 
+                                   Placement="Bottom" 
+                                   IsOpen="{TemplateBinding IsDropDownOpen}" 
+                                   AllowsTransparency="True" 
+                                   Focusable="False" 
+                                   PopupAnimation="Slide">
+                                <Grid Name="DropDown" 
+                                      SnapsToDevicePixels="True" 
+                                      MinWidth="{TemplateBinding ActualWidth}" 
+                                      MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                    <Border x:Name="DropDownBorder" 
+                                            Background="#171717" 
+                                            BorderThickness="1" 
+                                            BorderBrush="#262626"/>
+                                    <ScrollViewer Margin="1" SnapsToDevicePixels="True">
+                                        <StackPanel IsItemsHost="True" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Grid>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="#171717"/>
+                        <Setter Property="Foreground" Value="#d4d4d4"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Padding" Value="6,2"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border x:Name="Bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Left" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#262626"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="#0891b2"/>
+                                            <Setter Property="Foreground" Value="White"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Sidebar Styles -->
+        <Style x:Key="EidTxt" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="7"/>
+            <Setter Property="Foreground" Value="#555"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,0,0"/>
+        </Style>
+
+        <Style x:Key="SideSectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="Black"/>
+            <Setter Property="Foreground" Value="#22d3ee"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="SideSectionBorder" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#111"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="0,0,0,15"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+    </Window.Resources>
+
+    <Border CornerRadius="6" Background="#020617" BorderBrush="#1e293b" BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="30" Opacity="0.8" ShadowDepth="5" Color="#000000"/>
+        </Border.Effect>
+
+        <Grid>
+            <!-- Single Dashboard Layout -->
+
+            <!-- Dashboard Side -->
+            <Viewbox Stretch="Uniform" VerticalAlignment="Top" Margin="5">
+                <Grid>
+                    <!-- Signal Border Glow -->
+                    <Border x:Name="GlowBorder" BorderThickness="2" BorderBrush="Transparent" CornerRadius="6" IsHitTestVisible="False" Panel.ZIndex="100"/>
+
+                    <Grid Margin="8,4,8,6">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="28"/>  <!-- Row 0: Header -->
+                            <RowDefinition Height="32"/>  <!-- Row 1: Trade Ribbon -->
+                            <RowDefinition Height="28"/>  <!-- Row 2: Telemetry -->
+                            <RowDefinition Height="32"/>  <!-- Row 3: MODES Config -->
+                        </Grid.RowDefinitions>
+
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <!-- ROW 0: HEADER BAR -->
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <Grid Grid.Row="0" MouseDown="TitleBar_MouseDown" Background="Transparent">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- [1] Status LED -->
+                        <Border x:Name="HubStatusLed" Width="10" Height="10" CornerRadius="5" Background="#22c55e" Margin="0,0,4,0" ToolTip="IPC Status"/>
+                        <Border x:Name="TosStatusLed" Width="8" Height="8" CornerRadius="4" Background="Gray" Margin="0,0,8,0" ToolTip="TOS RTD Status"/>
+                        
+                        <!-- [2] Title -->
+                        <TextBlock Text="V12 PRO MASTER" Foreground="#22d3ee" FontSize="11" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                        
+                        <!-- [3] Instrument Dropdown (Visual) & Input (Logic) -->
+                        <!-- [3] Instrument Dropdown (Visual) & Input (Logic) -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,8,0">
+                            <!-- Dynamic Chips Container -->
+                            <StackPanel x:Name="DynamicSymbolPanel" Orientation="Horizontal"/>
+                            
+                            <!-- Input Box -->
+                            <TextBox x:Name="SymbolInput" Style="{StaticResource SmallInput}" Text="MES" Width="45" KeyDown="SymbolInput_KeyDown"/>
+                        </StackPanel>
+                        
+                        <!-- [4] OR LONG/SHORT Dropdown -->
+                        <ComboBox x:Name="DirectionCombo" Style="{StaticResource V12Combo}" Width="85" Margin="0,0,8,0">
+                            <ComboBoxItem Content="OR LONG" IsSelected="True"/>
+                            <ComboBoxItem Content="OR SHORT"/>
+                            <ComboBoxItem Content="RETEST"/>
+                            <ComboBoxItem Content="RMA"/>
+                            <ComboBoxItem Content="MOMO"/>
+                            <ComboBoxItem Content="FFMA LIMIT"/>
+                            <ComboBoxItem Content="TREND 9"/>
+                            <ComboBoxItem Content="TREND 15"/>
+                        </ComboBox>
+                        
+                        <!-- [5] Price Input -->
+                        <TextBox x:Name="PriceInput" Style="{StaticResource SmallInput}" Text="0.00" Width="60" Margin="0,0,8,0"/>
+                        
+                        <!-- [6] SUBMIT Button -->
+                        <Button Content="SUBMIT" Style="{StaticResource SubmitBtn}" Width="55" Height="22" Click="Submit_Click" Margin="0,0,20,0"/>
+                        
+                        <!-- [7] Account Dropdown -->
+                        <ComboBox x:Name="AccountCombo" Style="{StaticResource V12Combo}" Width="100" Margin="0,0,4,0">
+                            <ComboBoxItem Content="APEX_MASTER" IsSelected="True"/>
+                        </ComboBox>
+                        
+                        <!-- [8] Account Count / Fleet Expand -->
+                        <Button x:Name="FleetBtn" Background="Transparent" BorderThickness="0" Margin="0,0,10,0" Click="Fleet_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock x:Name="AccountCountTxt" Text="[20]" Foreground="#22d3ee" FontSize="10" VerticalAlignment="Center"/>
+                                <TextBlock Text=" 👥" Foreground="#22d3ee" FontSize="8" VerticalAlignment="Center" Margin="2,1,0,0"/>
+                            </StackPanel>
+                        </Button>
+
+                        <!-- [9] Ghost Checkbox -->
+                        <CheckBox x:Name="GhostModeCheck" VerticalAlignment="Center" Checked="GhostMode_Changed" Unchecked="GhostMode_Changed"/>
+                        <TextBlock Text="GHOST" Foreground="#737373" FontSize="9" VerticalAlignment="Center" Margin="3,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- FLEET MANAGER POPUP -->
+                    <Popup x:Name="FleetPopup" StaysOpen="False" PlacementTarget="{Binding ElementName=FleetBtn}" Placement="Bottom" PopupAnimation="Fade">
+                        <Border Background="#050505" BorderBrush="#262626" BorderThickness="1" Padding="12" CornerRadius="4">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="15" Opacity="0.5" ShadowDepth="2"/>
+                            </Border.Effect>
+                            <StackPanel Width="220">
+                                <TextBlock Text="SIMA FLEET MANAGER" Foreground="#22d3ee" FontSize="11" FontWeight="Bold" Margin="0,0,0,12" HorizontalAlignment="Center"/>
+                                <ItemsControl x:Name="FleetItemsList">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,4">
+                                                <CheckBox IsChecked="{Binding IsActive}" Click="AccountActive_Click" Tag="{Binding Name}" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}" Foreground="White" FontSize="10" Margin="8,0,0,0"/>
+                                                </CheckBox>
+                                                <TextBlock Text="{Binding PL, StringFormat='${0:F2}'}" Foreground="{Binding PLColor}" FontSize="9" HorizontalAlignment="Right" VerticalAlignment="Center" FontFamily="Consolas"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <Border Height="1" Background="#222" Margin="0,10,0,5"/>
+                                <TextBlock Text="Broadcast Active: ALL" Foreground="#555" FontSize="8" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Popup>
+                    
+                    <!-- [10] Window Controls (right side) -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <Button Content="─" Click="Minimize_Click" Style="{StaticResource V12Btn}" Width="24" Height="20" Padding="0" FontSize="12" Margin="0,0,4,0"/>
+                        <Button Content="✕" Click="Close_Click" Style="{StaticResource V12Btn}" Width="24" Height="20" Padding="0" FontSize="10"/>
+                    </StackPanel>
+                </Grid>
+
+                 <!-- Hidden Watchlist Panel for Code Compatibility -->
+                <StackPanel x:Name="WatchlistPanel" Orientation="Horizontal" Visibility="Collapsed"/>            
+
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <!-- ROW 1: TRADE RIBBON -->
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <Grid Grid.Row="1" Margin="0,2,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/> <!-- Buttons Group -->
+                        <ColumnDefinition Width="*"/>    <!-- Spacer -->
+                        <ColumnDefinition Width="Auto"/> <!-- Price Display -->
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- [12] OR L / SM Buttons (dashed) -->
+                        <Button Content="OR L" Style="{StaticResource OrDashedBtn}" Height="24" Padding="6,0" Click="OrLong_Click" Margin="0,0,2,0"/>
+                        <Button Content="SM" Style="{StaticResource OrDashedBtn}" Height="24" Padding="6,0" Click="OrShort_Click" Margin="0,0,10,0" Foreground="#f472b6"/>
+                        
+                        <!-- [13-17] Strategy Buttons -->
+                        <Button x:Name="BtnRetest" Content="RETEST" Style="{StaticResource V12Btn}" Height="22" Click="Retest_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnRetestRmaToggle" Content="RMA" Style="{StaticResource RmaBtn}" Height="22" Margin="0,0,1,0" Opacity="0.5" Click="RetestRmaToggle_Click"/> <!-- Retest RMA Toggle -->
+                        <Button x:Name="BtnRma" Content="RMA" Style="{StaticResource RmaBtn}" Height="22" Click="Rma_Click" Margin="0,0,1,0"/>
+                        
+                        <Button x:Name="BtnMomo" Content="MOMO" Style="{StaticResource MomoBtn}" Height="22" Click="Momo_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnFfma" Content="FFMA" Style="{StaticResource FfmaBtn}" Height="22" Click="Ffma_Click" Margin="0,0,1,0"/>
+                        <Button Content="MNL" Style="{StaticResource V12Btn}" Height="22" Margin="0,0,1,0"/>
+                        
+                        <Button x:Name="BtnTrend" Content="TREND" Style="{StaticResource V12Btn}" Height="22" Click="Trend_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnTrendRmaToggle" Content="RMA" Style="{StaticResource RmaBtn}" Height="22" Margin="0,0,10,0" Opacity="0.5" Click="TrendRmaToggle_Click"/> <!-- Trend RMA Toggle -->
+                        
+                        <!-- [18-22] Targets -->
+                        <!-- V12.2: Order Type Moved to Config Row -->
+                        
+                        <Button x:Name="BtnT1" Content="T1" Style="{StaticResource T1Btn}" Height="22" Click="T1_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnT2" Content="T2" Style="{StaticResource T2Btn}" Height="22" Click="T2_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnT3" Content="T3" Style="{StaticResource T3Btn}" Height="22" Click="T3_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnT4" Content="T4" Style="{StaticResource T4Btn}" Height="22" Click="CloseT4_Click" Margin="0,0,1,0"/>
+                        <Button x:Name="BtnT5" Content="T5" Style="{StaticResource T3Btn}" Height="22" Margin="0,0,6,0"/>
+                        
+                        <!-- [23-26] Scaling & Trailing -->
+                        <Button Content="25%" Style="{StaticResource T2Btn}" Height="22" Click="Trim25_Click" Margin="0,0,1,0"/>
+                        <Button Content="50%" Style="{StaticResource T3Btn}" Height="22" Click="Trim50_Click" Margin="0,0,1,0"/>
+                        <Button Content="BE" Style="{StaticResource CyanBtn}" Height="22" Click="BEPlus1_Click" Margin="0,0,1,0"/>
+                        <TextBox x:Name="TrailInput" Style="{StaticResource SmallInput}" Text="1.0" Width="35" Margin="0,0,2,0" ToolTip="Trail distance in points"/>
+                        <Button x:Name="BtnTrail" Content="TRAIL" Style="{StaticResource V12Btn}" Height="22" Click="Trail_Click" Margin="0,0,6,0"/>
+                        
+                        <!-- [28] CANCEL + FLATTEN -->
+                        <Button Content="CANCEL" Style="{StaticResource CancelBtn}" Height="24" Width="80" Click="Cancel_Click" Margin="0,0,2,0"/>
+                        <Button Content="FLATTEN" Style="{StaticResource FlattenBtn}" Height="24" Width="80" Click="Flatten_Click"/>
+                    </StackPanel>
+                    
+                    <!-- [29] Large Price Display (right aligned) -->
+                    <Border Grid.Column="2" Background="Transparent" VerticalAlignment="Center" Margin="0,0,0,0">
+                         <TextBlock x:Name="LastPriceTxt" Text="6961.25" Foreground="#4ade80" FontSize="28" FontWeight="Bold" FontFamily="Consolas, monospace" HorizontalAlignment="Right"/>
+                    </Border>
+                </Grid>
+
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <!-- ROW 2: TELEMETRY BAR -->
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <Grid Grid.Row="2" Margin="0,2,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/> <!-- Range Data + EMAs -->
+                        <ColumnDefinition Width="*"/>    <!-- Spacer -->
+                        <ColumnDefinition Width="Auto"/> <!-- Sync & Bullish -->
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- OR (5) Range -->
+                        <TextBlock Foreground="#ea580c" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" FontWeight="Bold">
+                            <Run Text="OR (5) H: "/><Run x:Name="OrHighTxt" Text="6981.75" Foreground="#ea580c"/>
+                            <Run Text=" | L: "/><Run x:Name="OrLowTxt" Text="6970.25" Foreground="#ea580c"/>
+                            <Run Text=" [R: "/><Run x:Name="OrRangeTxt" Text="11.50" Foreground="#737373"/><Run Text="]"/>
+                        </TextBlock>
+                        
+                        <Border Width="1" Background="#262626" Margin="10,4"/>
+                        
+                        <!-- OR (15) Range -->
+                        <TextBlock Foreground="#ea580c" FontSize="11" VerticalAlignment="Center" Margin="0,0,4,0" FontWeight="Bold">
+                            <Run Text="OR (15) H: "/><Run x:Name="Or15HighTxt" Text="6985.50" Foreground="#ea580c"/>
+                            <Run Text=" | L: "/><Run x:Name="Or15LowTxt" Text="6965.00" Foreground="#ea580c"/>
+                            <Run Text=" [R: 20.50]"/>
+                        </TextBlock>
+
+                        <Border Width="1" Background="#262626" Margin="20,4"/>
+                        
+                        <!-- EMA Stack -->
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="BtnEma9" Style="{StaticResource V12Btn}" Height="20" Click="Ema9_Click" Margin="0,0,4,0" Background="Transparent" BorderThickness="0">
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#d4d4d4"><Run Text="9: "/><Run x:Name="Ema9Txt" Text="6972" Foreground="#d4d4d4"/></TextBlock>
+                            </Button>
+                            <Button x:Name="BtnEma15" Style="{StaticResource V12Btn}" Height="20" Click="Ema15_Click" Margin="0,0,4,0" Background="Transparent" BorderThickness="0">
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#d4d4d4"><Run Text="15: "/><Run x:Name="Ema15Txt" Text="6975" Foreground="#d4d4d4"/></TextBlock>
+                            </Button>
+                            <Button x:Name="BtnEma30" Style="{StaticResource V12Btn}" Height="20" Click="Ema30_Click" Margin="0,0,4,0" Background="Transparent" BorderThickness="0">
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#4ade80"><Run Text="30: "/><Run x:Name="Ema30Txt" Text="6959" Foreground="#4ade80"/></TextBlock>
+                            </Button>
+                            <Button x:Name="BtnEma65" Style="{StaticResource V12Btn}" Height="20" Click="Ema65_Click" Margin="0,0,4,0" Background="Transparent" BorderThickness="0">
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#d4d4d4"><Run Text="65: "/><Run x:Name="Ema65Txt" Text="6945" Foreground="#d4d4d4"/></TextBlock>
+                            </Button>
+                            <Button x:Name="BtnEma200" Style="{StaticResource V12Btn}" Height="20" Click="Ema200_Click" Margin="0,0,6,0" Background="Transparent" BorderThickness="0">
+                                <TextBlock FontSize="12" FontWeight="Bold" Foreground="#6366f1"><Run Text="200: "/><Run x:Name="Ema200Txt" Text="6912" Foreground="#6366f1"/></TextBlock>
+                            </Button>
+                        </StackPanel>
+                        
+                        <TextBlock Text="[ATR: 12.5]" Foreground="#a1a1aa" FontSize="11" VerticalAlignment="Center" FontStyle="Italic"/>
+                        
+                         <!-- Hidden Flag Containers for Logic Compatibility -->
+                        <StackPanel Visibility="Collapsed">
+                             <Border x:Name="Flag5m"><TextBlock x:Name="Flag5mVal"/></Border>
+                             <Border x:Name="Flag15m"><TextBlock x:Name="Flag15mVal"/></Border>
+                             <Border x:Name="Flag1h"><TextBlock x:Name="Flag1hVal"/></Border>
+                        </StackPanel>
+                    </StackPanel>
+                    
+                    <!-- Right Check (Sync + Bullish) -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- [32] MKT SYNC Button -->
+                        <Button Content="MKT SYNC" Style="{StaticResource CyanBtn}" Height="24" Width="70" Margin="0,0,4,0" FontSize="10" FontWeight="Bold"/>
+
+                        <!-- [33] BULLISH/BEARISH Indicator -->
+                        <Border x:Name="Trend1hBorder" Style="{StaticResource BullishIndicator}" Height="24" Width="70">
+                            <TextBlock x:Name="Trend1hVal" Text="BULLISH" Foreground="#4ade80" FontSize="11" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <!-- ROW 3: MODES / CONFIG STATION -->
+                <!-- ═══════════════════════════════════════════════════════════════════ -->
+                <Grid Grid.Row="3" Margin="0,4,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/> <!-- Configs -->
+                        <ColumnDefinition Width="*"/>    <!-- Spacer -->
+                        <ColumnDefinition Width="Auto"/> <!-- Sync All -->
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- [23-24] Mode Selectors -->
+                        <Button x:Name="ModeOrb" Content="ORB" Style="{StaticResource CyanBtn}" Height="22" Width="40" Margin="0,0,2,0" Click="ConfigMode_Click"/>
+                        <Button x:Name="ModeRetest" Content="RETEST" Style="{StaticResource V12Btn}" Height="22" Margin="0,0,2,0" Click="ConfigMode_Click"/>
+                        <Button x:Name="ModeRma" Content="RMA" Style="{StaticResource RmaBtn}" Height="22" Width="40" Margin="0,0,2,0" Click="ConfigMode_Click"/>
+                        <Button x:Name="ModeMomo" Content="MOMO" Style="{StaticResource MomoBtn}" Height="22" Margin="0,0,2,0" Click="ConfigMode_Click"/>
+                        <Button x:Name="ModeFfma" Content="FFMA" Style="{StaticResource FfmaBtn}" Height="22" Margin="0,0,10,0" Click="ConfigMode_Click"/>
+                        
+                        <!-- TREND Target Count -->
+                        <Button x:Name="ModeTrend" Content="TREND" Style="{StaticResource V12Btn}" Height="22" Click="ConfigMode_Click" Margin="0,0,10,0"/>
+
+                        <!-- V12.2: Order Type Override (Moved Left) -->
+                        <ComboBox x:Name="ConfOrderType" Style="{StaticResource V12Combo}" Width="65" Margin="0,0,10,0" VerticalAlignment="Center">
+                            <ComboBoxItem Content="Limit" IsSelected="True"/>
+                            <ComboBoxItem Content="Market"/>
+                            <ComboBoxItem Content="StopMkt"/>
+                            <ComboBoxItem Content="StopLmt"/>
+                        </ComboBox>
+                        
+                        <Button x:Name="Cnt1" Content="1" Style="{StaticResource V12Btn}" Height="22" Width="22" Margin="0,0,2,0" Click="TargetCount_Click"/>
+                        <Button x:Name="Cnt2" Content="2" Style="{StaticResource V12Btn}" Height="22" Width="22" Margin="0,0,2,0" Click="TargetCount_Click"/>
+                        <Button x:Name="Cnt3" Content="3" Style="{StaticResource CyanBtn}" Height="22" Width="22" Margin="0,0,2,0" Click="TargetCount_Click"/>
+                        <Button x:Name="Cnt4" Content="4" Style="{StaticResource V12Btn}" Height="22" Width="22" Margin="0,0,2,0" Click="TargetCount_Click"/>
+                        <Button x:Name="Cnt5" Content="5" Style="{StaticResource V12Btn}" Height="22" Width="22" Margin="0,0,10,0" Click="TargetCount_Click"/>
+
+                        <!-- Separator -->
+                        <Border Width="1" Background="#262626" Margin="0,4,10,4"/>
+
+
+
+                        <!-- T1 Config -->
+                        <TextBlock x:Name="LblT1" Text="T1" Foreground="#525252" FontSize="9" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                        <TextBox x:Name="ConfT1Val" Style="{StaticResource SmallInput}" Text="1.0" Width="30" Margin="0,0,2,0"/>
+                        <ComboBox x:Name="ConfT1Type" Style="{StaticResource V12Combo}" Width="45" Margin="0,0,6,0">
+                            <ComboBoxItem Content="Ticks" IsSelected="True"/>
+                            <ComboBoxItem Content="ATR"/>
+                            <ComboBoxItem Content="Pts"/>
+                            <ComboBoxItem Content="Range"/>
+                        </ComboBox>
+
+                        <!-- T2 Config -->
+                        <TextBlock x:Name="LblT2" Text="T2" Foreground="#525252" FontSize="9" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                        <TextBox x:Name="ConfT2Val" Style="{StaticResource SmallInput}" Text="2.0" Width="30" Margin="0,0,2,0"/>
+                        <ComboBox x:Name="ConfT2Type" Style="{StaticResource V12Combo}" Width="45" Margin="0,0,6,0">
+                            <ComboBoxItem Content="Ticks" IsSelected="True"/>
+                            <ComboBoxItem Content="ATR"/>
+                            <ComboBoxItem Content="Pts"/>
+                            <ComboBoxItem Content="Range"/>
+                        </ComboBox>
+
+                        <!-- T3 Config -->
+                        <TextBlock x:Name="LblT3" Text="T3" Foreground="#525252" FontSize="9" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                        <TextBox x:Name="ConfT3Val" Style="{StaticResource SmallInput}" Text="3.0" Width="30" Margin="0,0,2,0"/>
+                        <ComboBox x:Name="ConfT3Type" Style="{StaticResource V12Combo}" Width="45" Margin="0,0,6,0">
+                            <ComboBoxItem Content="Ticks" IsSelected="True"/>
+                            <ComboBoxItem Content="ATR"/>
+                            <ComboBoxItem Content="Pts"/>
+                            <ComboBoxItem Content="Range"/>
+                        </ComboBox>
+
+                        <!-- T4 Config -->
+                        <TextBlock x:Name="LblT4" Text="T4" Foreground="#525252" FontSize="9" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                        <TextBox x:Name="ConfT4Val" Style="{StaticResource SmallInput}" Text="4.0" Width="30" Margin="0,0,2,0"/>
+                        <ComboBox x:Name="ConfT4Type" Style="{StaticResource V12Combo}" Width="45" Margin="0,0,6,0">
+                            <ComboBoxItem Content="Ticks" IsSelected="True"/>
+                            <ComboBoxItem Content="ATR"/>
+                            <ComboBoxItem Content="Pts"/>
+                            <ComboBoxItem Content="Range"/>
+                        </ComboBox>
+
+                        <!-- T5 Config -->
+                        <TextBlock x:Name="LblT5" Text="T5" Foreground="#525252" FontSize="9" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                        <TextBox x:Name="ConfT5Val" Style="{StaticResource SmallInput}" Text="5.0" Width="30" Margin="0,0,2,0"/>
+                        <ComboBox x:Name="ConfT5Type" Style="{StaticResource V12Combo}" Width="45" Margin="0,0,10,0">
+                            <ComboBoxItem Content="Ticks" IsSelected="True"/>
+                            <ComboBoxItem Content="ATR"/>
+                            <ComboBoxItem Content="Pts"/>
+                            <ComboBoxItem Content="Range"/>
+                        </ComboBox>
+                        
+                        <Border Width="1" Background="#262626" Margin="0,4,10,4"/>
+                        
+                        <!-- V12.2: Chase If Touch (CIT) -->
+                        <TextBlock Text="CIT:" Foreground="#a855f7" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBox x:Name="ConfCitVal" Style="{StaticResource SmallInput}" Text="1" Width="20" Margin="0,0,2,0" Foreground="#a855f7"/>
+                        <CheckBox x:Name="ConfCitActive" VerticalAlignment="Center" Margin="0,0,8,0">
+                            <CheckBox.LayoutTransform>
+                                <ScaleTransform ScaleX="0.8" ScaleY="0.8"/>
+                            </CheckBox.LayoutTransform>
+                        </CheckBox>
+                        
+                        <Border Width="1" Background="#262626" Margin="0,4,10,4"/>
+
+                        <!-- Risk Configuration -->
+                        <TextBlock Text="STR:" Foreground="#ea580c" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBox x:Name="ConfStrVal" Style="{StaticResource SmallInput}" Text="10" Width="30" Margin="0,0,2,0" Foreground="#ea580c"/>
+                        <ComboBox x:Name="ConfStrType" Style="{StaticResource V12Combo}" Width="45" Margin="0,0,8,0">
+                            <ComboBoxItem Content="Ticks" IsSelected="True"/>
+                            <ComboBoxItem Content="ATR"/>
+                            <ComboBoxItem Content="Pts"/>
+                            <ComboBoxItem Content="$"/>
+                        </ComboBox>
+                        
+                        <TextBlock Text="MAX:" Foreground="#ea580c" FontSize="10" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBox x:Name="ConfMaxVal" Style="{StaticResource SmallInput}" Text="$1200" Width="45" Foreground="#ea580c"/>
+                    </StackPanel>
+
+                    <!-- [40] SYNC ALL Button -->
+                    <Button Grid.Column="2" Content="SYNC ALL" Style="{StaticResource CyanBtn}" Height="24" Width="70" FontSize="10" FontWeight="Bold" Click="SyncAll_Click"/>
+
+                </Grid>
+                    </Grid>
+                </Grid>
+            </Viewbox>
+        </Grid>
+    </Border>
+</Window>

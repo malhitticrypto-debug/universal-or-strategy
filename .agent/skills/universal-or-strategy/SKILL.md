@@ -306,6 +306,31 @@ WSGTA Rules:
 - [ ] ATR-based position sizing
 - [ ] 50/50 profit targets
 - [ ] Stop loss always set immediately
+
+Locality Integrity:
+- [ ] Verify symlink is active (`dir` on NT folder)
+- [ ] Verify version string match (Source vs NT Log)
+- [ ] Verify Branch & Commit (`git status`, `git log -1`)
+- [ ] Verify physical bits present in NT folder (`grep` or `Select-String`)
+
+Multi-Agent Coordination:
+- [ ] **Specialist A (Logic)**: Focuses on SIMA, Flatten, and Risk logic.
+- [ ] **Specialist B (Cleanup)**: Focuses on Branding, Telemetry, and Log formatting.
+- [ ] **Project Director**: Oversees version sync, branch integrity, and cross-agent validation.
+
+Conflict-Free Coordination (REGRESSION PREVENTION):
+- [ ] **Sync-Before-Delegate**: The Director MUST `git push` any local repairs BEFORE starting a subagent session.
+- [ ] **No-Reset Policy**: NEVER use `git reset --hard` once properties like `ChaseIfTouchPoints` are added unless the commit being reset *to* already contains those properties.
+- [ ] **Full-Sweep View**: Agents MUST `grep` for variable definitions BEFORE adding new ones to avoid CS0102 (duplicates).
+- [ ] **Atomic Branching**: Subagents MUST work on Short-Lived feature branches; Director merges only after verifying compilation.
+- [ ] **Path Master Rule**: Every prompt for a subagent MUST explicitly name the target file path and state: "This is the One Source of Truth. Do not create new files."
+
+Cross-Environment Sync (Switch-Hit Protocol):
+- [ ] **Local Mode (Primary)**: AI lives on your PC. Edits flow to NT instantly.
+- [ ] **Cloud Mode (Secondary)**: AI lives on GitHub. Best for sandbox research or credit-limit fallback.
+- [ ] **Migration Rule**: IF switching from Local to Cloud (or vice versa), you MUST `git push/pull` respectively.
+- [ ] **Locality Rule**: IF returning to Desktop development, ALWAYS run `setup-symlinks.ps1` to re-verify Hard Links.
+- [ ] **ID Switching**: If switching Claude accounts/IDs, the NEW agent MUST run `git status` + `git log -1` to confirm they are picking up exactly where the last agent left off.
 ```
 
 ---

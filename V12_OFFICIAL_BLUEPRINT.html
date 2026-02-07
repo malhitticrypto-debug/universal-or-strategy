@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>V12 OFFICIAL TRINITY BLUEPRINT - VER 13.7</title>
+    <style>
+        :root {
+            --bg-color: #020617;
+            --ribbon-bg: #000000;
+            --border-color: #1a1a1a;
+            --btn-bg: #111;
+            --btn-border: #262626;
+            --text-primary: #ffffff;
+            --gold: #ffcc00;
+            --green: #00ff00;
+            --orange: #ff6600;
+            --cyan: #00ffff;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            font-family: 'Consolas', monospace;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 80px;
+            align-items: center;
+        }
+
+        .trinity-row {
+            width: 100%;
+            max-width: 1300px;
+            border: 1px solid #1a1a1a;
+            padding: 25px;
+            box-shadow: 0 10px 50px rgba(0, 0, 0, 1);
+            border-radius: 4px;
+            position: relative;
+        }
+
+        .row-label {
+            position: absolute;
+            top: -14px;
+            left: 25px;
+            background: #1e3a8a;
+            color: #fff;
+            padding: 3px 15px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            border-radius: 2px;
+        }
+
+        .content-placeholder {
+            background: #050505;
+            border: 1px solid #222;
+            padding: 60px;
+            text-align: center;
+            color: var(--cyan);
+            font-weight: bold;
+            letter-spacing: 4px;
+            border-radius: 2px;
+        }
+
+        .id-badge {
+            background: #333;
+            color: #fff;
+            font-size: 9px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-weight: normal;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1
+        style="color:var(--cyan); border-bottom: 2px solid #333; padding-bottom: 15px; width: 100%; max-width: 1300px; text-align: center; letter-spacing: 5px;">
+        V12 OFFICIAL TRINITY BLUEPRINT (VER 13.7)</h1>
+
+    <div
+        style="width: 100%; max-width: 1300px; padding: 20px; background: #0a0a0a; border: 1px solid var(--orange); margin-bottom: 20px;">
+        <h3 style="color:var(--orange); margin-top:0;">UNIVERSAL MASTER REGISTRY (1-32) - VER 13.7</h3>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; font-size: 11px; color:#ccc;">
+            <div><span class="id-badge">1</span> Status Indicator</div>
+            <div><span class="id-badge">2</span> Title "V12 PRO MASTER"</div>
+            <div><span class="id-badge">3</span> Instrument Select</div>
+            <div><span class="id-badge">4</span> Execution Side (Dropdown restored)</div>
+            <div><span class="id-badge">5-6</span> Execution (Price, Submit)</div>
+            <div><span class="id-badge">7-8</span> Master & Fleet Accounts</div>
+            <div><span class="id-badge">9</span> Ghost Checkbox</div>
+            <div><span class="id-badge">10</span> Global Close [— X]</div>
+            <div><span class="id-badge">11-12</span> OR Long / OR Short</div>
+            <div><span class="id-badge">13</span> RETEST Button + RMA Toggle</div>
+            <div><span class="id-badge">14</span> RMA Dropdown (Dropdown restored)</div>
+            <div><span class="id-badge">15-16</span> MOMO / FFMA</div>
+            <div><span class="id-badge">17</span> TREND Button + RMA Toggle</div>
+            <div><span class="id-badge">18</span> MKT SYNC (Telemetry Row)</div>
+            <div><span class="id-badge">19-22</span> T1-RUN Chips (Dropdowns restored)</div>
+            <div><span class="id-badge">23-24</span> Scaling (25/50) & FLATTEN</div>
+            <div><span class="id-badge">25</span> Live P/L (Right of 24)</div>
+            <div><span class="id-badge">26</span> OR Ranges (5 & 15 Min)</div>
+            <div><span class="id-badge">27</span> EMA Stack (9/15/30/65/200)</div>
+            <div><span class="id-badge">28</span> Trade Type (Config Zone)</div>
+            <div><span class="id-badge">29</span> Targets (1-6) Selector</div>
+            <div><span class="id-badge">30</span> Levels (Boxes + Dropdowns)</div>
+            <div><span class="id-badge">31</span> Risk Input Box</div>
+            <div><span class="id-badge">32</span> Global Risk Sync All</div>
+        </div>
+    </div>
+
+    <!-- ROW 1 -->
+    <div class="trinity-row">
+        <div class="row-label">[1] INTERACTIVE MASTER DASHBOARD</div>
+        <div class="content-placeholder" style="color:var(--orange)">VER 13.7: GLOBAL DROPDOWN PARITY (#4, #14, #19-22,
+            #30)</div>
+    </div>
+
+    <!-- ROW 2 -->
+    <div class="trinity-row">
+        <div class="row-label">[2] CHART HUD OVERLAY</div>
+        <div class="content-placeholder" style="color:#fff">HUD PARITY (ELEMENTS 1-32)</div>
+    </div>
+
+    <!-- ROW 3 -->
+    <div class="trinity-row">
+        <div class="row-label">[3] INTEGRATED SIDE PANEL</div>
+        <div class="content-placeholder" style="color:var(--cyan)">SIDEBAR PARITY (ELEMENTS 1-32)</div>
+    </div>
+
+    <div style="width: 100%; max-width: 1300px; color: #666; font-size: 11px; text-align: center; margin-top: 20px;">
+        * SOURCE OF TRUTH: V12_Dashboard_Mockup.html *<br>
+        * MANDATE: ALL DESIGNATED SELECTORS MUST RENDER AS FUNCTIONAL DROPDOWNS *
+    </div>
+</body>
+
+</html>

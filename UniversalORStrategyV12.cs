@@ -1,4 +1,4 @@
-// V12.9 REPAIRED - Single-Instance Multi-Account Copy Trading Engine
+// V12.11 FLEET SYMMETRY & SAFETY HARDENING - Single-Instance Multi-Account Copy Trading Engine
 // Based on UniversalORStrategyV10_3.cs (BUILD 1702)
 // SIMA Architecture: One strategy instance on Master account broadcasts to all Apex accounts
 //
@@ -60,7 +60,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double tickSize;
         private double pointValue;
         private int minContracts;
-        private int maxContracts;
 
         // ATR Indicator for RMA
         private ATR atrIndicator;
@@ -88,8 +87,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private RSI rsiIndicator;
 
         // V12.2: ATR Sizing & Risk Management
-        private bool EnableAtrSizing = true;
-        private double MaxRiskAmount = 1200.0;
+        private double MaxRiskAmount = 200.0;
         private ConcurrentDictionary<string, bool> activeFleetAccounts = new ConcurrentDictionary<string, bool>();
 
         // Position tracking - multi-target system
@@ -536,121 +534,73 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         #region Properties - Risk Management
 
-        [NinjaScriptProperty]
-        [Display(Name = "Risk Per Trade ($)", Description = "Maximum dollar risk per trade (when stop ≤ threshold)", Order = 1, GroupName = "2. Risk Management")]
         public double RiskPerTrade { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Reduced Risk ($)", Description = "Reduced risk when stop > threshold", Order = 2, GroupName = "2. Risk Management")]
+        [Browsable(false)]
         public double ReducedRiskPerTrade { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Stop Threshold (Points)", Description = "Stop distance above which reduced risk is used", Order = 3, GroupName = "2. Risk Management")]
+        [Browsable(false)]
         public double StopThresholdPoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "MES Min Contracts", Order = 4, GroupName = "2. Risk Management")]
         public int MESMinimum { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "MES Max Contracts", Order = 5, GroupName = "2. Risk Management")]
+        [Browsable(false)]
         public int MESMaximum { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "MGC Min Contracts", Order = 6, GroupName = "2. Risk Management")]
         public int MGCMinimum { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "MGC Max Contracts", Order = 7, GroupName = "2. Risk Management")]
+        [Browsable(false)]
         public int MGCMaximum { get; set; }
 
         #endregion
 
         #region Properties - Stop Loss
 
-        [NinjaScriptProperty]
-        [Display(Name = "Stop Multiplier", Description = "Multiplier of OR Range for stop (0.5 = half OR)", Order = 1, GroupName = "3. Stop Loss")]
         public double StopMultiplier { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Min Stop (Points)", Order = 2, GroupName = "3. Stop Loss")]
         public double MinimumStop { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Max Stop (Points)", Order = 3, GroupName = "3. Stop Loss")]
         public double MaximumStop { get; set; }
 
         #endregion
 
         #region Properties - Profit Targets
 
-        [NinjaScriptProperty]
-        [Display(Name = "T1 Fixed Points", Description = "v5.13: Fixed point profit for T1 (quick scalp, not ATR-based)", Order = 1, GroupName = "4. Profit Targets")]
         [Range(0.25, 5.0)]
         public double Target1FixedPoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "T2 ATR Multiplier", Description = "Multiplier of ATR for T2 (0.5 = half ATR)", Order = 2, GroupName = "4. Profit Targets")]
         public double Target2Multiplier { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "T3 ATR Multiplier", Description = "Multiplier of ATR for T3 (1.0 = 1x ATR)", Order = 3, GroupName = "4. Profit Targets")]
         public double Target3Multiplier { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "T1 Contract %", Description = "v5.13: 20% for quick scalp", Order = 4, GroupName = "4. Profit Targets")]
         public int T1ContractPercent { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "T2 Contract %", Description = "v5.13: 30%", Order = 5, GroupName = "4. Profit Targets")]
         public int T2ContractPercent { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "T3 Contract %", Description = "v5.13: 30%", Order = 6, GroupName = "4. Profit Targets")]
         public int T3ContractPercent { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "T4 Contract % (Runner)", Description = "v5.13: 20% for runner/trail", Order = 7, GroupName = "4. Profit Targets")]
         public int T4ContractPercent { get; set; }
 
         #endregion
 
         #region Properties - Trailing Stops
 
-        [NinjaScriptProperty]
-        [Display(Name = "BE Trigger (Points)", Order = 1, GroupName = "5. Trailing Stops")]
         public double BreakEvenTriggerPoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "BE Offset (Ticks)", Order = 2, GroupName = "5. Trailing Stops")]
         public int BreakEvenOffsetTicks { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Trail 1 Trigger (Points)", Order = 3, GroupName = "5. Trailing Stops")]
         public double Trail1TriggerPoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Trail 1 Distance (Points)", Order = 4, GroupName = "5. Trailing Stops")]
         public double Trail1DistancePoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Trail 2 Trigger (Points)", Order = 5, GroupName = "5. Trailing Stops")]
         public double Trail2TriggerPoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Trail 2 Distance (Points)", Order = 6, GroupName = "5. Trailing Stops")]
         public double Trail2DistancePoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Trail 3 Trigger (Points)", Order = 7, GroupName = "5. Trailing Stops")]
         public double Trail3TriggerPoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Trail 3 Distance (Points)", Order = 8, GroupName = "5. Trailing Stops")]
         public double Trail3DistancePoints { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "Manual BE Buffer (Ticks)", Description = "Buffer in ticks above breakeven for manual breakeven button", Order = 9, GroupName = "5. Trailing Stops")]
         [Range(1, 10)]
         public int ManualBreakevenBuffer { get; set; }
 
@@ -675,23 +625,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "RMA Enabled", Description = "Enable RMA (Shift+Click) entry mode", Order = 1, GroupName = "7. RMA Settings")]
         public bool RMAEnabled { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "RMA ATR Period", Description = "ATR period for RMA calculations (default 14)", Order = 2, GroupName = "7. RMA Settings")]
         [Range(1, 100)]
         public int RMAATRPeriod { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "RMA Stop ATR Multiplier", Description = "Multiplier of ATR for RMA stop (default 1.0)", Order = 3, GroupName = "7. RMA Settings")]
         [Range(0.1, 5.0)]
         public double RMAStopATRMultiplier { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "RMA T1 ATR Multiplier", Description = "Multiplier of ATR for RMA Target 1 (default 0.5)", Order = 4, GroupName = "7. RMA Settings")]
         [Range(0.1, 5.0)]
         public double RMAT1ATRMultiplier { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "RMA T2 ATR Multiplier", Description = "Multiplier of ATR for RMA Target 2 (default 1.0)", Order = 5, GroupName = "7. RMA Settings")]
         [Range(0.1, 5.0)]
         public double RMAT2ATRMultiplier { get; set; }
 
@@ -705,13 +647,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "TREND Enabled", Description = "Enable TREND (9/15 EMA) entry mode", Order = 1, GroupName = "9. TREND Settings")]
         public bool TRENDEnabled { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "TREND E1 ATR Mult", Description = "V8.31: ATR multiplier for 9 EMA stop (from live EMA9)", Order = 2, GroupName = "9. TREND Settings")]
         [Range(0.5, 3.0)]
         public double TRENDEntry1ATRMultiplier { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "TREND E2 ATR Mult", Description = "ATR multiplier for 15 EMA trailing stop", Order = 3, GroupName = "9. TREND Settings")]
         [Range(0.5, 3.0)]
         public double TRENDEntry2ATRMultiplier { get; set; }
 
@@ -723,8 +661,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "RETEST Enabled", Description = "Enable RETEST entry mode (limit at OR High/Low)", Order = 1, GroupName = "10. RETEST Settings")]
         public bool RetestEnabled { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "RETEST ATR Mult", Description = "ATR multiplier for stop and 9 EMA trail", Order = 2, GroupName = "10. RETEST Settings")]
         [Range(0.5, 3.0)]
         public double RetestATRMultiplier { get; set; }
 
@@ -736,8 +672,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "MOMO Enabled", Description = "Enable MOMO (click-to-stop) entry mode", Order = 1, GroupName = "11. MOMO Settings")]
         public bool MOMOEnabled { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "MOMO Stop (Points)", Description = "Fixed stop distance for MOMO trades (default 0.5)", Order = 2, GroupName = "11. MOMO Settings")]
         [Range(0.25, 5.0)]
         public double MOMOStopPoints { get; set; }
 
@@ -749,18 +683,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "FFMA Enabled", Description = "Enable FFMA (mean reversion) entry mode", Order = 1, GroupName = "12. FFMA Settings")]
         public bool FFMAEnabled { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "FFMA EMA Distance", Description = "Points away from 9 EMA to trigger", Order = 2, GroupName = "12. FFMA Settings")]
         [Range(1.0, 50.0)]
         public double FFMAEMADistance { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "FFMA RSI Overbought", Description = "RSI level for short setup (default 80)", Order = 3, GroupName = "12. FFMA Settings")]
         [Range(50, 100)]
         public int FFMARSIOverbought { get; set; }
 
-        [NinjaScriptProperty]
-        [Display(Name = "FFMA RSI Oversold", Description = "RSI level for long setup (default 20)", Order = 4, GroupName = "12. FFMA Settings")]
         [Range(0, 50)]
         public int FFMARSIOversold { get; set; }
 
@@ -998,20 +926,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 string symbol = Instrument.MasterInstrument.Name;
                 if (symbol.Contains("MES") || symbol.Contains("ES"))
-                {
                     minContracts = MESMinimum;
-                    maxContracts = MESMaximum;
-                }
                 else if (symbol.Contains("MGC") || symbol.Contains("GC"))
-                {
                     minContracts = MGCMinimum;
-                    maxContracts = MGCMaximum;
-                }
                 else
-                {
-                    minContracts = 3;
-                    maxContracts = 15;
-                }
+                    minContracts = 1;
 
                 // Initialize ATR indicator on 5-min bars (BarsArray[1])
                 atrIndicator = ATR(BarsArray[1], RMAATRPeriod);
@@ -1033,7 +952,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 ResetOR();
 
-                Print(string.Format("UniversalORStrategy V12.9 REPAIRED | {0} | Tick: {1} | PV: ${2}", symbol, tickSize, pointValue));
+                Print(string.Format("UniversalORStrategy V12.11 | {0} | Tick: {1} | PV: ${2}", symbol, tickSize, pointValue));
                 Print(string.Format("Session: {0} - {1} {2} | OR: {3} min",
                     SessionStart.ToString("HH:mm"), SessionEnd.ToString("HH:mm"), SelectedTimeZone, (int)ORTimeframe));
                 Print(string.Format("OR Targets: T1={0}pt T2={1}xOR T3={2}xOR | Stop={3}xOR", Target1FixedPoints, Target2Multiplier, Target3Multiplier, StopMultiplier));
@@ -1789,13 +1708,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // v5.13: 4-target system with 20/30/30/20 split
                 int t1Qty, t2Qty, t3Qty, t4Qty;
                 GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty);
-                t4Qty = contracts - t1Qty - t2Qty - t3Qty;  // Remainder to runner
-
-                // Ensure at least 1 contract per target
-                if (t1Qty < 1) { t1Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                if (t2Qty < 1) { t2Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                if (t3Qty < 1) { t3Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                if (t4Qty < 1) t4Qty = 1;
 
                 Print(string.Format("POSITION SIZE: {0} contracts → T1:{1}(20%) T2:{2}(30%) T3:{3}(30%) T4:{4}(20%)", 
                     contracts, t1Qty, t2Qty, t3Qty, t4Qty));
@@ -2029,44 +1941,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice + (currentATR * RMAT2ATRMultiplier)
                     : entryPrice - (currentATR * RMAT2ATRMultiplier);
 
-                // Calculate position size based on ATR stop
-                double riskToUse = (stopDistance > StopThresholdPoints) ? ReducedRiskPerTrade : RiskPerTrade;
-                double stopDistanceInDollars = stopDistance * pointValue;
-                int contracts = (int)Math.Floor(riskToUse / stopDistanceInDollars);
-
-                contracts = Math.Max(minContracts, Math.Min(contracts, maxContracts));
-
-                // v5.13: 4-target system with 20/30/30/20 split
+                int contracts = CalculatePositionSize(stopDistance);
                 int t1Qty, t2Qty, t3Qty, t4Qty;
-
-                if (contracts == 1)
-                {
-                    t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 0;
-                }
-                else if (contracts == 2)
-                {
-                    t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 1;
-                }
-                else if (contracts == 3)
-                {
-                    t1Qty = 1; t2Qty = 1; t3Qty = 0; t4Qty = 1;
-                }
-                else if (contracts == 4)
-                {
-                    t1Qty = 1; t2Qty = 1; t3Qty = 1; t4Qty = 1;
-                }
-                else
-                {
-                    t1Qty = (int)Math.Floor(contracts * T1ContractPercent / 100.0);
-                    t2Qty = (int)Math.Floor(contracts * T2ContractPercent / 100.0);
-                    t3Qty = (int)Math.Floor(contracts * T3ContractPercent / 100.0);
-                    t4Qty = contracts - t1Qty - t2Qty - t3Qty;
-
-                    if (t1Qty < 1) { t1Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t2Qty < 1) { t2Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t3Qty < 1) { t3Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t4Qty < 1) t4Qty = 1;
-                }
+                GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty);
 
                 string signalName = direction == MarketPosition.Long ? "RMALong" : "RMAShort";
                 string timestamp = DateTime.Now.ToString("HHmmss");
@@ -2172,16 +2049,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice + (currentATR * RMAT2ATRMultiplier)
                     : entryPrice - (currentATR * RMAT2ATRMultiplier);
 
-                double riskToUse = (stopDistance > StopThresholdPoints) ? ReducedRiskPerTrade : RiskPerTrade;
-                double stopDistanceInDollars = stopDistance * pointValue;
-                int contracts = (int)Math.Floor(riskToUse / stopDistanceInDollars);
-                contracts = Math.Max(minContracts, Math.Min(contracts, maxContracts));
-
-                // Basic split logic for IPC entries
-                int t1Qty = Math.Max(1, (int)Math.Floor(contracts * T1ContractPercent / 100.0));
-                int t2Qty = Math.Max(1, (int)Math.Floor(contracts * T2ContractPercent / 100.0));
-                int t3Qty = Math.Max(1, (int)Math.Floor(contracts * T3ContractPercent / 100.0));
-                int t4Qty = Math.Max(1, contracts - t1Qty - t2Qty - t3Qty);
+                int contracts = CalculatePositionSize(stopDistance);
+                int t1Qty, t2Qty, t3Qty, t4Qty;
+                GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty);
 
                 string signalName = direction == MarketPosition.Long ? "IPCLong" : "IPCShort";
                 string entryName = signalName + "_" + DateTime.Now.ToString("HHmmss");
@@ -2310,44 +2180,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice + (currentATR * RMAT2ATRMultiplier)
                     : entryPrice - (currentATR * RMAT2ATRMultiplier);
 
-                // Calculate position size based on MOMO stop (0.5pt, typically more contracts)
-                double riskToUse = (stopDistance > StopThresholdPoints) ? ReducedRiskPerTrade : RiskPerTrade;
-                double stopDistanceInDollars = stopDistance * pointValue;
-                int contracts = (int)Math.Floor(riskToUse / stopDistanceInDollars);
-
-                contracts = Math.Max(minContracts, Math.Min(contracts, maxContracts));
-
-                // 4-target system with 20/30/30/20 split (same as RMA)
+                int contracts = CalculatePositionSize(stopDistance);
                 int t1Qty, t2Qty, t3Qty, t4Qty;
-
-                if (contracts == 1)
-                {
-                    t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 0;
-                }
-                else if (contracts == 2)
-                {
-                    t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 1;
-                }
-                else if (contracts == 3)
-                {
-                    t1Qty = 1; t2Qty = 1; t3Qty = 0; t4Qty = 1;
-                }
-                else if (contracts == 4)
-                {
-                    t1Qty = 1; t2Qty = 1; t3Qty = 1; t4Qty = 1;
-                }
-                else
-                {
-                    t1Qty = (int)Math.Floor(contracts * T1ContractPercent / 100.0);
-                    t2Qty = (int)Math.Floor(contracts * T2ContractPercent / 100.0);
-                    t3Qty = (int)Math.Floor(contracts * T3ContractPercent / 100.0);
-                    t4Qty = contracts - t1Qty - t2Qty - t3Qty;
-
-                    if (t1Qty < 1) { t1Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t2Qty < 1) { t2Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t3Qty < 1) { t3Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t4Qty < 1) t4Qty = 1;
-                }
+                GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty);
 
                 string signalName = direction == MarketPosition.Long ? "MOMOLong" : "MOMOShort";
                 string timestamp = DateTime.Now.ToString("HHmmss");
@@ -2578,11 +2413,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Weighted average stop distance for the group
                 double weightedStopDist = (e1StopDist * (1.0/3.0)) + (e2StopDist * (2.0/3.0));
                 
-                double rToUse = (weightedStopDist > StopThresholdPoints) ? ReducedRiskPerTrade : RiskPerTrade;
-                double weightedStopInDollars = weightedStopDist * pointValue;
-                
-                int totalContracts = (int)Math.Floor(rToUse / weightedStopInDollars);
-                totalContracts = Math.Max(minContracts, Math.Min(totalContracts, maxContracts));
+                int totalContracts = CalculatePositionSize(weightedStopDist);
 
                 // Split: 1/3 at 9 EMA, 2/3 at 15 EMA
                 int entry1Qty = (int)Math.Ceiling(totalContracts / 3.0);
@@ -2594,9 +2425,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Final validation: totalContracts = sum of entries
                 totalContracts = entry1Qty + entry2Qty;
 
-                // V8.14 DEBUG: Risk Calculation
-                Print(string.Format("TREND RISK: Risk=${0} | E1Stop={1:F2} | E2Stop={2:F2} | WeightedDist={3:F2} | TotalQty={4}", 
-                    rToUse, e1StopDist, e2StopDist, weightedStopDist, totalContracts));
+                Print(string.Format("TREND RISK: Risk=${0} | E1Stop={1:F2} | E2Stop={2:F2} | WeightedDist={3:F2} | TotalQty={4}",
+                    MaxRiskAmount, e1StopDist, e2StopDist, weightedStopDist, totalContracts));
                 Print(string.Format("TREND SPLIT: E1Qty={0} (1/3) | E2Qty={1} (2/3)", entry1Qty, entry2Qty));
 
                 string timestamp = DateTime.Now.ToString("HHmmss");
@@ -2817,44 +2647,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice + (currentATR * RMAT2ATRMultiplier)
                     : entryPrice - (currentATR * RMAT2ATRMultiplier);
 
-                // Calculate position size based on ATR stop
-                double riskToUse = (stopDistance > StopThresholdPoints) ? ReducedRiskPerTrade : RiskPerTrade;
-                double stopDistanceInDollars = stopDistance * pointValue;
-                int contracts = (int)Math.Floor(riskToUse / stopDistanceInDollars);
-
-                contracts = Math.Max(minContracts, Math.Min(contracts, maxContracts));
-
-                // 4-target system with 20/30/30/20 split
+                int contracts = CalculatePositionSize(stopDistance);
                 int t1Qty, t2Qty, t3Qty, t4Qty;
-
-                if (contracts == 1)
-                {
-                    t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 0;
-                }
-                else if (contracts == 2)
-                {
-                    t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 1;
-                }
-                else if (contracts == 3)
-                {
-                    t1Qty = 1; t2Qty = 1; t3Qty = 0; t4Qty = 1;
-                }
-                else if (contracts == 4)
-                {
-                    t1Qty = 1; t2Qty = 1; t3Qty = 1; t4Qty = 1;
-                }
-                else
-                {
-                    t1Qty = (int)Math.Floor(contracts * T1ContractPercent / 100.0);
-                    t2Qty = (int)Math.Floor(contracts * T2ContractPercent / 100.0);
-                    t3Qty = (int)Math.Floor(contracts * T3ContractPercent / 100.0);
-                    t4Qty = contracts - t1Qty - t2Qty - t3Qty;
-
-                    if (t1Qty < 1) { t1Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t2Qty < 1) { t2Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t3Qty < 1) { t3Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
-                    if (t4Qty < 1) t4Qty = 1;
-                }
+                GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty);
 
                 string signalName = direction == MarketPosition.Long ? "RetestLong" : "RetestShort";
                 string timestamp = DateTime.Now.ToString("HHmmss");
@@ -4028,6 +3823,70 @@ namespace NinjaTrader.NinjaScript.Strategies
                     UpdateStopOrder(entryName, pos, newStopPrice, newTrailLevel);
                 }
             }
+
+            // V12.10: FLEET SYMMETRY SYNC PASS
+            // When SIMA is enabled, force followers to match the Leader's trail level.
+            // Followers calculate stops relative to their OWN entry prices but are triggered
+            // by the Leader's profit progress. This prevents slippage-induced desync.
+            if (EnableSIMA)
+            {
+                // Phase 1: Find the highest trail level among leader positions, by direction
+                int leaderLongMaxLevel = 0;
+                int leaderShortMaxLevel = 0;
+
+                foreach (var kvp in positionSnapshot)
+                {
+                    PositionInfo ldr = kvp.Value;
+                    if (ldr.IsFollower || !ldr.EntryFilled || !ldr.BracketSubmitted) continue;
+
+                    if (ldr.Direction == MarketPosition.Long)
+                        leaderLongMaxLevel = Math.Max(leaderLongMaxLevel, ldr.CurrentTrailLevel);
+                    else if (ldr.Direction == MarketPosition.Short)
+                        leaderShortMaxLevel = Math.Max(leaderShortMaxLevel, ldr.CurrentTrailLevel);
+                }
+
+                // V12.11: Diagnostic — log leader trail levels for fleet sync visibility
+                if (leaderLongMaxLevel > 0 || leaderShortMaxLevel > 0)
+                    Print($"[SIMA] Fleet Sync: Leader trail levels — Long={leaderLongMaxLevel}, Short={leaderShortMaxLevel}");
+
+                // Phase 2: Sync lagging followers UP to the leader's level
+                if (leaderLongMaxLevel > 0 || leaderShortMaxLevel > 0)
+                {
+                    foreach (var kvp in positionSnapshot)
+                    {
+                        string entryName2 = kvp.Key;
+                        PositionInfo fol = kvp.Value;
+
+                        if (!fol.IsFollower) continue;
+                        if (!fol.EntryFilled || !fol.BracketSubmitted) continue;
+                        if (!activePositions.ContainsKey(entryName2)) continue;
+
+                        int targetLevel = (fol.Direction == MarketPosition.Long)
+                            ? leaderLongMaxLevel
+                            : leaderShortMaxLevel;
+
+                        // V12.11: Guard — skip if no leader exists for this direction (targetLevel==0)
+                        if (targetLevel == 0) continue;
+
+                        // Only sync UP — never regress a follower already at a higher level
+                        if (fol.CurrentTrailLevel >= targetLevel) continue;
+
+                        double syncStopPrice = CalculateStopForLevel(fol, targetLevel);
+
+                        // Only move if it's a more protective stop
+                        bool isBetter = (fol.Direction == MarketPosition.Long)
+                            ? syncStopPrice > fol.CurrentStopPrice
+                            : syncStopPrice < fol.CurrentStopPrice;
+
+                        if (isBetter)
+                        {
+                            UpdateStopOrder(entryName2, fol, syncStopPrice, targetLevel);
+                            Print(string.Format("FLEET SYNC: {0} synced to Level {1} -> Stop {2:F2} (Leader advanced)",
+                                entryName2, targetLevel, syncStopPrice));
+                        }
+                    }
+                }
+            }
         }
 
         // V8.30: Clean up stale pending replacements that are older than 5 seconds
@@ -4226,6 +4085,34 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     Print(string.Format("⚠️⚠️ EMERGENCY FLATTEN FAILED: {0}", flattenEx.Message));
                 }
+            }
+        }
+
+        // V12.10: Fleet Symmetry — calculates the correct stop price for a given trail level
+        // using the position's own entry/extreme prices. Pure calculation, no side effects.
+        private double CalculateStopForLevel(PositionInfo pos, int level)
+        {
+            bool isLong = (pos.Direction == MarketPosition.Long);
+            switch (level)
+            {
+                case 1: // Breakeven
+                    return isLong
+                        ? pos.EntryPrice + (BreakEvenOffsetTicks * tickSize)
+                        : pos.EntryPrice - (BreakEvenOffsetTicks * tickSize);
+                case 2: // Trail 1
+                    return isLong
+                        ? pos.ExtremePriceSinceEntry - Trail1DistancePoints
+                        : pos.ExtremePriceSinceEntry + Trail1DistancePoints;
+                case 3: // Trail 2
+                    return isLong
+                        ? pos.ExtremePriceSinceEntry - Trail2DistancePoints
+                        : pos.ExtremePriceSinceEntry + Trail2DistancePoints;
+                case 4: // Trail 3
+                    return isLong
+                        ? pos.ExtremePriceSinceEntry - Trail3DistancePoints
+                        : pos.ExtremePriceSinceEntry + Trail3DistancePoints;
+                default:
+                    return pos.CurrentStopPrice; // No change
             }
         }
 
@@ -7483,17 +7370,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                         continue;
                     }
 
-                    // Find and change the stop order
-                    if (stopOrders.TryGetValue(entryName, out Order existingStop))
-                    {
-                        if (existingStop != null && (existingStop.OrderState == OrderState.Working || existingStop.OrderState == OrderState.Accepted))
-                        {
-                            ChangeOrder(existingStop, existingStop.Quantity, 0, newStopPrice);
-                            pos.CurrentStopPrice = newStopPrice;
-                            pos.ManualBreakevenTriggered = true;
-                            Print(string.Format("BE+{0} MOVED: {1} Stop -> {2:F2}", offsetPoints, entryName, newStopPrice));
-                        }
-                    }
+                    // V12.10: Use UpdateStopOrder for proper Master/Follower routing
+                    // (ChangeOrder only works for Master — followers were silently skipped)
+                    UpdateStopOrder(entryName, pos, newStopPrice, 1);
+                    pos.ManualBreakevenTriggered = true;
+                    Print(string.Format("BE+{0} MOVED: {1} Stop -> {2:F2}", offsetPoints, entryName, newStopPrice));
                 }
             }
             catch (Exception ex)
@@ -7701,7 +7582,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // V12.9: Global commands bypass symbol filter entirely — these are account/fleet-level, not instrument-level
                     bool isGlobalCommand = action == "TOGGLE_ACCOUNT" || action == "SET_SIMA" ||
-                                           action == "GET_FLEET" || action == "DIAG_FLEET";
+                                           action == "GET_FLEET" || action == "DIAG_FLEET" || action == "CANCEL_ALL";
 
                     // V10.3: Robust Symbol Matching (Matches MGC to GC/MGC, MES to ES/MES, etc.)
                     string mySym = Instrument.MasterInstrument.Name.ToUpper();
@@ -7881,6 +7762,64 @@ namespace NinjaTrader.NinjaScript.Strategies
                         else
                         {
                             FlattenAll();
+                        }
+                    }
+                    else if (action == "CANCEL_ALL")
+                    {
+                        // Cancel all working/pending orders without touching live positions
+                        if (EnableSIMA)
+                        {
+                            int cancelled = 0;
+
+                            // ── V12.10: Cancel local account orders FIRST ──
+                            foreach (Order order in Account.Orders)
+                            {
+                                if (order != null && order.Instrument.FullName == Instrument.FullName &&
+                                    (order.OrderState == OrderState.Working ||
+                                     order.OrderState == OrderState.Accepted ||
+                                     order.OrderState == OrderState.Submitted))
+                                {
+                                    CancelOrder(order);
+                                    cancelled++;
+                                }
+                            }
+
+                            // ── Fleet accounts ──
+                            foreach (Account acct in Account.All)
+                            {
+                                if (acct.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    if (acct == this.Account) continue; // already cancelled above
+                                    foreach (Order order in acct.Orders)
+                                    {
+                                        if (order != null && order.Instrument.FullName == Instrument.FullName &&
+                                            (order.OrderState == OrderState.Working ||
+                                             order.OrderState == OrderState.Accepted ||
+                                             order.OrderState == OrderState.Submitted))
+                                        {
+                                            acct.Cancel(new[] { order });
+                                            cancelled++;
+                                        }
+                                    }
+                                }
+                            }
+                            Print($"[SIMA] CANCEL_ALL → Cancelled {cancelled} working orders (local + fleet)");
+                        }
+                        else
+                        {
+                            int cancelled = 0;
+                            foreach (Order order in Account.Orders)
+                            {
+                                if (order != null && order.Instrument.FullName == Instrument.FullName &&
+                                    (order.OrderState == OrderState.Working ||
+                                     order.OrderState == OrderState.Accepted ||
+                                     order.OrderState == OrderState.Submitted))
+                                {
+                                    CancelOrder(order);
+                                    cancelled++;
+                                }
+                            }
+                            Print($"[V12] CANCEL_ALL → Cancelled {cancelled} working orders");
                         }
                     }
                     else if (action == "LONG" || action == "SHORT")
@@ -8587,7 +8526,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             simaAccountCount = 0;
             Print("[SIMA] ═══════════════════════════════════════════════════");
-            Print("[SIMA] V12.9 REPAIRED - Multi-Account Engine Initializing");
+            Print("[SIMA] V12.11 - Fleet Symmetry & Safety Hardening Initializing");
             Print($"[SIMA] Account Prefix Filter: \"{AccountPrefix}\"");
             Print("[SIMA] ───────────────────────────────────────────────────");
 
@@ -8798,6 +8737,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     };
                     activePositions[localKey] = pos;
 
+                    // V12.11: Register Master account in expectedPositions (was missing — caused false Reaper desyncs)
+                    int localDelta = (direction == MarketPosition.Long) ? qty : -qty;
+                    expectedPositions.AddOrUpdate(Account.Name, localDelta, (k, v) => v + localDelta);
+                    Print($"[SIMA] Master expectedPositions updated: {Account.Name} delta={localDelta}");
+
                     // V12.7: Do NOT submit stop/target here — they will be submitted by
                     // SubmitBracketOrders() when the entry limit fills in OnOrderUpdate.
                     // Submitting them now would cause instant fills on marketable targets.
@@ -8851,15 +8795,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                         string fleetKey = acct.Name + "_RMA_" + baseSignal;
                         string ocoId = fleetKey;
 
-                        // Submit Entry + Stop + Target via account API
+                        // V12.10: Submit ENTRY ONLY — brackets deferred until fill (unified with leader)
                         Order fEntry = acct.CreateOrder(Instrument, entryAction, OrderType.Limit,
                             TimeInForce.Gtc, qty, price, 0, ocoId, fleetKey, null);
-                        Order fStop = acct.CreateOrder(Instrument, exitAction, OrderType.StopMarket,
-                            TimeInForce.Gtc, qty, 0, stopPrice, ocoId, "Stop_" + fleetKey, null);
-                        Order fTarget = acct.CreateOrder(Instrument, exitAction, OrderType.Limit,
-                            TimeInForce.Gtc, qty, t2Price, 0, ocoId, "Target_" + fleetKey, null);
 
-                        acct.Submit(new[] { fEntry, fStop, fTarget });
+                        acct.Submit(new[] { fEntry });
 
                         // Register in unified dictionaries so CIT + trailing works for this account
                         entryOrders[fleetKey] = fEntry;
@@ -8879,12 +8819,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                             IsRMATrade = true,
                             IsFollower = true,
                             ExecutingAccount = acct,
-                            BracketSubmitted = true,
+                            BracketSubmitted = false,   // V12.10: deferred — OnAccountExecutionUpdate submits on fill
                             ExtremePriceSinceEntry = price,
                             CurrentTrailLevel = 0
                         };
-                        stopOrders[fleetKey] = fStop;
-                        target2Orders[fleetKey] = fTarget;
+                        // stopOrders and target2Orders set by OnAccountExecutionUpdate on fill
 
                         int delta = (direction == MarketPosition.Long) ? qty : -qty;
                         expectedPositions.AddOrUpdate(acct.Name, delta, (k, v) => v + delta);
@@ -8956,6 +8895,38 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             Print($"[SIMA] ✗ FLATTEN FAILED on {acct.Name}: {ex.Message}");
                         }
+                    }
+                }
+
+                // V12.11: Explicitly flatten the Master account if it was NOT covered by the prefix filter.
+                // Bug fix: If Master is "Sim101" and AccountPrefix is "Apex", the loop above skips it entirely.
+                bool masterCovered = Account.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!masterCovered)
+                {
+                    totalCount++;
+                    try
+                    {
+                        List<Instrument> masterInstruments = new List<Instrument>();
+                        foreach (Position position in Account.Positions)
+                        {
+                            if (position.MarketPosition != MarketPosition.Flat)
+                            {
+                                masterInstruments.Add(position.Instrument);
+                            }
+                        }
+
+                        if (masterInstruments.Count > 0)
+                        {
+                            Account.Flatten(masterInstruments);
+                            flattenCount++;
+                            Print($"[SIMA] V12.11 Master flatten: {masterInstruments.Count} position(s) on {Account.Name} (outside prefix filter)");
+                        }
+
+                        expectedPositions[Account.Name] = 0;
+                    }
+                    catch (Exception ex)
+                    {
+                        Print($"[SIMA] V12.11 Master FLATTEN FAILED on {Account.Name}: {ex.Message}");
                     }
                 }
 
@@ -9115,6 +9086,67 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             }
 
+            // V12.11: Explicitly audit the Master account if it was NOT covered by the prefix filter.
+            // Bug fix: Master "Sim101" with AccountPrefix "Apex" was invisible to the Reaper.
+            bool masterAudited = Account.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0;
+            if (!masterAudited)
+            {
+                auditedCount++;
+
+                Position masterPos = Account.Positions.FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
+                int masterActualQty = 0;
+                if (masterPos != null && masterPos.MarketPosition != MarketPosition.Flat)
+                {
+                    masterActualQty = masterPos.MarketPosition == MarketPosition.Long ? masterPos.Quantity : -masterPos.Quantity;
+                }
+
+                int masterExpectedQty = 0;
+                expectedPositions.TryGetValue(Account.Name, out masterExpectedQty);
+
+                if (shouldLog && (masterExpectedQty != 0 || masterActualQty != 0))
+                {
+                    Print($"[REAPER] {Account.Name} (Master): Expected={masterExpectedQty}, Actual={masterActualQty}");
+                    activeCount++;
+                }
+
+                if (masterExpectedQty != masterActualQty)
+                {
+                    if (masterActualQty == 0 && masterExpectedQty != 0)
+                    {
+                        if (shouldLog) Print($"[REAPER] {Account.Name} (Master) is Flat (Target/Stop hit). Expected was {masterExpectedQty}.");
+                    }
+                    else
+                    {
+                        bool isCriticalDesync = (masterActualQty != 0 && masterExpectedQty == 0) || (Math.Sign(masterActualQty) != Math.Sign(masterExpectedQty) && masterExpectedQty != 0);
+
+                        if (isCriticalDesync)
+                        {
+                            if (shouldLog)
+                                Print($"[REAPER] CRITICAL DESYNC on {Account.Name} (Master): Expected={masterExpectedQty}, Actual={masterActualQty}");
+
+                            if (AutoFlattenDesync)
+                            {
+                                if (shouldLog)
+                                    Print($"[REAPER] AUTO-FLATTENING {Account.Name} (Master) - Emergency Re-sync!");
+                                try
+                                {
+                                    Account.Flatten(new[] { Instrument });
+                                    expectedPositions[Account.Name] = 0;
+                                }
+                                catch (Exception ex)
+                                {
+                                    Print($"[REAPER] FAILED to flatten {Account.Name} (Master): {ex.Message}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (shouldLog) Print($"[REAPER] Minor Desync on {Account.Name} (Master): Expected={masterExpectedQty}, Actual={masterActualQty}");
+                        }
+                    }
+                }
+            }
+
             if (shouldLog)
             {
                 // V12.9: Single summary line instead of 12 "Expected=0, Actual=0" per cycle
@@ -9254,28 +9286,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private int CalculatePositionSize(double stopDistance)
         {
-            if (stopDistance <= 0) return minContracts;
+            if (stopDistance <= 0) return Math.Max(1, minContracts);
 
-            // Use MaxRiskAmount if ATR Sizing is enabled, otherwise legacy RiskPerTrade
-            double riskToUse = EnableAtrSizing ? MaxRiskAmount : RiskPerTrade;
-            
-            // Apply reduced risk logic if stop is wide
-            if (stopDistance > StopThresholdPoints)
-            {
-                riskToUse = ReducedRiskPerTrade;
-            }
+            double riskToUse = MaxRiskAmount;
 
             double stopDistanceInDollars = stopDistance * pointValue;
-            if (stopDistanceInDollars <= 0) return minContracts;
+            if (stopDistanceInDollars <= 0) return Math.Max(1, minContracts);
 
             int contracts = (int)Math.Floor(riskToUse / stopDistanceInDollars);
-            
-            // Safety cap
-            int min = (Instrument.MasterInstrument.Name == "MES") ? MESMinimum : MGCMinimum;
-            int max = (Instrument.MasterInstrument.Name == "MES") ? MESMaximum : MGCMaximum;
-            
-            contracts = Math.Max(min, Math.Min(contracts, max));
-            
+            contracts = Math.Max(1, contracts);
+
             Print($"[V12.2 SIZING] Stop={stopDistance:F2} | Risk=${riskToUse:F0} | Contracts={contracts}");
             return contracts;
         }

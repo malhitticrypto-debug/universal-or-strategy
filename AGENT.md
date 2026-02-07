@@ -235,13 +235,13 @@ This project is designed to work with ANY AI model (Claude, Gemini, Grok, etc.) 
 5. Any AI reads skills from `.agent/skills/` (universal, not AI-specific)
 6. Continue work seamlessly
 
-### Path Resolution
-All hardcoded paths have been replaced with variables:
-- `${PROJECT_ROOT}` → `c:\Users\Mohammed Khalid\OneDrive\Desktop\WSGTA\Github\universal-or-strategy\`
-- `${USERNAME}` → `Mohammed Khalid` (auto-detected from OS)
-- `${NINJATRADER_BIN}` → `C:\Users\${USERNAME}\Documents\NinjaTrader 8\bin\Custom\Strategies\`
+### Path Resolution & Resilience
+All hardcoded paths have been replaced with variables in config files, BUT for human-agent handoffs, we use a different protocol.
 
-**Result**: Same config works on different machines, different users, different PCs.
+**THE RULE OF ABSOLUTE PATHS (CRITICAL)**:
+1.  **AI-to-AI Handoffs**: When generating a "Mission Brief" or prompt for another agent (e.g., prompting Claude Code CLI from Antigravity IDE), you **MUST** use absolute paths for all context references.
+2.  **The "Brain" Folder**: Never use relative paths like `./task.md`. Always use the full path detected from the current environment (e.g., `C:\Users\Mohammed Khalid\.gemini\antigravity\brain\...`).
+3.  **Why**: External agents are "Blind" to the Antigravity system directories. Providing the absolute path is the ONLY way to ensure the sub-agent can see the task list and implementation plan.
 
 ### Universal Skills Library
 All 37 skills in `.agent/skills/` work with ANY AI model:

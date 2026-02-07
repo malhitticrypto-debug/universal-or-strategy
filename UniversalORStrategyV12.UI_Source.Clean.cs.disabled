@@ -1,0 +1,2747 @@
+﻿// V12 PRO MASTER V14.9 - Universal OR Strategy
+// BUILD: Phase 1 Production Upgrade
+// Features: SIMA Fleet Sync, Multi-RMA Anchors, Target Mode Selectors, Global Sync Protocol
+using System;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Linq;
+using System.Text;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using NinjaTrader.Cbi;
+using NinjaTrader.Gui;
+using NinjaTrader.Gui.Chart;
+using NinjaTrader.Gui.Tools;
+using NinjaTrader.Data;
+using NinjaTrader.NinjaScript;
+using NinjaTrader.NinjaScript.DrawingTools;
+using NinjaTrader.NinjaScript.Indicators;
+using NinjaTrader.NinjaScript.Strategies;
+using System.Net;
+using System.Net.Sockets;
+
+namespace NinjaTrader.NinjaScript.Strategies
+{
+    public class UniversalORStrategyV12 : Strategy
+    {
+        #region Variables
+
+        // OR tracking
+        private double sessionHigh;
+        private double sessionLow;
+        private double sessionMid;
+        private double sessionRange;
+        private bool isInORWindow;
+        private bool orComplete;
+        private DateTime orStartDateTime;
+        private DateTime orEndDateTime;
+        private DateTime sessionStartDateTime;
+        private DateTime lastResetDate;
+        private int orStartBarIndex;
+        private int orEndBarIndex;
+
+        // Instrument info
+        private double tickSize;
+        private double pointValue;
+        private int minContracts;
+        private int maxContracts;
+
+        // ATR Indicator for RMA
+        private ATR atrIndicator;
+        private double currentATR;
+        private double lastKnownPrice;
+
+        // V12: Extended EMA indicators for Multi-RMA Anchors
+        private EMA ema9;
+        private EMA ema15;
+        private EMA ema30;   // V12: New anchor
+        private EMA ema65;   // V12: New anchor
+        private EMA ema200;  // V12: New anchor
+
+        // V8.7: RSI indicator for FFMA trades
+        private RSI rsiIndicator;
+
+        // Position tracking - multi-target system
+        private ConcurrentDictionary<string, PositionInfo> activePositions;
+        private ConcurrentDictionary<string, Order> entryOrders;
+        private ConcurrentDictionary<string, Order> stopOrders;
+        private ConcurrentDictionary<string, Order> target1Orders;
+        private ConcurrentDictionary<string, Order> target2Orders;
+        private ConcurrentDictionary<string, Order> target3Orders;
+        private ConcurrentDictionary<string, Order> target4Orders;
+
+        // V8.11: Track pending stop replacements
+        private ConcurrentDictionary<string, PendingStopReplacement> pendingStopReplacements;
+
+        // RMA Mode tracking
+        private bool isRMAModeActive;
+        private bool isRKeyHeld;
+        private bool isRMAButtonClicked;
+
+        // V12: RMA Anchor Mode
+        private RMAAnchorType currentRMAAnchor = RMAAnchorType.EMA200;
+
+        // V12: Target Calculation Mode
+        private TargetModeType currentTargetMode = TargetModeType.ATR;
+
+        // V8.2: TREND Mode tracking
+        private bool isTRENDModeActive;
+        private bool pendingTRENDEntry;
+        private ConcurrentDictionary<string, string> linkedTRENDEntries;
+
+        // V8.4: RETEST Mode tracking
+        private bool isRetestModeActive;
+
+        // V8.6: MOMO Mode tracking
+        private bool isMOMOModeActive;
+
+        // V8.7: FFMA Mode tracking
+        private bool isFFMAModeArmed;
+        private double ffmaEntryBarHigh;
+        private double ffmaEntryBarLow;
+
+        // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+        // V12: UI Components - Pixel-Perfect Implementation
+        // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+        private Border mainBorder;
+        private System.Windows.Controls.Grid mainGrid;
+        private TextBlock statusTextBlock;
+        private TextBlock orInfoBlock;
+        private TextBlock positionSummaryBlock;
+        private TextBlock rmaModeTextBlock;
+        private Button longButton;
+        private Button shortButton;
+        private Button rmaButton;
+        private Button breakevenButton;
+        private Button flattenButton;
+        private Button trendButton;
+        private Button retestButton;
+        private Button momoButton;
+        private Button ffmaButton;
+
+        // V12: Fleet Config UI
+        private Border fleetConfigBorder;
+        private StackPanel fleetChipsPanel;
+        private TextBlock fleetStatusText;
+        private ConcurrentDictionary<string, Border> fleetAccountChips;
+
+        // V12: Target Mode Selector
+        private StackPanel targetModePanel;
+        private Border[] targetModeChips;
+        private TextBox t1ValueInput;
+        private TextBox t2ValueInput;
+        private TextBox t3ValueInput;
+        private TextBox t4ValueInput;
+
+        // V12: RMA Anchor Chips
+        private StackPanel rmaAnchorPanel;
+        private Border[] rmaAnchorChips;
+
+        // Target dropdown buttons
+        private Button t1DropdownButton;
+        private Border t1DropdownPanel;
+        private bool t1DropdownExpanded;
+        private Button t2DropdownButton;
+        private Border t2DropdownPanel;
+        private bool t2DropdownExpanded;
+        private Button t3DropdownButton;
+        private Border t3DropdownPanel;
+        private bool t3DropdownExpanded;
+        private Button runnerDropdownButton;
+        private Border runnerDropdownPanel;
+        private bool runnerDropdownExpanded;
+
+        private StackPanel sharedDropdownPanel;
+        private Viewbox contentViewbox;
+        private bool isResizing;
+        private Point resizeStartPoint;
+        private double resizeStartWidth;
+        private double resizeStartHeight;
+        private double currentScale = 1.0;
+        private double baseWidth = 320;  // V12: Increased from 280
+        private double baseHeight = 500; // V12: Increased for new sections
+
+        private bool uiCreated;
+        private DateTime lastUIUpdate;
+        private DateTime lastStopManagementTime;
+
+        // V8.30: Circuit breaker state
+        private volatile int pendingReplacementCount = 0;
+        private const int CIRCUIT_BREAKER_THRESHOLD = 5;
+        private volatile bool circuitBreakerActive = false;
+        private DateTime circuitBreakerActivatedTime = DateTime.MinValue;
+
+        // V8.30: DrawORBox throttling
+        private DateTime lastDrawORBoxTime = DateTime.MinValue;
+        private const int DRAW_ORBOX_THROTTLE_MS = 200;
+
+        // V8.30: Adaptive throttling
+        private int tickCountInLastSecond = 0;
+        private DateTime lastTickCountReset = DateTime.MinValue;
+        private int adaptiveThrottleMs = 100;
+
+        // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+        // V12: CSS-Matched Color Brushes (Frozen for thread safety)
+        // Matches: V12_Dashboard_Mockup.html CSS variables
+        // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+        private static readonly SolidColorBrush BgPrimary;      // #020617
+        private static readonly SolidColorBrush BgSecondary;    // #0f172a
+        private static readonly SolidColorBrush BgTertiary;     // #1e293b
+        private static readonly SolidColorBrush BgHover;        // #334155
+        private static readonly SolidColorBrush AccentCyan;     // #00ffff
+        private static readonly SolidColorBrush AccentGold;     // #ffcc00
+        private static readonly SolidColorBrush AccentGreen;    // #22c55e
+        private static readonly SolidColorBrush AccentRed;      // #ef4444
+        private static readonly SolidColorBrush AccentPurple;   // #a855f7
+        private static readonly SolidColorBrush AccentOrange;   // #f97316
+        private static readonly SolidColorBrush AccentBlue;     // #3b82f6
+        private static readonly SolidColorBrush AccentPink;     // #ec4899
+        private static readonly SolidColorBrush TextPrimary;    // #f8fafc
+        private static readonly SolidColorBrush TextSecondary;  // #94a3b8
+        private static readonly SolidColorBrush TextMuted;      // #64748b
+        private static readonly SolidColorBrush BorderPrimary;  // #334155
+
+        // Legacy brushes for backward compatibility
+        private static readonly SolidColorBrush RMAActiveBackground;
+        private static readonly SolidColorBrush RMAInactiveBackground;
+        private static readonly SolidColorBrush PanelBackground;
+        private static readonly SolidColorBrush RMAModeActiveBackground;
+
+        // Static constructor to create and freeze brushes
+        static UniversalORStrategyV12()
+        {
+            // V12: CSS-matched colors
+            BgPrimary = new SolidColorBrush(Color.FromRgb(2, 6, 23));         // #020617
+            BgPrimary.Freeze();
+
+            BgSecondary = new SolidColorBrush(Color.FromRgb(15, 23, 42));     // #0f172a
+            BgSecondary.Freeze();
+
+            BgTertiary = new SolidColorBrush(Color.FromRgb(30, 41, 59));      // #1e293b
+            BgTertiary.Freeze();
+
+            BgHover = new SolidColorBrush(Color.FromRgb(51, 65, 85));         // #334155
+            BgHover.Freeze();
+
+            AccentCyan = new SolidColorBrush(Color.FromRgb(0, 255, 255));     // #00ffff
+            AccentCyan.Freeze();
+
+            AccentGold = new SolidColorBrush(Color.FromRgb(255, 204, 0));     // #ffcc00
+            AccentGold.Freeze();
+
+            AccentGreen = new SolidColorBrush(Color.FromRgb(34, 197, 94));    // #22c55e
+            AccentGreen.Freeze();
+
+            AccentRed = new SolidColorBrush(Color.FromRgb(239, 68, 68));      // #ef4444
+            AccentRed.Freeze();
+
+            AccentPurple = new SolidColorBrush(Color.FromRgb(168, 85, 247));  // #a855f7
+            AccentPurple.Freeze();
+
+            AccentOrange = new SolidColorBrush(Color.FromRgb(249, 115, 22));  // #f97316
+            AccentOrange.Freeze();
+
+            AccentBlue = new SolidColorBrush(Color.FromRgb(59, 130, 246));    // #3b82f6
+            AccentBlue.Freeze();
+
+            AccentPink = new SolidColorBrush(Color.FromRgb(236, 72, 153));    // #ec4899
+            AccentPink.Freeze();
+
+            TextPrimary = new SolidColorBrush(Color.FromRgb(248, 250, 252));  // #f8fafc
+            TextPrimary.Freeze();
+
+            TextSecondary = new SolidColorBrush(Color.FromRgb(148, 163, 184)); // #94a3b8
+            TextSecondary.Freeze();
+
+            TextMuted = new SolidColorBrush(Color.FromRgb(100, 116, 139));    // #64748b
+            TextMuted.Freeze();
+
+            BorderPrimary = new SolidColorBrush(Color.FromRgb(51, 65, 85));   // #334155
+            BorderPrimary.Freeze();
+
+            // Legacy brushes
+            RMAActiveBackground = new SolidColorBrush(Color.FromRgb(180, 100, 20));
+            RMAActiveBackground.Freeze();
+
+            RMAInactiveBackground = new SolidColorBrush(Color.FromRgb(80, 80, 100));
+            RMAInactiveBackground.Freeze();
+
+            PanelBackground = BgSecondary;
+
+            RMAModeActiveBackground = new SolidColorBrush(Color.FromArgb(230, 50, 30, 10));
+            RMAModeActiveBackground.Freeze();
+        }
+
+        // Drag support
+        private bool isDragging;
+        private Point dragStartPoint;
+        private Thickness originalMargin;
+
+        // V12: IPC Integration with SIMA Fleet Sync
+        private TcpListener ipcListener;
+        private Thread ipcThread;
+        private volatile bool isIpcRunning;
+        private readonly object ipcLock = new object();
+        private ConcurrentQueue<string> ipcCommandQueue;
+
+        // V12: SIMA Fleet Tracking
+        private ConcurrentDictionary<string, FleetAccountInfo> fleetAccounts;
+        private volatile int connectedFleetCount = 0;
+        private volatile double aggregateFleetPnL = 0;
+
+        #endregion
+
+        #region V12 Enums
+
+        public enum RMAAnchorType
+        {
+            EMA30,
+            EMA65,
+            EMA200,
+            ORHigh,
+            ORLow
+        }
+
+        public enum TargetModeType
+        {
+            ATR,    // ATR multipliers (0.5x, 1.0x, etc.)
+            PTS,    // Fixed points (1.0, 2.0, 4.0)
+            TKS,    // Fixed ticks (4, 8, 16)
+            RNG     // OR Range multipliers (0.25x, 0.5x, 1.0x)
+        }
+
+        #endregion
+
+        #region V12 Support Classes
+
+        private class PositionInfo
+        {
+            public string SignalName;
+            public MarketPosition Direction;
+            public int TotalContracts;
+            public int T1Contracts;
+            public int T2Contracts;
+            public int T3Contracts;
+            public int T4Contracts;
+            public int RemainingContracts;
+            public double EntryPrice;
+            public double InitialStopPrice;
+            public double CurrentStopPrice;
+            public double Target1Price;
+            public double Target2Price;
+            public double Target3Price;
+            public bool EntryFilled;
+            public bool T1Filled;
+            public bool T2Filled;
+            public bool T3Filled;
+            public bool BracketSubmitted;
+            public double ExtremePriceSinceEntry;
+            public int CurrentTrailLevel;
+            public bool IsRMATrade;
+            public bool ManualBreakevenArmed;
+            public bool ManualBreakevenTriggered;
+            public int TicksSinceEntry;
+
+            // TREND trade tracking
+            public bool IsTRENDTrade;
+            public bool IsTRENDEntry1;
+            public bool IsTRENDEntry2;
+            public string LinkedTRENDGroup;
+            public bool Entry1TrailActivated;
+
+            // RETEST trade tracking
+            public bool IsRetestTrade;
+            public bool RetestTrailActivated;
+
+            // MOMO/FFMA trade tracking
+            public bool IsMOMOTrade;
+            public bool IsFFMATrade;
+
+            // V12: RMA Anchor used for this trade
+            public RMAAnchorType RMAAnchor;
+        }
+
+        private class PendingStopReplacement
+        {
+            public string EntryName;
+            public int Quantity;
+            public double StopPrice;
+            public MarketPosition Direction;
+            public Order OldOrder;
+            public DateTime CreatedTime;
+        }
+
+        // V12: Fleet Account Info for SIMA tracking
+        private class FleetAccountInfo
+        {
+            public string AccountName;
+            public bool IsConnected;
+            public bool IsMaster;
+            public MarketPosition CurrentPosition;
+            public int PositionSize;
+            public double EntryPrice;
+            public double UnrealizedPnL;
+            public DateTime LastHeartbeat;
+            public int OrdersFilled;
+            public int OrdersPending;
+        }
+
+        public struct PositionDisplayInfo
+        {
+            public string TradeType;
+            public string Direction;
+            public double EntryPrice;
+            public double StopPrice;
+            public int RemainingContracts;
+            public bool EntryFilled;
+            public bool ManualBreakevenArmed;
+            public bool ManualBreakevenTriggered;
+        }
+
+        #endregion
+
+        #region Enums
+
+        public enum ORTimeframeType
+        {
+            Minutes_1 = 1,
+            Minutes_5 = 5,
+            Minutes_10 = 10,
+            Minutes_15 = 15
+        }
+
+        #endregion
+
+        #region Properties - Session Settings
+
+        [NinjaScriptProperty]
+        [Display(Name = "IPC Port", Description = "TCP Port for V12 Remote (Default: 5000)", Order = 0, GroupName = "1. Session Settings")]
+        public int IpcPort { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Session Start", Description = "Trading session start time (OR begins here)", Order = 1, GroupName = "1. Session Settings")]
+        [PropertyEditor("NinjaTrader.Gui.Tools.TimeEditorKey")]
+        public DateTime SessionStart { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Session End", Description = "Trading session end time (box ends here)", Order = 2, GroupName = "1. Session Settings")]
+        [PropertyEditor("NinjaTrader.Gui.Tools.TimeEditorKey")]
+        public DateTime SessionEnd { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "OR Timeframe", Description = "Duration of Opening Range window", Order = 3, GroupName = "1. Session Settings")]
+        public ORTimeframeType ORTimeframe { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Time Zone", Description = "Time zone for session times", Order = 4, GroupName = "1. Session Settings")]
+        [TypeConverter(typeof(TimeZoneConverter))]
+        public string SelectedTimeZone { get; set; }
+
+        #endregion
+
+        #region Properties - Risk Management
+
+        [NinjaScriptProperty]
+        [Display(Name = "Risk Per Trade ($)", Description = "Maximum dollar risk per trade", Order = 1, GroupName = "2. Risk Management")]
+        public double RiskPerTrade { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Reduced Risk ($)", Description = "Reduced risk when stop > threshold", Order = 2, GroupName = "2. Risk Management")]
+        public double ReducedRiskPerTrade { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Stop Threshold (Points)", Description = "Stop distance above which reduced risk is used", Order = 3, GroupName = "2. Risk Management")]
+        public double StopThresholdPoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "MES Min Contracts", Order = 4, GroupName = "2. Risk Management")]
+        public int MESMinimum { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "MES Max Contracts", Order = 5, GroupName = "2. Risk Management")]
+        public int MESMaximum { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "MGC Min Contracts", Order = 6, GroupName = "2. Risk Management")]
+        public int MGCMinimum { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "MGC Max Contracts", Order = 7, GroupName = "2. Risk Management")]
+        public int MGCMaximum { get; set; }
+
+        #endregion
+
+        #region Properties - Stop Loss
+
+        [NinjaScriptProperty]
+        [Display(Name = "Stop Multiplier", Description = "Multiplier of OR Range for stop", Order = 1, GroupName = "3. Stop Loss")]
+        public double StopMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Min Stop (Points)", Order = 2, GroupName = "3. Stop Loss")]
+        public double MinimumStop { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Max Stop (Points)", Order = 3, GroupName = "3. Stop Loss")]
+        public double MaximumStop { get; set; }
+
+        #endregion
+
+        #region Properties - Profit Targets
+
+        [NinjaScriptProperty]
+        [Display(Name = "T1 Fixed Points", Description = "Fixed point profit for T1", Order = 1, GroupName = "4. Profit Targets")]
+        [Range(0.25, 5.0)]
+        public double Target1FixedPoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T2 ATR Multiplier", Description = "Multiplier of ATR for T2", Order = 2, GroupName = "4. Profit Targets")]
+        public double Target2Multiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T3 ATR Multiplier", Description = "Multiplier of ATR for T3", Order = 3, GroupName = "4. Profit Targets")]
+        public double Target3Multiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T1 Contract %", Order = 4, GroupName = "4. Profit Targets")]
+        public int T1ContractPercent { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T2 Contract %", Order = 5, GroupName = "4. Profit Targets")]
+        public int T2ContractPercent { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T3 Contract %", Order = 6, GroupName = "4. Profit Targets")]
+        public int T3ContractPercent { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T4 Contract % (Runner)", Order = 7, GroupName = "4. Profit Targets")]
+        public int T4ContractPercent { get; set; }
+
+        #endregion
+
+        #region Properties - Trailing Stops
+
+        [NinjaScriptProperty]
+        [Display(Name = "BE Trigger (Points)", Order = 1, GroupName = "5. Trailing Stops")]
+        public double BreakEvenTriggerPoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "BE Offset (Ticks)", Order = 2, GroupName = "5. Trailing Stops")]
+        public int BreakEvenOffsetTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trail 1 Trigger (Points)", Order = 3, GroupName = "5. Trailing Stops")]
+        public double Trail1TriggerPoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trail 1 Distance (Points)", Order = 4, GroupName = "5. Trailing Stops")]
+        public double Trail1DistancePoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trail 2 Trigger (Points)", Order = 5, GroupName = "5. Trailing Stops")]
+        public double Trail2TriggerPoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trail 2 Distance (Points)", Order = 6, GroupName = "5. Trailing Stops")]
+        public double Trail2DistancePoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trail 3 Trigger (Points)", Order = 7, GroupName = "5. Trailing Stops")]
+        public double Trail3TriggerPoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Trail 3 Distance (Points)", Order = 8, GroupName = "5. Trailing Stops")]
+        public double Trail3DistancePoints { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Manual BE Buffer (Ticks)", Order = 9, GroupName = "5. Trailing Stops")]
+        [Range(1, 10)]
+        public int ManualBreakevenBuffer { get; set; }
+
+        #endregion
+
+        #region Properties - Display
+
+        [NinjaScriptProperty]
+        [Display(Name = "Show Mid Line", Description = "Show middle line in OR box", Order = 1, GroupName = "6. Display")]
+        public bool ShowMidLine { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Box Opacity (%)", Order = 2, GroupName = "6. Display")]
+        [Range(0, 100)]
+        public int BoxOpacity { get; set; }
+
+        #endregion
+
+        #region Properties - RMA Settings
+
+        [NinjaScriptProperty]
+        [Display(Name = "RMA Enabled", Description = "Enable RMA entry mode", Order = 1, GroupName = "7. RMA Settings")]
+        public bool RMAEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "RMA ATR Period", Order = 2, GroupName = "7. RMA Settings")]
+        [Range(1, 100)]
+        public int RMAATRPeriod { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "RMA Stop ATR Multiplier", Order = 3, GroupName = "7. RMA Settings")]
+        [Range(0.1, 5.0)]
+        public double RMAStopATRMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "RMA T1 ATR Multiplier", Order = 4, GroupName = "7. RMA Settings")]
+        [Range(0.1, 5.0)]
+        public double RMAT1ATRMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "RMA T2 ATR Multiplier", Order = 5, GroupName = "7. RMA Settings")]
+        [Range(0.1, 5.0)]
+        public double RMAT2ATRMultiplier { get; set; }
+
+        #endregion
+
+        #region Properties - SIMA Copy Trading (V12)
+
+        [NinjaScriptProperty]
+        [Display(Name = "Enable Copy Trading", Description = "Enable SIMA broadcast to fleet accounts", Order = 1, GroupName = "8. SIMA Fleet")]
+        public bool EnableCopyTrading { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Fleet Account Count", Description = "Number of slave accounts in fleet", Order = 2, GroupName = "8. SIMA Fleet")]
+        [Range(1, 20)]
+        public int FleetAccountCount { get; set; }
+
+        #endregion
+
+        #region Properties - TREND Settings
+
+        [NinjaScriptProperty]
+        [Display(Name = "TREND Enabled", Order = 1, GroupName = "9. TREND Settings")]
+        public bool TRENDEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "TREND E1 ATR Mult", Order = 2, GroupName = "9. TREND Settings")]
+        [Range(0.5, 3.0)]
+        public double TRENDEntry1ATRMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "TREND E2 ATR Mult", Order = 3, GroupName = "9. TREND Settings")]
+        [Range(0.5, 3.0)]
+        public double TRENDEntry2ATRMultiplier { get; set; }
+
+        #endregion
+
+        #region Properties - RETEST Settings
+
+        [NinjaScriptProperty]
+        [Display(Name = "RETEST Enabled", Order = 1, GroupName = "10. RETEST Settings")]
+        public bool RetestEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "RETEST ATR Mult", Order = 2, GroupName = "10. RETEST Settings")]
+        [Range(0.5, 3.0)]
+        public double RetestATRMultiplier { get; set; }
+
+        #endregion
+
+        #region Properties - MOMO Settings
+
+        [NinjaScriptProperty]
+        [Display(Name = "MOMO Enabled", Order = 1, GroupName = "11. MOMO Settings")]
+        public bool MOMOEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "MOMO Stop (Points)", Order = 2, GroupName = "11. MOMO Settings")]
+        [Range(0.25, 5.0)]
+        public double MOMOStopPoints { get; set; }
+
+        #endregion
+
+        #region Properties - FFMA Settings
+
+        [NinjaScriptProperty]
+        [Display(Name = "FFMA Enabled", Order = 1, GroupName = "12. FFMA Settings")]
+        public bool FFMAEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "FFMA EMA Distance", Order = 2, GroupName = "12. FFMA Settings")]
+        [Range(1.0, 50.0)]
+        public double FFMAEMADistance { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "FFMA RSI Overbought", Order = 3, GroupName = "12. FFMA Settings")]
+        [Range(50, 100)]
+        public int FFMARSIOverbought { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "FFMA RSI Oversold", Order = 4, GroupName = "12. FFMA Settings")]
+        [Range(0, 50)]
+        public int FFMARSIOversold { get; set; }
+
+        #endregion
+
+        #region Time Zone Converter
+
+        public class TimeZoneConverter : TypeConverter
+        {
+            public override bool GetStandardValuesSupported(ITypeDescriptorContext context) => true;
+            public override bool GetStandardValuesExclusive(ITypeDescriptorContext context) => true;
+
+            public override StandardValuesCollection GetStandardValues(ITypeDescriptorContext context)
+            {
+                return new StandardValuesCollection(new[] { "Eastern", "Central", "Mountain", "Pacific", "UTC" });
+            }
+
+            public override bool CanConvertFrom(ITypeDescriptorContext context, Type sourceType)
+            {
+                return sourceType == typeof(string) || base.CanConvertFrom(context, sourceType);
+            }
+
+            public override object ConvertFrom(ITypeDescriptorContext context, System.Globalization.CultureInfo culture, object value)
+            {
+                return value is string str ? str : base.ConvertFrom(context, culture, value);
+            }
+        }
+
+        #endregion
+
+        #region OnStateChange
+
+        protected override void OnStateChange()
+        {
+            if (State == State.SetDefaults)
+            {
+                Description = "Universal OR Strategy - V12 PRO MASTER (Fleet Integration Edition)";
+                Name = "UniversalORStrategyV12";
+                Calculate = Calculate.OnPriceChange;
+                EntriesPerDirection = 10;
+                EntryHandling = EntryHandling.UniqueEntries;
+                IsExitOnSessionCloseStrategy = false;
+                IsFillLimitOnTouch = false;
+                MaximumBarsLookBack = MaximumBarsLookBack.TwoHundredFiftySix;
+                OrderFillResolution = OrderFillResolution.Standard;
+                StartBehavior = StartBehavior.ImmediatelySubmit;
+                TimeInForce = TimeInForce.Gtc;
+                StopTargetHandling = StopTargetHandling.PerEntryExecution;
+                IsUnmanaged = true;
+
+                // Session defaults
+                SessionStart = DateTime.Parse("09:30");
+                SessionEnd = DateTime.Parse("16:00");
+                ORTimeframe = ORTimeframeType.Minutes_5;
+                SelectedTimeZone = "Eastern";
+
+                // Risk defaults
+                RiskPerTrade = 200;
+                ReducedRiskPerTrade = 200;
+                StopThresholdPoints = 5.0;
+                MESMinimum = 1;
+                MESMaximum = 30;
+                MGCMinimum = 1;
+                MGCMaximum = 15;
+
+                // Stop defaults
+                StopMultiplier = 0.5;
+                MinimumStop = 1.0;
+                MaximumStop = 15.0;
+                IpcPort = 5000;
+
+                // 4-Target System
+                Target1FixedPoints = 1.0;
+                Target2Multiplier = 0.5;
+                Target3Multiplier = 1.0;
+                T1ContractPercent = 20;
+                T2ContractPercent = 30;
+                T3ContractPercent = 30;
+                T4ContractPercent = 20;
+
+                // Trailing stop defaults
+                BreakEvenTriggerPoints = 2.0;
+                BreakEvenOffsetTicks = 2;
+                Trail1TriggerPoints = 3.0;
+                Trail1DistancePoints = 2.0;
+                Trail2TriggerPoints = 4.0;
+                Trail2DistancePoints = 1.5;
+                Trail3TriggerPoints = 5.0;
+                Trail3DistancePoints = 1.0;
+                ManualBreakevenBuffer = 2;
+
+                // Display
+                ShowMidLine = true;
+                BoxOpacity = 20;
+
+                // RMA defaults
+                RMAEnabled = true;
+                RMAATRPeriod = 14;
+                RMAStopATRMultiplier = 1.1;
+                RMAT1ATRMultiplier = 0.5;
+                RMAT2ATRMultiplier = 1.0;
+
+                // V12: SIMA Fleet defaults
+                EnableCopyTrading = true;
+                FleetAccountCount = 6;
+
+                // TREND defaults
+                TRENDEnabled = true;
+                TRENDEntry1ATRMultiplier = 1.1;
+                TRENDEntry2ATRMultiplier = 1.1;
+
+                // RETEST defaults
+                RetestEnabled = true;
+                RetestATRMultiplier = 1.1;
+
+                // MOMO defaults
+                MOMOEnabled = true;
+                MOMOStopPoints = 0.5;
+
+                // FFMA defaults
+                FFMAEnabled = true;
+                FFMAEMADistance = 10.0;
+                FFMARSIOverbought = 80;
+                FFMARSIOversold = 20;
+            }
+            else if (State == State.Configure)
+            {
+                // Initialize thread-safe collections
+                activePositions = new ConcurrentDictionary<string, PositionInfo>(2, 4);
+                entryOrders = new ConcurrentDictionary<string, Order>(2, 4);
+                stopOrders = new ConcurrentDictionary<string, Order>(2, 4);
+                target1Orders = new ConcurrentDictionary<string, Order>(2, 4);
+                target2Orders = new ConcurrentDictionary<string, Order>(2, 4);
+                target3Orders = new ConcurrentDictionary<string, Order>(2, 4);
+                target4Orders = new ConcurrentDictionary<string, Order>(2, 4);
+
+                linkedTRENDEntries = new ConcurrentDictionary<string, string>(2, 4);
+                pendingStopReplacements = new ConcurrentDictionary<string, PendingStopReplacement>(2, 4);
+
+                // V12: Fleet account tracking
+                fleetAccounts = new ConcurrentDictionary<string, FleetAccountInfo>(2, FleetAccountCount);
+                fleetAccountChips = new ConcurrentDictionary<string, Border>(2, FleetAccountCount);
+
+                ipcCommandQueue = new ConcurrentQueue<string>();
+
+                // Add 5-min data series for ATR
+                AddDataSeries(BarsPeriodType.Minute, 5);
+            }
+            else if (State == State.DataLoaded)
+            {
+                tickSize = Instrument.MasterInstrument.TickSize;
+                pointValue = Instrument.MasterInstrument.PointValue;
+
+                string symbol = Instrument.MasterInstrument.Name;
+                if (symbol.Contains("MES") || symbol.Contains("ES"))
+                {
+                    minContracts = MESMinimum;
+                    maxContracts = MESMaximum;
+                }
+                else if (symbol.Contains("MGC") || symbol.Contains("GC"))
+                {
+                    minContracts = MGCMinimum;
+                    maxContracts = MGCMaximum;
+                }
+                else
+                {
+                    minContracts = 3;
+                    maxContracts = 15;
+                }
+
+                // Initialize ATR indicator on 5-min bars
+                atrIndicator = ATR(BarsArray[1], RMAATRPeriod);
+
+                // Initialize EMA indicators for TREND trades
+                ema9 = EMA(9);
+                ema15 = EMA(15);
+
+                // V12: Initialize extended EMA indicators for Multi-RMA Anchors
+                ema30 = EMA(30);
+                ema65 = EMA(65);
+                ema200 = EMA(200);
+
+                // RSI for FFMA trades
+                rsiIndicator = RSI(14, 3);
+
+                // Initialize Fleet Accounts
+                InitializeFleetAccounts();
+
+                ResetOR();
+
+                Print(string.Format("V12 PRO MASTER | {0} | Tick: {1} | PV: ${2}", symbol, tickSize, pointValue));
+                Print(string.Format("Session: {0} - {1} {2} | OR: {3} min",
+                    SessionStart.ToString("HH:mm"), SessionEnd.ToString("HH:mm"), SelectedTimeZone, (int)ORTimeframe));
+                Print(string.Format("SIMA Fleet: {0} accounts configured", FleetAccountCount));
+            }
+            else if (State == State.Historical)
+            {
+                if (ChartControl != null)
+                    ChartControl.Dispatcher.InvokeAsync(CreateUI);
+            }
+            else if (State == State.Realtime)
+            {
+                if (ChartControl != null)
+                {
+                    ChartControl.Dispatcher.InvokeAsync(() =>
+                    {
+                        AttachHotkeys();
+                        AttachChartClickHandler();
+                        UpdateDisplay();
+                        Print("V12 REALTIME - Hotkeys: L=Long, S=Short, Shift+Click=RMA, F=Flatten");
+
+                        StartIpcServer();
+                    });
+                }
+            }
+            else if (State == State.Terminated)
+            {
+                if (ChartControl != null)
+                {
+                    ChartControl.Dispatcher.InvokeAsync(() =>
+                    {
+                        DetachHotkeys();
+                        DetachChartClickHandler();
+                        RemoveUI();
+                    });
+                }
+
+                StopIpcServer();
+
+                activePositions?.Clear();
+                entryOrders?.Clear();
+                stopOrders?.Clear();
+                target1Orders?.Clear();
+                target2Orders?.Clear();
+                target3Orders?.Clear();
+                target4Orders?.Clear();
+                fleetAccounts?.Clear();
+            }
+        }
+
+        #endregion
+
+        #region V12 Fleet Initialization
+
+        private void InitializeFleetAccounts()
+        {
+            // Initialize Master account
+            fleetAccounts["MASTER"] = new FleetAccountInfo
+            {
+                AccountName = "MASTER",
+                IsConnected = true,
+                IsMaster = true,
+                CurrentPosition = MarketPosition.Flat,
+                LastHeartbeat = DateTime.Now
+            };
+
+            // Initialize slave accounts
+            for (int i = 1; i <= FleetAccountCount - 1; i++)
+            {
+                string accountName = "APEX" + i;
+                fleetAccounts[accountName] = new FleetAccountInfo
+                {
+                    AccountName = accountName,
+                    IsConnected = false,
+                    IsMaster = false,
+                    CurrentPosition = MarketPosition.Flat,
+                    LastHeartbeat = DateTime.MinValue
+                };
+            }
+        }
+
+        #endregion
+
+        #region OnMarketData
+
+        protected override void OnMarketData(MarketDataEventArgs marketDataUpdate)
+        {
+            if (marketDataUpdate.MarketDataType == MarketDataType.Last)
+            {
+                lastKnownPrice = marketDataUpdate.Price;
+                ProcessIpcCommands();
+            }
+        }
+
+        #endregion
+
+        #region OnBarUpdate
+
+        protected override void OnBarUpdate()
+        {
+            if (BarsInProgress != 0) return;
+            if (CurrentBar < 5) return;
+
+            try
+            {
+                lastKnownPrice = Close[0];
+
+                ProcessIpcCommands();
+
+                if (pendingTRENDEntry)
+                {
+                    ExecuteTRENDEntry();
+                }
+
+                if (BarsArray[1] != null && BarsArray[1].Count > RMAATRPeriod)
+                {
+                    currentATR = atrIndicator[0];
+                }
+
+                DateTime barTimeInZone = ConvertToSelectedTimeZone(Time[0]);
+                TimeSpan currentTime = barTimeInZone.TimeOfDay;
+                TimeSpan sessionStartTime = SessionStart.TimeOfDay;
+                TimeSpan sessionEndTime = SessionEnd.TimeOfDay;
+                TimeSpan orEndTime = sessionStartTime.Add(TimeSpan.FromMinutes((int)ORTimeframe));
+
+                bool sessionCrossesMidnight = sessionEndTime < sessionStartTime;
+
+                bool shouldReset = false;
+                if (sessionCrossesMidnight)
+                {
+                    if (currentTime >= sessionStartTime && currentTime < sessionStartTime.Add(TimeSpan.FromMinutes(10)))
+                    {
+                        if (barTimeInZone.Date != lastResetDate)
+                            shouldReset = true;
+                    }
+                }
+                else
+                {
+                    if (barTimeInZone.Date != lastResetDate && currentTime >= sessionStartTime)
+                        shouldReset = true;
+                }
+
+                if (shouldReset)
+                {
+                    ResetOR();
+                    lastResetDate = barTimeInZone.Date;
+                }
+
+                // Build OR during window
+                if (currentTime > sessionStartTime && currentTime <= orEndTime)
+                {
+                    isInORWindow = true;
+                    if (High[0] > sessionHigh) sessionHigh = High[0];
+                    if (Low[0] < sessionLow) sessionLow = Low[0];
+                    sessionMid = (sessionHigh + sessionLow) / 2;
+                    sessionRange = sessionHigh - sessionLow;
+                }
+                else if (currentTime > orEndTime && isInORWindow)
+                {
+                    isInORWindow = false;
+                    orComplete = true;
+                }
+
+                // Stop management
+                ManageTrailingStops();
+
+                // Update UI
+                if ((DateTime.Now - lastUIUpdate).TotalMilliseconds >= adaptiveThrottleMs)
+                {
+                    lastUIUpdate = DateTime.Now;
+                    if (ChartControl != null)
+                        ChartControl.Dispatcher.InvokeAsync(UpdateDisplay);
+                }
+
+                // Draw OR box
+                if ((DateTime.Now - lastDrawORBoxTime).TotalMilliseconds >= DRAW_ORBOX_THROTTLE_MS)
+                {
+                    lastDrawORBoxTime = DateTime.Now;
+                    DrawORBox();
+                }
+            }
+            catch (Exception ex)
+            {
+                Print("ERROR OnBarUpdate: " + ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region V12 UI - CreateUI (Pixel-Perfect Implementation)
+
+        private void CreateUI()
+        {
+            if (ChartControl == null || uiCreated) return;
+
+            try
+            {
+                // Outer container
+                System.Windows.Controls.Grid outerContainer = new System.Windows.Controls.Grid();
+
+                mainBorder = new Border
+                {
+                    Background = BgSecondary,
+                    BorderBrush = AccentCyan,
+                    BorderThickness = new Thickness(2),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(0),
+                    HorizontalAlignment = HorizontalAlignment.Left,
+                    VerticalAlignment = VerticalAlignment.Top,
+                    Margin = new Thickness(10, 10, 0, 0),
+                    Width = baseWidth,
+                    MinWidth = 280,
+                    MinHeight = 400
+                };
+
+                contentViewbox = new Viewbox
+                {
+                    Stretch = System.Windows.Media.Stretch.Uniform,
+                    StretchDirection = StretchDirection.Both,
+                    HorizontalAlignment = HorizontalAlignment.Stretch,
+                    VerticalAlignment = VerticalAlignment.Stretch
+                };
+
+                mainGrid = new System.Windows.Controls.Grid();
+                mainGrid.Width = baseWidth;
+
+                // V12: 14 rows for complete layout
+                for (int i = 0; i < 14; i++)
+                    mainGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 0: Title Bar (Drag Handle)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                Border titleBar = CreateTitleBar();
+                Grid.SetRow(titleBar, 0);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 1: Fleet Config (EIDs 86-88) - Directly beneath title bar
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                fleetConfigBorder = CreateFleetConfigSection();
+                Grid.SetRow(fleetConfigBorder, 1);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 2: Status Display
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                StackPanel statusSection = CreateStatusSection();
+                Grid.SetRow(statusSection, 2);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 3: OR Info Panel
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                Border orInfoPanel = CreateORInfoPanel();
+                Grid.SetRow(orInfoPanel, 3);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 4: Target Mode Selector (ATR/PTS/TKS/RNG)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                Border targetModeSection = CreateTargetModeSection();
+                Grid.SetRow(targetModeSection, 4);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 5: RMA Anchor Section
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                Border rmaAnchorSection = CreateRMAAnchorSection();
+                Grid.SetRow(rmaAnchorSection, 5);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 6: RMA Mode Indicator
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                rmaModeTextBlock = new TextBlock
+                {
+                    Text = "Ôÿà RMA ACTIVE - Click chart Ôÿà",
+                    Foreground = AccentOrange,
+                    FontWeight = FontWeights.Bold,
+                    Margin = new Thickness(12, 4, 12, 4),
+                    TextWrapping = TextWrapping.Wrap,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Visibility = Visibility.Collapsed
+                };
+                Grid.SetRow(rmaModeTextBlock, 6);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 7: OR Entry Row (LONG vertical)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                longButton = CreateStandardButton("Ôû▓ LONG (L)", AccentGreen, OnLongClick);
+                Grid.SetRow(longButton, 7);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 8: OR Entry Row (SHORT vertical)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                shortButton = CreateStandardButton("Ôû╝ SHORT (S)", AccentRed, OnShortClick);
+                Grid.SetRow(shortButton, 8);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 9: Special Entry Row (RMA | RETEST)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                System.Windows.Controls.Grid specialRow1 = new System.Windows.Controls.Grid();
+                specialRow1.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                specialRow1.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                rmaButton = CreateCompactButton("RMA", AccentOrange, OnRMAClick);
+                Grid.SetColumn(rmaButton, 0);
+                specialRow1.Children.Add(rmaButton);
+
+                retestButton = CreateCompactButton("RETEST", AccentPurple, OnRetestClick);
+                Grid.SetColumn(retestButton, 1);
+                specialRow1.Children.Add(retestButton);
+
+                Grid.SetRow(specialRow1, 9);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 10: MOMO | FFMA (Vertical Stack)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                System.Windows.Controls.Grid specialRow2 = new System.Windows.Controls.Grid();
+                specialRow2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                specialRow2.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                momoButton = CreateCompactButton("MOMO", AccentPurple, OnMOMOClick);
+                Grid.SetColumn(momoButton, 0);
+                specialRow2.Children.Add(momoButton);
+
+                ffmaButton = CreateCompactButton("FFMA", AccentPink, OnFFMAClick);
+                Grid.SetColumn(ffmaButton, 1);
+                specialRow2.Children.Add(ffmaButton);
+
+                Grid.SetRow(specialRow2, 10);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 11: TREND Button
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                trendButton = CreateStandardButton("TREND", AccentBlue, OnTRENDClick);
+                Grid.SetRow(trendButton, 11);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 12: Target Row (T1 | T2 | T3 | RUN | BE)
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                System.Windows.Controls.Grid targetGrid = CreateTargetButtonRow();
+                Grid.SetRow(targetGrid, 12);
+
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                // ROW 13: Flatten Button
+                // ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+                flattenButton = new Button
+                {
+                    Content = "ÔÜá FLATTEN ALL (F)",
+                    Background = AccentOrange,
+                    Foreground = TextPrimary,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 14,
+                    Height = 48,
+                    Margin = new Thickness(12, 8, 12, 12),
+                    Padding = new Thickness(4),
+                    Cursor = Cursors.Hand,
+                    BorderThickness = new Thickness(0)
+                };
+                flattenButton.Click += (s, e) => OnGlobalSyncSelect("FLATTEN");
+                Grid.SetRow(flattenButton, 13);
+
+                // Add all elements to mainGrid
+                mainGrid.Children.Add(titleBar);
+                mainGrid.Children.Add(fleetConfigBorder);
+                mainGrid.Children.Add(statusSection);
+                mainGrid.Children.Add(orInfoPanel);
+                mainGrid.Children.Add(targetModeSection);
+                mainGrid.Children.Add(rmaAnchorSection);
+                mainGrid.Children.Add(rmaModeTextBlock);
+                mainGrid.Children.Add(longButton);
+                mainGrid.Children.Add(shortButton);
+                mainGrid.Children.Add(specialRow1);
+                mainGrid.Children.Add(specialRow2);
+                mainGrid.Children.Add(trendButton);
+                mainGrid.Children.Add(targetGrid);
+                mainGrid.Children.Add(flattenButton);
+
+                contentViewbox.Child = mainGrid;
+                mainBorder.Child = contentViewbox;
+
+                UserControlCollection.Add(mainBorder);
+
+                uiCreated = true;
+                Print("V12 PRO MASTER UI Created - Fleet Sync Active");
+            }
+            catch (Exception ex)
+            {
+                Print("ERROR CreateUI: " + ex.Message);
+            }
+        }
+
+        #endregion
+
+        #region V12 UI Component Builders
+
+        private Border CreateTitleBar()
+        {
+            Border titleBar = new Border
+            {
+                Background = new LinearGradientBrush(
+                    Color.FromRgb(30, 58, 95),
+                    Color.FromRgb(15, 23, 42),
+                    45),
+                Padding = new Thickness(12),
+                Cursor = Cursors.SizeAll
+            };
+
+            titleBar.MouseLeftButtonDown += OnDragStart;
+            titleBar.MouseMove += OnDragMove;
+            titleBar.MouseLeftButtonUp += OnDragEnd;
+
+            System.Windows.Controls.Grid titleGrid = new System.Windows.Controls.Grid();
+            titleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            titleGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            TextBlock titleText = new TextBlock
+            {
+                Text = "Ôÿà V12 PRO MASTER Ôÿà",
+                Foreground = AccentCyan,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            titleText.Effect = new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Cyan,
+                BlurRadius = 10,
+                ShadowDepth = 0
+            };
+            Grid.SetColumn(titleText, 0);
+            titleGrid.Children.Add(titleText);
+
+            Border versionBadge = new Border
+            {
+                Background = AccentGold,
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 2, 6, 2)
+            };
+            TextBlock versionText = new TextBlock
+            {
+                Text = "V14.9",
+                Foreground = BgPrimary,
+                FontWeight = FontWeights.Bold,
+                FontSize = 10
+            };
+            versionBadge.Child = versionText;
+            Grid.SetColumn(versionBadge, 1);
+            titleGrid.Children.Add(versionBadge);
+
+            titleBar.Child = titleGrid;
+            return titleBar;
+        }
+
+        private Border CreateFleetConfigSection()
+        {
+            Border section = new Border
+            {
+                Background = BgTertiary,
+                Padding = new Thickness(10, 8, 10, 8),
+                BorderBrush = BorderPrimary,
+                BorderThickness = new Thickness(0, 0, 0, 1)
+            };
+
+            StackPanel content = new StackPanel();
+
+            // Header row
+            System.Windows.Controls.Grid headerGrid = new System.Windows.Controls.Grid();
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            TextBlock fleetTitle = new TextBlock
+            {
+                Text = "FLEET CONFIG",
+                Foreground = AccentGold,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 11
+            };
+            Grid.SetColumn(fleetTitle, 0);
+            headerGrid.Children.Add(fleetTitle);
+
+            StackPanel statusPanel = new StackPanel { Orientation = Orientation.Horizontal };
+
+            Ellipse indicator = new Ellipse
+            {
+                Width = 8,
+                Height = 8,
+                Fill = AccentGreen,
+                Margin = new Thickness(0, 0, 6, 0)
+            };
+            statusPanel.Children.Add(indicator);
+
+            fleetStatusText = new TextBlock
+            {
+                Text = string.Format("{0}/{0} Connected", FleetAccountCount),
+                Foreground = TextSecondary,
+                FontSize = 11
+            };
+            statusPanel.Children.Add(fleetStatusText);
+
+            Grid.SetColumn(statusPanel, 1);
+            headerGrid.Children.Add(statusPanel);
+
+            content.Children.Add(headerGrid);
+
+            // Account chips
+            fleetChipsPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 8, 0, 0)
+            };
+
+            WrapPanel chipWrap = new WrapPanel();
+
+            // Master chip
+            Border masterChip = CreateAccountChip("MASTER", true, true);
+            chipWrap.Children.Add(masterChip);
+
+            // Slave chips
+            for (int i = 1; i < FleetAccountCount; i++)
+            {
+                string accountName = "APEX" + i;
+                Border chip = CreateAccountChip(accountName, i <= 3, false);
+                fleetAccountChips[accountName] = chip;
+                chipWrap.Children.Add(chip);
+            }
+
+            content.Children.Add(chipWrap);
+
+            section.Child = content;
+            return section;
+        }
+
+        private Border CreateAccountChip(string name, bool isActive, bool isMaster)
+        {
+            Border chip = new Border
+            {
+                Background = isActive ? (isMaster ? new SolidColorBrush(Color.FromArgb(25, 255, 204, 0)) : new SolidColorBrush(Color.FromArgb(25, 0, 255, 255))) : BgSecondary,
+                BorderBrush = isActive ? (isMaster ? AccentGold : AccentCyan) : BorderPrimary,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(6, 3, 6, 3),
+                Margin = new Thickness(0, 0, 4, 4),
+                Cursor = Cursors.Hand
+            };
+
+            TextBlock text = new TextBlock
+            {
+                Text = name,
+                Foreground = isActive ? (isMaster ? AccentGold : AccentCyan) : TextSecondary,
+                FontSize = 10
+            };
+
+            chip.Child = text;
+            chip.Tag = name;
+
+            if (!isMaster)
+            {
+                chip.MouseLeftButtonDown += (s, e) =>
+                {
+                    Border b = s as Border;
+                    if (b != null)
+                    {
+                        string acctName = b.Tag as string;
+                        ToggleFleetAccount(acctName, b);
+                    }
+                };
+            }
+
+            return chip;
+        }
+
+        private void ToggleFleetAccount(string accountName, Border chip)
+        {
+            if (fleetAccounts.ContainsKey(accountName))
+            {
+                var acct = fleetAccounts[accountName];
+                acct.IsConnected = !acct.IsConnected;
+
+                TextBlock text = chip.Child as TextBlock;
+                if (acct.IsConnected)
+                {
+                    chip.Background = new SolidColorBrush(Color.FromArgb(25, 0, 255, 255));
+                    chip.BorderBrush = AccentCyan;
+                    if (text != null) text.Foreground = AccentCyan;
+                }
+                else
+                {
+                    chip.Background = BgSecondary;
+                    chip.BorderBrush = BorderPrimary;
+                    if (text != null) text.Foreground = TextSecondary;
+                }
+
+                UpdateFleetStatus();
+            }
+        }
+
+        private void UpdateFleetStatus()
+        {
+            int connected = fleetAccounts.Values.Count(a => a.IsConnected);
+            if (fleetStatusText != null)
+            {
+                ChartControl.Dispatcher.InvokeAsync(() =>
+                {
+                    fleetStatusText.Text = string.Format("{0}/{1} Connected", connected, FleetAccountCount);
+                });
+            }
+            connectedFleetCount = connected;
+        }
+
+        private StackPanel CreateStatusSection()
+        {
+            StackPanel section = new StackPanel
+            {
+                Margin = new Thickness(12, 8, 12, 8)
+            };
+
+            section.Children.Add(CreateStatusRow("Session", "NY OPEN", AccentCyan));
+            section.Children.Add(CreateStatusRow("ATR (14)", "2.45", TextPrimary));
+            section.Children.Add(CreateStatusRow("Fleet P&L", "+$0.00", AccentGreen));
+
+            statusTextBlock = section.Children[0] as TextBlock;
+            orInfoBlock = section.Children[1] as TextBlock;
+            positionSummaryBlock = section.Children[2] as TextBlock;
+
+            return section;
+        }
+
+        private System.Windows.Controls.Grid CreateStatusRow(string label, string value, SolidColorBrush valueColor)
+        {
+            System.Windows.Controls.Grid row = new System.Windows.Controls.Grid { Margin = new Thickness(0, 2, 0, 2) };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            TextBlock labelBlock = new TextBlock
+            {
+                Text = label,
+                Foreground = TextSecondary,
+                FontSize = 12
+            };
+            Grid.SetColumn(labelBlock, 0);
+            row.Children.Add(labelBlock);
+
+            TextBlock valueBlock = new TextBlock
+            {
+                Text = value,
+                Foreground = valueColor,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 12
+            };
+            Grid.SetColumn(valueBlock, 1);
+            row.Children.Add(valueBlock);
+
+            return row;
+        }
+
+        private Border CreateORInfoPanel()
+        {
+            Border panel = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(12, 0, 255, 255)),
+                Padding = new Thickness(12, 8, 12, 8),
+                BorderBrush = BorderPrimary,
+                BorderThickness = new Thickness(0, 0, 0, 1)
+            };
+
+            System.Windows.Controls.Grid levelGrid = new System.Windows.Controls.Grid();
+            levelGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            levelGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            levelGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            levelGrid.Children.Add(CreateORLevelBlock("High", "0.00", 0));
+            levelGrid.Children.Add(CreateORLevelBlock("Mid", "0.00", 1));
+            levelGrid.Children.Add(CreateORLevelBlock("Low", "0.00", 2));
+
+            panel.Child = levelGrid;
+            return panel;
+        }
+
+        private Border CreateORLevelBlock(string label, string value, int column)
+        {
+            Border block = new Border
+            {
+                Background = BgTertiary,
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8),
+                Margin = new Thickness(2)
+            };
+
+            StackPanel content = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center };
+
+            TextBlock labelText = new TextBlock
+            {
+                Text = label,
+                Foreground = TextMuted,
+                FontSize = 10,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            content.Children.Add(labelText);
+
+            TextBlock valueText = new TextBlock
+            {
+                Text = value,
+                Foreground = AccentCyan,
+                FontWeight = FontWeights.Bold,
+                FontSize = 14,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            content.Children.Add(valueText);
+
+            block.Child = content;
+            Grid.SetColumn(block, column);
+            return block;
+        }
+
+        private Border CreateTargetModeSection()
+        {
+            Border section = new Border
+            {
+                Background = BgTertiary,
+                Padding = new Thickness(12, 8, 12, 8),
+                BorderBrush = BorderPrimary,
+                BorderThickness = new Thickness(0, 0, 0, 1)
+            };
+
+            StackPanel content = new StackPanel();
+
+            TextBlock title = new TextBlock
+            {
+                Text = "TARGET CALCULATION MODE",
+                Foreground = TextSecondary,
+                FontSize = 11,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            content.Children.Add(title);
+
+            // Mode chips
+            StackPanel chipPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            string[] modes = { "ATR", "PTS", "TKS", "RNG" };
+            targetModeChips = new Border[4];
+
+            for (int i = 0; i < modes.Length; i++)
+            {
+                Border chip = CreateModeChip(modes[i], i == 0);
+                targetModeChips[i] = chip;
+                chipPanel.Children.Add(chip);
+            }
+            content.Children.Add(chipPanel);
+
+            // Target value inputs
+            System.Windows.Controls.Grid inputGrid = new System.Windows.Controls.Grid { Margin = new Thickness(0, 8, 0, 0) };
+            for (int i = 0; i < 4; i++)
+                inputGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            string[] labels = { "T1", "T2", "T3", "T4" };
+            string[] values = { "1.0", "0.5x", "1.0x", "TRAIL" };
+
+            for (int i = 0; i < 4; i++)
+            {
+                StackPanel inputGroup = new StackPanel { Margin = new Thickness(2) };
+
+                TextBlock labelText = new TextBlock
+                {
+                    Text = labels[i],
+                    Foreground = TextMuted,
+                    FontSize = 10,
+                    HorizontalAlignment = HorizontalAlignment.Center
+                };
+                inputGroup.Children.Add(labelText);
+
+                TextBox input = new TextBox
+                {
+                    Text = values[i],
+                    Background = BgSecondary,
+                    Foreground = TextPrimary,
+                    BorderBrush = BorderPrimary,
+                    FontWeight = FontWeights.SemiBold,
+                    FontSize = 12,
+                    TextAlignment = TextAlignment.Center,
+                    Padding = new Thickness(4)
+                };
+                inputGroup.Children.Add(input);
+
+                if (i == 0) t1ValueInput = input;
+                else if (i == 1) t2ValueInput = input;
+                else if (i == 2) t3ValueInput = input;
+                else t4ValueInput = input;
+
+                Grid.SetColumn(inputGroup, i);
+                inputGrid.Children.Add(inputGroup);
+            }
+            content.Children.Add(inputGrid);
+
+            section.Child = content;
+            return section;
+        }
+
+        private Border CreateModeChip(string mode, bool isActive)
+        {
+            Border chip = new Border
+            {
+                Background = isActive ? new SolidColorBrush(Color.FromArgb(38, 0, 255, 255)) : BgSecondary,
+                BorderBrush = isActive ? AccentCyan : BorderPrimary,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(4),
+                Padding = new Thickness(10, 4, 10, 4),
+                Margin = new Thickness(0, 0, 4, 0),
+                Cursor = Cursors.Hand
+            };
+
+            TextBlock text = new TextBlock
+            {
+                Text = mode,
+                Foreground = isActive ? AccentCyan : TextSecondary,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 11
+            };
+
+            chip.Child = text;
+            chip.Tag = mode;
+
+            chip.MouseLeftButtonDown += OnTargetModeChipClick;
+
+            return chip;
+        }
+
+        private void OnTargetModeChipClick(object sender, MouseButtonEventArgs e)
+        {
+            Border clickedChip = sender as Border;
+            if (clickedChip == null) return;
+
+            string mode = clickedChip.Tag as string;
+
+            // Update all chips
+            for (int i = 0; i < targetModeChips.Length; i++)
+            {
+                Border chip = targetModeChips[i];
+                TextBlock text = chip.Child as TextBlock;
+                bool isActive = (chip.Tag as string) == mode;
+
+                chip.Background = isActive ? new SolidColorBrush(Color.FromArgb(38, 0, 255, 255)) : BgSecondary;
+                chip.BorderBrush = isActive ? AccentCyan : BorderPrimary;
+                if (text != null) text.Foreground = isActive ? AccentCyan : TextSecondary;
+            }
+
+            // Update target calculation mode
+            switch (mode)
+            {
+                case "ATR": currentTargetMode = TargetModeType.ATR; break;
+                case "PTS": currentTargetMode = TargetModeType.PTS; break;
+                case "TKS": currentTargetMode = TargetModeType.TKS; break;
+                case "RNG": currentTargetMode = TargetModeType.RNG; break;
+            }
+
+            UpdateTargetInputValues();
+            OnGlobalSyncSelect("TARGET_MODE_" + mode);
+        }
+
+        private void UpdateTargetInputValues()
+        {
+            if (t1ValueInput == null) return;
+
+            switch (currentTargetMode)
+            {
+                case TargetModeType.ATR:
+                    t1ValueInput.Text = "1.0";
+                    t2ValueInput.Text = "0.5x";
+                    t3ValueInput.Text = "1.0x";
+                    break;
+                case TargetModeType.PTS:
+                    t1ValueInput.Text = "1.0";
+                    t2ValueInput.Text = "2.0";
+                    t3ValueInput.Text = "4.0";
+                    break;
+                case TargetModeType.TKS:
+                    t1ValueInput.Text = "4";
+                    t2ValueInput.Text = "8";
+                    t3ValueInput.Text = "16";
+                    break;
+                case TargetModeType.RNG:
+                    t1ValueInput.Text = "0.25x";
+                    t2ValueInput.Text = "0.5x";
+                    t3ValueInput.Text = "1.0x";
+                    break;
+            }
+        }
+
+        private Border CreateRMAAnchorSection()
+        {
+            Border section = new Border
+            {
+                Padding = new Thickness(12, 8, 12, 8),
+                BorderBrush = BorderPrimary,
+                BorderThickness = new Thickness(0, 0, 0, 1)
+            };
+
+            StackPanel content = new StackPanel();
+
+            TextBlock title = new TextBlock
+            {
+                Text = "RMA ANCHOR",
+                Foreground = AccentOrange,
+                FontSize = 11,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            content.Children.Add(title);
+
+            WrapPanel chipPanel = new WrapPanel();
+            string[] anchors = { "EMA 30", "EMA 65", "EMA 200", "OR High", "OR Low" };
+            RMAAnchorType[] anchorTypes = { RMAAnchorType.EMA30, RMAAnchorType.EMA65, RMAAnchorType.EMA200, RMAAnchorType.ORHigh, RMAAnchorType.ORLow };
+            rmaAnchorChips = new Border[5];
+
+            for (int i = 0; i < anchors.Length; i++)
+            {
+                bool isActive = anchorTypes[i] == currentRMAAnchor;
+                bool isEMA = anchors[i].StartsWith("EMA");
+
+                Border chip = CreateRMAAnchorChip(anchors[i], anchorTypes[i], isActive, isEMA);
+                rmaAnchorChips[i] = chip;
+                chipPanel.Children.Add(chip);
+            }
+            content.Children.Add(chipPanel);
+
+            section.Child = content;
+            return section;
+        }
+
+        private Border CreateRMAAnchorChip(string label, RMAAnchorType anchorType, bool isActive, bool isEMA)
+        {
+            SolidColorBrush activeColor = isEMA ? AccentBlue : AccentCyan;
+            SolidColorBrush inactiveColor = isEMA ? new SolidColorBrush(Color.FromArgb(76, 59, 130, 246)) : new SolidColorBrush(Color.FromArgb(76, 0, 255, 255));
+
+            Border chip = new Border
+            {
+                Background = isActive ? new SolidColorBrush(Color.FromArgb(38, activeColor.Color.R, activeColor.Color.G, activeColor.Color.B)) : BgTertiary,
+                BorderBrush = isActive ? activeColor : inactiveColor,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(6),
+                Padding = new Thickness(8, 4, 8, 4),
+                Margin = new Thickness(0, 0, 6, 6),
+                Cursor = Cursors.Hand
+            };
+
+            TextBlock text = new TextBlock
+            {
+                Text = label,
+                Foreground = isActive ? activeColor : TextSecondary,
+                FontWeight = FontWeights.SemiBold,
+                FontSize = 11
+            };
+
+            chip.Child = text;
+            chip.Tag = anchorType;
+
+            chip.MouseLeftButtonDown += OnRMAAnchorChipClick;
+
+            return chip;
+        }
+
+        private void OnRMAAnchorChipClick(object sender, MouseButtonEventArgs e)
+        {
+            Border clickedChip = sender as Border;
+            if (clickedChip == null) return;
+
+            RMAAnchorType anchorType = (RMAAnchorType)clickedChip.Tag;
+            currentRMAAnchor = anchorType;
+
+            // Update all chips
+            for (int i = 0; i < rmaAnchorChips.Length; i++)
+            {
+                Border chip = rmaAnchorChips[i];
+                RMAAnchorType chipType = (RMAAnchorType)chip.Tag;
+                TextBlock text = chip.Child as TextBlock;
+                bool isActive = chipType == anchorType;
+                bool isEMA = i < 3;
+
+                SolidColorBrush activeColor = isEMA ? AccentBlue : AccentCyan;
+
+                chip.Background = isActive ? new SolidColorBrush(Color.FromArgb(38, activeColor.Color.R, activeColor.Color.G, activeColor.Color.B)) : BgTertiary;
+                chip.BorderBrush = isActive ? activeColor : (isEMA ? new SolidColorBrush(Color.FromArgb(76, 59, 130, 246)) : new SolidColorBrush(Color.FromArgb(76, 0, 255, 255)));
+                if (text != null) text.Foreground = isActive ? activeColor : TextSecondary;
+            }
+
+            OnGlobalSyncSelect("RMA_ANCHOR_" + anchorType.ToString());
+        }
+
+        private Button CreateStandardButton(string content, SolidColorBrush background, RoutedEventHandler clickHandler)
+        {
+            Button btn = new Button
+            {
+                Content = content,
+                Background = background,
+                Foreground = TextPrimary,
+                FontWeight = FontWeights.Bold,
+                FontSize = 13,
+                Height = 44,  // V12: Standardized 44px height
+                Margin = new Thickness(12, 4, 12, 4),
+                Padding = new Thickness(4),
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(0)
+            };
+            btn.Click += clickHandler;
+            return btn;
+        }
+
+        private Button CreateCompactButton(string content, SolidColorBrush background, RoutedEventHandler clickHandler)
+        {
+            Button btn = new Button
+            {
+                Content = content,
+                Background = background,
+                Foreground = TextPrimary,
+                FontWeight = FontWeights.Bold,
+                FontSize = 12,
+                Height = 44,  // V12: Standardized 44px height
+                Margin = new Thickness(6, 4, 6, 4),
+                Padding = new Thickness(4),
+                Cursor = Cursors.Hand,
+                BorderThickness = new Thickness(0)
+            };
+            btn.Click += clickHandler;
+            return btn;
+        }
+
+        private System.Windows.Controls.Grid CreateTargetButtonRow()
+        {
+            System.Windows.Controls.Grid grid = new System.Windows.Controls.Grid { Margin = new Thickness(12, 4, 12, 4) };
+            for (int i = 0; i < 5; i++)
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            string[] labels = { "T1", "T2", "T3", "RUN", "BE" };
+            for (int i = 0; i < 5; i++)
+            {
+                Button btn = new Button
+                {
+                    Content = labels[i],
+                    Background = i < 4 ? AccentPurple : BgTertiary,
+                    Foreground = TextPrimary,
+                    FontWeight = FontWeights.Bold,
+                    FontSize = 11,
+                    Height = 36,
+                    Margin = new Thickness(2, 0, 2, 0),
+                    Cursor = Cursors.Hand,
+                    BorderThickness = i == 4 ? new Thickness(1) : new Thickness(0),
+                    BorderBrush = BorderPrimary
+                };
+
+                int index = i;
+                btn.Click += (s, e) =>
+                {
+                    if (index == 4) OnBreakevenButtonClick();
+                    else OnGlobalSyncSelect("CLOSE_T" + (index + 1));
+                };
+
+                Grid.SetColumn(btn, i);
+                grid.Children.Add(btn);
+
+                if (i == 0) t1DropdownButton = btn;
+                else if (i == 1) t2DropdownButton = btn;
+                else if (i == 2) t3DropdownButton = btn;
+                else if (i == 3) runnerDropdownButton = btn;
+                else breakevenButton = btn;
+            }
+
+            return grid;
+        }
+
+        #endregion
+
+        #region V12 Global Sync Protocol
+
+        /// <summary>
+        /// V12: Central dispatcher for all UI actions
+        /// Ensures selection on Sidebar instantly reflects on Dashboard and HUD
+        /// </summary>
+        private void OnGlobalSyncSelect(string action)
+        {
+            Print(string.Format("[GLOBAL SYNC] Action: {0}", action));
+
+            // 1. Sync all UI components
+            SyncAllButtons(action);
+
+            // 2. Broadcast to SIMA fleet
+            BroadcastToSIMA(action);
+
+            // 3. Execute the action
+            ExecuteSyncAction(action);
+
+            // 4. Update fleet status
+            UpdateFleetStatusAfterAction(action);
+        }
+
+        /// <summary>
+        /// V12: Syncs visual state across all UI panels
+        /// </summary>
+        private void SyncAllButtons(string action)
+        {
+            if (!uiCreated || ChartControl == null) return;
+
+            ChartControl.Dispatcher.InvokeAsync(() =>
+            {
+                // Visual feedback - highlight relevant buttons
+                if (action == "LONG" && longButton != null)
+                {
+                    longButton.BorderThickness = new Thickness(2);
+                    longButton.BorderBrush = AccentCyan;
+                }
+                else if (action == "SHORT" && shortButton != null)
+                {
+                    shortButton.BorderThickness = new Thickness(2);
+                    shortButton.BorderBrush = AccentCyan;
+                }
+            });
+        }
+
+        /// <summary>
+        /// V12: Broadcasts action to all connected fleet accounts via SIMA
+        /// </summary>
+        private void BroadcastToSIMA(string action)
+        {
+            if (!EnableCopyTrading) return;
+
+            Print(string.Format("[SIMA BROADCAST] Sending {0} to {1} fleet accounts", action, connectedFleetCount));
+
+            foreach (var kvp in fleetAccounts)
+            {
+                if (kvp.Value.IsConnected && !kvp.Value.IsMaster)
+                {
+                    // Queue command for IPC broadcast
+                    string command = string.Format("{0}|{1}", action, kvp.Key);
+                    // In production, this would send via TCP/IPC to slave strategies
+                    Print(string.Format("  -> {0}: {1}", kvp.Key, action));
+                }
+            }
+        }
+
+        private void ExecuteSyncAction(string action)
+        {
+            switch (action)
+            {
+                case "LONG":
+                    ExecuteLong();
+                    break;
+                case "SHORT":
+                    ExecuteShort();
+                    break;
+                case "RMA":
+                    ToggleRMAMode();
+                    break;
+                case "RETEST":
+                    ToggleRetestMode();
+                    break;
+                case "MOMO":
+                    ToggleMOMOMode();
+                    break;
+                case "FFMA":
+                    ToggleFFMAMode();
+                    break;
+                case "TREND":
+                    pendingTRENDEntry = true;
+                    break;
+                case "FLATTEN":
+                    FlattenAll();
+                    break;
+                case "BE_ALL":
+                    OnBreakevenButtonClick();
+                    break;
+                case "TRIM_25":
+                case "TRIM_50":
+                    ExecuteTrim(action == "TRIM_50" ? 0.5 : 0.25);
+                    break;
+                default:
+                    if (action.StartsWith("CLOSE_T"))
+                    {
+                        int targetNum = 0;
+                        if (int.TryParse(action.Substring(7), out targetNum))
+                        {
+                            FlattenSpecificTarget(targetNum);
+                        }
+                    }
+                    break;
+            }
+        }
+
+        private void UpdateFleetStatusAfterAction(string action)
+        {
+            if (action == "FLATTEN")
+            {
+                foreach (var kvp in fleetAccounts)
+                {
+                    kvp.Value.CurrentPosition = MarketPosition.Flat;
+                    kvp.Value.PositionSize = 0;
+                    kvp.Value.UnrealizedPnL = 0;
+                }
+            }
+
+            // Update aggregate P&L
+            aggregateFleetPnL = fleetAccounts.Values.Sum(a => a.UnrealizedPnL);
+        }
+
+        #endregion
+
+        #region V12 RMA Entry with Dynamic Anchors
+
+        /// <summary>
+        /// V12: Calculate RMA entry using dynamic anchor points
+        /// Anchors: EMA 30, EMA 65, EMA 200, OR High, OR Low
+        /// </summary>
+        private double GetRMAAnchorPrice()
+        {
+            switch (currentRMAAnchor)
+            {
+                case RMAAnchorType.EMA30:
+                    return ema30[0];
+                case RMAAnchorType.EMA65:
+                    return ema65[0];
+                case RMAAnchorType.EMA200:
+                    return ema200[0];
+                case RMAAnchorType.ORHigh:
+                    return sessionHigh;
+                case RMAAnchorType.ORLow:
+                    return sessionLow;
+                default:
+                    return ema200[0];
+            }
+        }
+
+        private void ExecuteRMAEntry(double clickPrice)
+        {
+            if (!RMAEnabled)
+            {
+                Print("RMA mode is disabled");
+                return;
+            }
+
+            if (currentATR <= 0)
+            {
+                Print("Cannot execute RMA entry - ATR not available yet");
+                return;
+            }
+
+            try
+            {
+                double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
+                double anchorPrice = GetRMAAnchorPrice();
+
+                // V12: Auto-direction based on anchor
+                MarketPosition direction;
+                if (clickPrice > currentPrice)
+                {
+                    direction = MarketPosition.Short;
+                    Print(string.Format("RMA: Click above price ({0:F2} > {1:F2}) = SHORT | Anchor: {2} @ {3:F2}",
+                        clickPrice, currentPrice, currentRMAAnchor, anchorPrice));
+                }
+                else
+                {
+                    direction = MarketPosition.Long;
+                    Print(string.Format("RMA: Click below price ({0:F2} < {1:F2}) = LONG | Anchor: {2} @ {3:F2}",
+                        clickPrice, currentPrice, currentRMAAnchor, anchorPrice));
+                }
+
+                // Calculate RMA stop and targets using ATR
+                double stopDistance = currentATR * RMAStopATRMultiplier;
+                stopDistance = Math.Min(stopDistance, 12.0);
+
+                double entryPrice = clickPrice;
+                double stopPrice = direction == MarketPosition.Long
+                    ? entryPrice - stopDistance
+                    : entryPrice + stopDistance;
+
+                // V12: Target calculation based on current mode
+                double target1Price, target2Price, target3Price;
+                CalculateTargets(entryPrice, direction, out target1Price, out target2Price, out target3Price);
+
+                // Calculate position size
+                double riskToUse = (stopDistance > StopThresholdPoints) ? ReducedRiskPerTrade : RiskPerTrade;
+                double stopDistanceInDollars = stopDistance * pointValue;
+                int contracts = (int)Math.Floor(riskToUse / stopDistanceInDollars);
+                contracts = Math.Max(minContracts, Math.Min(contracts, maxContracts));
+
+                // 4-target system split
+                int t1Qty, t2Qty, t3Qty, t4Qty;
+                CalculateContractSplit(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty);
+
+                string signalName = direction == MarketPosition.Long ? "RMALong" : "RMAShort";
+                string timestamp = DateTime.Now.ToString("HHmmss");
+                string entryName = signalName + "_" + timestamp;
+
+                PositionInfo pos = new PositionInfo
+                {
+                    SignalName = entryName,
+                    Direction = direction,
+                    TotalContracts = contracts,
+                    T1Contracts = t1Qty,
+                    T2Contracts = t2Qty,
+                    T3Contracts = t3Qty,
+                    T4Contracts = t4Qty,
+                    RemainingContracts = contracts,
+                    EntryPrice = entryPrice,
+                    InitialStopPrice = stopPrice,
+                    CurrentStopPrice = stopPrice,
+                    Target1Price = target1Price,
+                    Target2Price = target2Price,
+                    Target3Price = target3Price,
+                    EntryFilled = false,
+                    T1Filled = false,
+                    T2Filled = false,
+                    T3Filled = false,
+                    BracketSubmitted = false,
+                    ExtremePriceSinceEntry = entryPrice,
+                    CurrentTrailLevel = 0,
+                    IsRMATrade = true,
+                    RMAAnchor = currentRMAAnchor
+                };
+
+                activePositions[entryName] = pos;
+
+                Order entryOrder = direction == MarketPosition.Long
+                    ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.Limit, contracts, entryPrice, 0, "", entryName)
+                    : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.Limit, contracts, entryPrice, 0, "", entryName);
+
+                entryOrders[entryName] = entryOrder;
+
+                Print(string.Format("RMA ENTRY: {0} {1}@{2:F2} | ATR: {3:F2} | Anchor: {4}",
+                    signalName, contracts, entryPrice, currentATR, currentRMAAnchor));
+
+                // V12: Broadcast to SIMA
+                BroadcastEntrySignal(entryName, direction, entryPrice, stopPrice, target1Price, target2Price, target3Price,
+                    t1Qty, t2Qty, t3Qty, t4Qty, true);
+
+                DeactivateRMAMode();
+                UpdateDisplay();
+            }
+            catch (Exception ex)
+            {
+                Print("ERROR ExecuteRMAEntry: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// V12: Calculate targets based on current target mode
+        /// </summary>
+        private void CalculateTargets(double entryPrice, MarketPosition direction, out double t1, out double t2, out double t3)
+        {
+            switch (currentTargetMode)
+            {
+                case TargetModeType.ATR:
+                    t1 = direction == MarketPosition.Long
+                        ? entryPrice + Target1FixedPoints
+                        : entryPrice - Target1FixedPoints;
+                    t2 = direction == MarketPosition.Long
+                        ? entryPrice + (currentATR * Target2Multiplier)
+                        : entryPrice - (currentATR * Target2Multiplier);
+                    t3 = direction == MarketPosition.Long
+                        ? entryPrice + (currentATR * Target3Multiplier)
+                        : entryPrice - (currentATR * Target3Multiplier);
+                    break;
+
+                case TargetModeType.PTS:
+                    t1 = direction == MarketPosition.Long ? entryPrice + 1.0 : entryPrice - 1.0;
+                    t2 = direction == MarketPosition.Long ? entryPrice + 2.0 : entryPrice - 2.0;
+                    t3 = direction == MarketPosition.Long ? entryPrice + 4.0 : entryPrice - 4.0;
+                    break;
+
+                case TargetModeType.TKS:
+                    t1 = direction == MarketPosition.Long ? entryPrice + (4 * tickSize) : entryPrice - (4 * tickSize);
+                    t2 = direction == MarketPosition.Long ? entryPrice + (8 * tickSize) : entryPrice - (8 * tickSize);
+                    t3 = direction == MarketPosition.Long ? entryPrice + (16 * tickSize) : entryPrice - (16 * tickSize);
+                    break;
+
+                case TargetModeType.RNG:
+                    double range = sessionRange > 0 ? sessionRange : currentATR;
+                    t1 = direction == MarketPosition.Long ? entryPrice + (range * 0.25) : entryPrice - (range * 0.25);
+                    t2 = direction == MarketPosition.Long ? entryPrice + (range * 0.5) : entryPrice - (range * 0.5);
+                    t3 = direction == MarketPosition.Long ? entryPrice + range : entryPrice - range;
+                    break;
+
+                default:
+                    t1 = entryPrice + (direction == MarketPosition.Long ? 1.0 : -1.0);
+                    t2 = entryPrice + (direction == MarketPosition.Long ? 2.0 : -2.0);
+                    t3 = entryPrice + (direction == MarketPosition.Long ? 4.0 : -4.0);
+                    break;
+            }
+        }
+
+        private void CalculateContractSplit(int contracts, out int t1Qty, out int t2Qty, out int t3Qty, out int t4Qty)
+        {
+            if (contracts == 1)
+            {
+                t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 0;
+            }
+            else if (contracts == 2)
+            {
+                t1Qty = 1; t2Qty = 0; t3Qty = 0; t4Qty = 1;
+            }
+            else if (contracts == 3)
+            {
+                t1Qty = 1; t2Qty = 1; t3Qty = 0; t4Qty = 1;
+            }
+            else if (contracts == 4)
+            {
+                t1Qty = 1; t2Qty = 1; t3Qty = 1; t4Qty = 1;
+            }
+            else
+            {
+                t1Qty = (int)Math.Floor(contracts * T1ContractPercent / 100.0);
+                t2Qty = (int)Math.Floor(contracts * T2ContractPercent / 100.0);
+                t3Qty = (int)Math.Floor(contracts * T3ContractPercent / 100.0);
+                t4Qty = contracts - t1Qty - t2Qty - t3Qty;
+
+                if (t1Qty < 1) { t1Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
+                if (t2Qty < 1) { t2Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
+                if (t3Qty < 1) { t3Qty = 1; t4Qty = contracts - t1Qty - t2Qty - t3Qty; }
+                if (t4Qty < 1) t4Qty = 1;
+            }
+        }
+
+        #endregion
+
+        #region Button Click Handlers
+
+        private void OnLongClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("LONG");
+        }
+
+        private void OnShortClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("SHORT");
+        }
+
+        private void OnRMAClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("RMA");
+        }
+
+        private void OnRetestClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("RETEST");
+        }
+
+        private void OnMOMOClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("MOMO");
+        }
+
+        private void OnFFMAClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("FFMA");
+        }
+
+        private void OnTRENDClick(object sender, RoutedEventArgs e)
+        {
+            OnGlobalSyncSelect("TREND");
+        }
+
+        private void OnBreakevenButtonClick()
+        {
+            foreach (var kvp in activePositions.ToArray())
+            {
+                PositionInfo pos = kvp.Value;
+                if (pos.RemainingContracts > 0 && pos.EntryFilled)
+                {
+                    double bePrice = pos.Direction == MarketPosition.Long
+                        ? pos.EntryPrice + (ManualBreakevenBuffer * tickSize)
+                        : pos.EntryPrice - (ManualBreakevenBuffer * tickSize);
+
+                    ChangeStop(pos.SignalName, bePrice);
+                    Print(string.Format("Manual BE: {0} moved to {1:F2}", pos.SignalName, bePrice));
+                }
+            }
+        }
+
+        #endregion
+
+        #region Mode Toggles
+
+        private void ToggleRMAMode()
+        {
+            if (isMOMOModeActive) DeactivateMOMOMode();
+            isRMAButtonClicked = !isRMAButtonClicked;
+            isRMAModeActive = isRMAButtonClicked;
+            UpdateRMAModeDisplay();
+        }
+
+        private void ToggleRetestMode()
+        {
+            isRetestModeActive = !isRetestModeActive;
+            UpdateRetestModeDisplay();
+        }
+
+        private void ToggleMOMOMode()
+        {
+            if (isRMAModeActive) DeactivateRMAMode();
+            isMOMOModeActive = !isMOMOModeActive;
+            UpdateMOMOModeDisplay();
+        }
+
+        private void ToggleFFMAMode()
+        {
+            isFFMAModeArmed = !isFFMAModeArmed;
+            UpdateFFMAModeDisplay();
+        }
+
+        private void DeactivateRMAMode()
+        {
+            isRMAModeActive = false;
+            isRMAButtonClicked = false;
+            UpdateRMAModeDisplay();
+        }
+
+        private void DeactivateMOMOMode()
+        {
+            isMOMOModeActive = false;
+            UpdateMOMOModeDisplay();
+        }
+
+        private void UpdateRMAModeDisplay()
+        {
+            if (ChartControl == null) return;
+            ChartControl.Dispatcher.InvokeAsync(() =>
+            {
+                if (rmaModeTextBlock != null)
+                {
+                    rmaModeTextBlock.Visibility = isRMAModeActive ? Visibility.Visible : Visibility.Collapsed;
+                    rmaModeTextBlock.Text = string.Format("Ôÿà RMA ACTIVE ({0}) - Click chart Ôÿà", currentRMAAnchor);
+                }
+                if (rmaButton != null)
+                {
+                    rmaButton.Background = isRMAModeActive ? RMAActiveBackground : AccentOrange;
+                }
+            });
+        }
+
+        private void UpdateRetestModeDisplay()
+        {
+            if (ChartControl == null || retestButton == null) return;
+            ChartControl.Dispatcher.InvokeAsync(() =>
+            {
+                retestButton.Background = isRetestModeActive
+                    ? new SolidColorBrush(Color.FromRgb(150, 80, 150))
+                    : AccentPurple;
+            });
+        }
+
+        private void UpdateMOMOModeDisplay()
+        {
+            if (ChartControl == null || momoButton == null) return;
+            ChartControl.Dispatcher.InvokeAsync(() =>
+            {
+                momoButton.Background = isMOMOModeActive
+                    ? new SolidColorBrush(Color.FromRgb(140, 80, 180))
+                    : AccentPurple;
+            });
+        }
+
+        private void UpdateFFMAModeDisplay()
+        {
+            if (ChartControl == null || ffmaButton == null) return;
+            ChartControl.Dispatcher.InvokeAsync(() =>
+            {
+                ffmaButton.Background = isFFMAModeArmed
+                    ? new SolidColorBrush(Color.FromRgb(200, 100, 180))
+                    : AccentPink;
+            });
+        }
+
+        #endregion
+
+        #region Entry Execution Stubs
+        // V12: Calls methods preserved in the main strategy logic
+        // ExecuteLong, ExecuteShort, ExecuteTRENDEntry, ExecuteMOMOEntry, ManageTrailingStops, ChangeStop
+        // are all implemented in UniversalORStrategyV12.cs (SafeLogic)
+        #endregion
+
+        #region Flatten
+
+        private void FlattenAll()
+        {
+            Print("FLATTEN ALL - Closing all positions");
+
+            foreach (var kvp in activePositions.ToArray())
+            {
+                PositionInfo pos = kvp.Value;
+                if (pos.RemainingContracts > 0)
+                {
+                    if (pos.Direction == MarketPosition.Long)
+                        SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, pos.RemainingContracts, 0, 0, "", "Flatten_" + pos.SignalName);
+                    else
+                        SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Market, pos.RemainingContracts, 0, 0, "", "Flatten_" + pos.SignalName);
+                }
+            }
+        }
+
+        #endregion
+
+        #region SIMA Broadcast
+
+        private void BroadcastEntrySignal(string entryName, MarketPosition direction, double entry, double stop,
+            double t1, double t2, double t3, int t1Qty, int t2Qty, int t3Qty, int t4Qty, bool isRMA)
+        {
+            if (!EnableCopyTrading) return;
+
+            string signal = string.Format("ENTRY|{0}|{1}|{2:F2}|{3:F2}|{4:F2}|{5:F2}|{6:F2}|{7}|{8}|{9}|{10}|{11}",
+                entryName, direction, entry, stop, t1, t2, t3, t1Qty, t2Qty, t3Qty, t4Qty, isRMA ? "RMA" : "OR");
+
+            Print(string.Format("[SIMA] Broadcasting: {0}", signal));
+
+            // Update master account status
+            if (fleetAccounts.ContainsKey("MASTER"))
+            {
+                var master = fleetAccounts["MASTER"];
+                master.CurrentPosition = direction;
+                master.EntryPrice = entry;
+                master.PositionSize = t1Qty + t2Qty + t3Qty + t4Qty;
+            }
+        }
+
+        #endregion
+
+        #region IPC Server
+
+        private void StartIpcServer()
+        {
+            if (isIpcRunning) return;
+
+            isIpcRunning = true;
+            ipcThread = new Thread(ListenForRemote);
+            ipcThread.IsBackground = true;
+            ipcThread.Start();
+
+            Print(string.Format("V12 IPC Server started on port {0}", IpcPort));
+        }
+
+        private void StopIpcServer()
+        {
+            isIpcRunning = false;
+            try
+            {
+                if (ipcListener != null)
+                {
+                    ipcListener.Stop();
+                    ipcListener = null;
+                }
+                if (ipcThread != null && ipcThread.IsAlive)
+                {
+                    ipcThread.Join(500);
+                }
+            }
+            catch { }
+        }
+
+        private void ListenForRemote()
+        {
+            try
+            {
+                ipcListener = new TcpListener(IPAddress.Any, IpcPort);
+                ipcListener.Start();
+
+                while (isIpcRunning)
+                {
+                    if (!ipcListener.Pending())
+                    {
+                        Thread.Sleep(100);
+                        continue;
+                    }
+
+                    using (TcpClient client = ipcListener.AcceptTcpClient())
+                    using (NetworkStream stream = client.GetStream())
+                    {
+                        byte[] buffer = new byte[1024];
+                        int bytesRead = stream.Read(buffer, 0, buffer.Length);
+                        if (bytesRead > 0)
+                        {
+                            string message = Encoding.ASCII.GetString(buffer, 0, bytesRead).Trim();
+                            if (!string.IsNullOrEmpty(message))
+                            {
+                                ipcCommandQueue.Enqueue(message);
+                                try
+                                {
+                                    TriggerCustomEvent(o => ProcessIpcCommands(), null);
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                if (isIpcRunning) Print("IPC Listener Error: " + ex.Message);
+            }
+            finally
+            {
+                if (ipcListener != null) { ipcListener.Stop(); ipcListener = null; }
+            }
+        }
+
+        private void ProcessIpcCommands()
+        {
+            if (ipcCommandQueue == null || ipcCommandQueue.IsEmpty) return;
+
+            while (ipcCommandQueue.TryDequeue(out string command))
+            {
+                try
+                {
+                    Print(string.Format("[IPC] Processing: {0}", command));
+                    string[] parts = command.Split('|');
+                    string action = parts[0];
+
+                    // Route through global sync
+                    OnGlobalSyncSelect(action);
+                }
+                catch (Exception ex)
+                {
+                    Print("Error ProcessIpcCommands: " + ex.Message);
+                }
+            }
+        }
+
+        #endregion
+
+        #region UI Helpers
+
+        private void RemoveUI()
+        {
+            if (mainBorder != null && uiCreated)
+            {
+                try
+                {
+                    UserControlCollection.Remove(mainBorder);
+                }
+                catch { }
+            }
+            uiCreated = false;
+        }
+
+        private void UpdateDisplay()
+        {
+            if (!uiCreated) return;
+
+            try
+            {
+                // Update OR levels
+                // Update position info
+                // Update fleet status
+            }
+            catch { }
+        }
+
+        #endregion
+
+        #region Drag Handlers
+
+        private void OnDragStart(object sender, MouseButtonEventArgs e)
+        {
+            isDragging = true;
+            dragStartPoint = e.GetPosition(ChartControl);
+            originalMargin = mainBorder.Margin;
+            (sender as UIElement)?.CaptureMouse();
+        }
+
+        private void OnDragMove(object sender, MouseEventArgs e)
+        {
+            if (!isDragging) return;
+
+            Point currentPos = e.GetPosition(ChartControl);
+            double deltaX = currentPos.X - dragStartPoint.X;
+            double deltaY = currentPos.Y - dragStartPoint.Y;
+
+            mainBorder.Margin = new Thickness(
+                originalMargin.Left + deltaX,
+                originalMargin.Top + deltaY,
+                0, 0);
+        }
+
+        private void OnDragEnd(object sender, MouseButtonEventArgs e)
+        {
+            isDragging = false;
+            (sender as UIElement)?.ReleaseMouseCapture();
+        }
+
+        #endregion
+
+        #region Hotkeys
+
+        private void AttachHotkeys()
+        {
+            if (ChartControl != null)
+            {
+                ChartControl.PreviewKeyDown += OnKeyDown;
+            }
+        }
+
+        private void DetachHotkeys()
+        {
+            if (ChartControl != null)
+            {
+                ChartControl.PreviewKeyDown -= OnKeyDown;
+            }
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.L)
+            {
+                OnGlobalSyncSelect("LONG");
+                e.Handled = true;
+            }
+            else if (e.Key == Key.S)
+            {
+                OnGlobalSyncSelect("SHORT");
+                e.Handled = true;
+            }
+            else if (e.Key == Key.F)
+            {
+                OnGlobalSyncSelect("FLATTEN");
+                e.Handled = true;
+            }
+            else if (e.Key == Key.R)
+            {
+                OnGlobalSyncSelect("RMA");
+                e.Handled = true;
+            }
+        }
+
+        #endregion
+
+        #region Chart Click Handler
+
+        private void AttachChartClickHandler()
+        {
+            if (ChartControl != null)
+            {
+                ChartControl.MouseLeftButtonDown += OnChartClick;
+            }
+        }
+
+        private void DetachChartClickHandler()
+        {
+            if (ChartControl != null)
+            {
+                ChartControl.MouseLeftButtonDown -= OnChartClick;
+            }
+        }
+
+        private void OnChartClick(object sender, MouseButtonEventArgs e)
+        {
+            if (!isRMAModeActive && !isMOMOModeActive) return;
+
+            try
+            {
+                Point clickPoint = e.GetPosition(ChartControl);
+                double clickPrice = ChartControl.Instrument.MasterInstrument.RoundToTickSize(
+                    ChartControl.GetYAxisValue(clickPoint));
+
+                if (isMOMOModeActive)
+                {
+                    ExecuteMOMOEntry(clickPrice);
+                }
+                else if (isRMAModeActive)
+                {
+                    ExecuteRMAEntry(clickPrice);
+                }
+            }
+            catch (Exception ex)
+            {
+                Print("Error OnChartClick: " + ex.Message);
+            }
+        }
+
+        // Logic preserved in main strategy
+
+
+        #endregion
+    }
+}

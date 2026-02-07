@@ -16,6 +16,14 @@ description: Enforces safe file versioning practices for NinjaTrader strategy de
 4. **ALWAYS use Stable Class Names for Major Series** - In V10+, keep the class name (e.g., `UniversalORStrategyV10`) stable even if the filename changes.
 5. **ALWAYS archive older versions in NinjaTrader** - Rename old `.cs` files in the NT folder to `.cs.bak` before deploying the latest version.
 6. **ALWAYS confirm filename** - Ask user before saving if suffix is unclear.
+7. **ALWAYS verify symlink integrity** - Use `dir` to ensure the NT folder (`C:/Users/${USERNAME}/Documents/NinjaTrader 8/bin/Custom/Strategies/`) is a reparse point/hard link, not a static file.
+8. **ALWAYS verify version signatures in logs** - If the strategy prints a version (e.g., V12.3.2) that doesn't match your source code, YOU ARE IN A DESYNC. STOP and fix the link before troubleshooting logic.
+9. **ALWAYS verify Branch & Commit** - Use `git status` and `git log -1` at the very start.
+10. **ALWAYS sync Local to Remote** - Desktop Agent `git push`, CLI Agent `git pull`.
+11. **ALWAYS Re-stitch after Git Operations** - Git `reset`, `stash`, or `checkout` often "sever" hard links by replacing files. You MUST run `setup-symlinks.ps1` immediately after any destructive Git command to reconnect NinjaTrader to the repository.
+12. **The Path Master Protocol**: When delegating to subagents, always specify the absolute path to the core strategy file: `c:\Users\Mohammed Khalid\OneDrive\Desktop\WSGTA\Github\universal-or-strategy\UniversalORStrategyV12.cs`.
+13. **Environment Selection (Local-First)**: When working on NinjaTrader code, ALWAYS select the **"Local"** environment in the IDE toggle. This ensures changes propagate through Hard Links instantly. Use the **"Cloud"** environment ONLY for isolated research or documentation tasks that do not require immediate compilation.
+14. **Hybrid Resilience Protocol (Credit/Tool Migration)**: If migrating to Cloud/Web-based agents (e.g., due to credit limits or local CLI failure), you MUST perform a `git push origin main` first. The migrating agent MUST be instructed to `git pull` as their first step. Upon return to local development, you MUST `git pull` and run `setup-symlinks.ps1` to re-sync the NinjaTrader folder.
 
 ## File Naming Convention
 

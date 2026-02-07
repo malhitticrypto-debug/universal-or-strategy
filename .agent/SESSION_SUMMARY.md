@@ -1,24 +1,26 @@
-# Session Summary: Jan 27, 2026 - Debugging Execution Freezes
+# Session Summary: V12.11 Fleet Symmetry & Safety Hardening
+**Date**: 2026-02-06
+**Version**: V12.11
 
-## Overview
-Investigated reports of NinjaTrader 8 "freezing" or locking up during trade execution on versions V8.28 and V8.29. 
+## What Was Tested/Changed
+- **Flatten Hardening**: Added explicit inclusion of the Master account (`Account`) in `FlattenAllApexAccounts()`.
+- **Reaper Hardening**: Added explicit inclusion of the Master account in `AuditApexPositions()` to prevent "blind spots" in safety audits.
+- **Fleet Symmetry**: Implemented logic in `ManageTrailingStops()` to force follower accounts to synchronize their trailing stop levels with the Leader.
+- **Entry Registration**: Fixed a bug in `ExecuteRMAEntryV2()` where the Master account wasn't registered in `expectedPositions`, causing false desync flags.
+- **CLI Protocol**: Created `cli-handoff` workflow and `antigravity-bridge` skill to solve the absolute path "blindness" for external agents.
 
-## What was Tested/Analyzed
-- Analyzed `UniversalORStrategyV8_29.cs` core execution loop and UI update logic.
-- Compared version differences between V8.28 and V8.29.
-- Reviewed stop management throttling (100ms) and UI refresh throttling (1000ms).
+## Results & Observations
+- **Verified**: NinjaScript Output confirms Master flatten: `[SIMA] V12.11 Master flatten: 1 position(s) on Sim101`.
+- **Verified**: Reaper logs accurately show Master state: `[REAPER] Heartbeat: 1/13 accounts with positions`.
+- **Observation**: Deployment issues (testing old code) were the main cause of reported failures after the CLI implemented the fix. Version-stamping the code (V12.11) fixed this loop.
 
-## Results and Observations
-- **Execution Bottleneck**: The strategy uses `Calculate.OnPriceChange`, which processes every tick. This is likely the primary source of strain during high volatility.
-- **Race Condition Risk**: The `UpdateStopOrder` logic relies on a `pendingStopReplacements` dictionary to manage unmanaged orders. In fast markets, there is a risk of deep recursion or race conditions if cancellations aren't handled perfectly.
-- **UI Lag**: Despite throttling, the use of `Dispatcher.InvokeAsync` can still backup the UI thread if the strategy thread sends snapshots too rapidly during "tick storms."
-
-## Next Planned Changes (for Sub-Agent)
-- **Log Deep Dive**: Sub-agent to review NinjaTrader `trace` files to correlate freeze timestamps with specific code execution (e.g., stop updates or signal broadcasts).
-- **Execution Hardening**: Consider moving non-critical calculations out of `OnBarUpdate` or adding further protection against "Collection modified" errors during UI snapshots.
+## Next Planned Changes
+- **Project Reorganization**: Moving specialized components into a library/extension structure to reduce the 9500+ line file size.
+- **Account Performance Metrics**: Implementing real-time P/L broadcast for fleet accounts.
 
 ## Risks or Concerns
-- **Critical Level**: Execution freezes are high-risk as they leave trades unprotected.
-- **Apex Compliance**: Frequent order cancellations could trigger rate-limiting or compliance flags if not handled cleanly.
+- **Complexity**: The main strategy file is approaching 10,000 lines. Recommendation is to refactor soon to prevent compilation slowdowns or "ghost" logic bugs.
+- **Path Resolution**: External agents still require manual absolute path provided in the "Mission Brief" to see brain artifacts.
 
-**Next Step**: Run the provided Opus CLI prompt to perform the automated log analysis and final bug fix.
+---
+**Status**: Milestone V12.11 STABLE.
