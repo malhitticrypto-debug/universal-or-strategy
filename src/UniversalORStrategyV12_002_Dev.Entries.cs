@@ -886,7 +886,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // V12 SIMA: Dispatch to fleet (replaces legacy slave broadcast)
                 if (EnableSIMA)
                 {
-                    ExecuteSmartDispatchEntry("MOMO", direction == MarketPosition.Long ? OrderAction.Buy : OrderAction.SellShort, contracts, entryPrice);
+                    ExecuteSmartDispatchEntry("MOMO", direction == MarketPosition.Long ? OrderAction.Buy : OrderAction.SellShort, contracts, entryPrice, OrderType.StopMarket, entryName);
                 }
 
                 // Deactivate MOMO mode after entry (one-shot)
@@ -1580,6 +1580,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     stopDistance = tickSize * 2;
                 }
 
+                // V12.44: Final stop-distance guard — prevent CalculatePositionSize(0) → ∞ contracts
+                if (stopDistance <= 0)
+                {
+                    Print("[FFMA_LIMIT REJECT] Stop distance is zero after ATR calc. Aborting entry.");
+                    return;
+                }
+
                 double target1Price = direction == MarketPosition.Long
                     ? entryPrice + Target1FixedPoints
                     : entryPrice - Target1FixedPoints;
@@ -1703,6 +1710,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         ? entryPrice - (tickSize * 2)
                         : entryPrice + (tickSize * 2);
                     stopDistance = tickSize * 2;
+                }
+
+                // V12.44: Final stop-distance guard — prevent CalculatePositionSize(0) → ∞ contracts
+                if (stopDistance <= 0)
+                {
+                    Print("[FFMA_MANUAL_MARKET REJECT] Stop distance is zero (doji candle?). Aborting entry.");
+                    return;
                 }
 
                 double target1Price = direction == MarketPosition.Long

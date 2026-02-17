@@ -18,10 +18,14 @@ $Mappings = @(
     # Strategy (Modularized V12_002 Series)
     @{ src = "UniversalORStrategyV12_002_Dev.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.Entries.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.cs" },
-    @{ src = "UniversalORStrategyV12_002_Dev.Orders.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Orders.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Orders.Callbacks.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Orders.Callbacks.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Orders.Management.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Orders.Management.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.SIMA.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.SIMA.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.REAPER.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.REAPER.cs" },
-    @{ src = "UniversalORStrategyV12_002_Dev.UI.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.UI.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.UI.Callbacks.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.UI.Callbacks.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.UI.Compliance.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.UI.Compliance.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.UI.IPC.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.UI.IPC.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.UI.Sizing.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.UI.Sizing.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.Symmetry.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Symmetry.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.LogicAudit.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.LogicAudit.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.Trailing.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Trailing.cs" },
@@ -34,11 +38,11 @@ $Mappings = @(
 Write-Host "`n--- WSGTA DEPLOY SYNC: Hardening Environment ---" -ForegroundColor Cyan
 
 foreach ($map in $Mappings) {
-    $srcPath = Join-Path $RepoRoot $map.src
+    $srcPath = Join-Path (Join-Path $RepoRoot "src") $map.src
     $dstPath = $map.dst
     
     if (!(Test-Path $srcPath)) {
-        Write-Host "SKIP: Source missing -> $($map.src)" -ForegroundColor Gray
+        Write-Host "SKIP: Source missing -> src/$($map.src)" -ForegroundColor Gray
         continue
     }
 
