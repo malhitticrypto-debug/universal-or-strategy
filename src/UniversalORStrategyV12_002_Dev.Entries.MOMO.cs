@@ -95,12 +95,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice - stopDistance
                     : entryPrice + stopDistance);
 
-                bool useRmaTargetProfile = true;
-                double target1Price = CalculateTargetPrice(direction, entryPrice, 1, useRmaTargetProfile);
-                double target2Price = CalculateTargetPrice(direction, entryPrice, 2, useRmaTargetProfile);
-                double target3Price = CalculateTargetPrice(direction, entryPrice, 3, useRmaTargetProfile);
-                double target4Price = CalculateTargetPrice(direction, entryPrice, 4, useRmaTargetProfile);
-                double target5Price = CalculateTargetPrice(direction, entryPrice, 5, useRmaTargetProfile);
+                // Universal Ladder: T(n)Type dropdown drives all target pricing.
+                double target1Price = CalculateTargetPrice(direction, entryPrice, 1);
+                double target2Price = CalculateTargetPrice(direction, entryPrice, 2);
+                double target3Price = CalculateTargetPrice(direction, entryPrice, 3);
+                double target4Price = CalculateTargetPrice(direction, entryPrice, 4);
+                double target5Price = CalculateTargetPrice(direction, entryPrice, 5);
 
                 int t1Qty, t2Qty, t3Qty, t4Qty, t5Qty;
                 GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty, out t5Qty);
@@ -135,22 +135,34 @@ namespace NinjaTrader.NinjaScript.Strategies
                     BracketSubmitted = false,
                     ExtremePriceSinceEntry = entryPrice,
                     CurrentTrailLevel = 0,
+                    EntryOrderType = OrderType.StopMarket,
                     IsRMATrade = false,
                     IsMOMOTrade = true  // V8.6: Mark as MOMO trade
                 };
+                ApplyTargetLadderGuard(pos);
 
                 activePositions[entryName] = pos;
+
+                // Build 1102Y-V3 [MS-06]: Register Master expected BEFORE StopMarket entry.
+                int masterDeltaMOMO = (direction == MarketPosition.Long) ? contracts : -contracts;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaMOMO);
 
                 // V12.Hardening: Use StopMarket (was StopLimit with limitPrice==stopPrice — never fills on fast breakouts)
                 Order entryOrder = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.StopMarket, contracts, 0, entryPrice, "", entryName)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.StopMarket, contracts, 0, entryPrice, "", entryName);
 
+                if (entryOrder == null)
+                {
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaMOMO);
+                    Print("[ERROR][1102Y-V3] MOMO SubmitOrderUnmanaged NULL for " + entryName + " — rolled back.");
+                }
+
                 entryOrders[entryName] = entryOrder;
 
                 Print(string.Format("MOMO ENTRY ORDER: {0} {1}@{2:F2} STOP MKT | Stop: {3:F2}pt", signalName, contracts, entryPrice, stopDistance));
                 Print(string.Format("MOMO TARGETS: T1:{0}@{1:F2}(+{2:F2}pt) | T2:{3}@{4:F2} | T3:{5}@{6:F2} | T4:{7}@{8:F2} | T5:{9}@{10:F2} (Runner targets trail-only)",
-                    t1Qty, target1Price, Target1FixedPoints,
+                    t1Qty, target1Price, target1Price - entryPrice,
                     t2Qty, target2Price, t3Qty, target3Price, t4Qty, target4Price, t5Qty, target5Price));
 
                 // V12 SIMA: Dispatch to fleet (replaces legacy slave broadcast)

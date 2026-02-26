@@ -139,8 +139,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // Compare with expected
+                    // Build 1102U [BUG-1]: Composite key + stateLock guard (reads were previously unguarded on background thread).
                     int expectedQty = 0;
-                    expectedPositions.TryGetValue(acct.Name, out expectedQty);
+                    lock (stateLock) { expectedPositions.TryGetValue(ExpKey(acct.Name), out expectedQty); }
 
                     // V12.9: Only log individual accounts when they have non-zero state (reduces spam)
                     if (shouldLog && (expectedQty != 0 || actualQty != 0))
@@ -188,7 +189,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                                         && pi.ExecutingAccount.Name == acct.Name
                                         && (ordState == OrderState.Working
                                             || ordState == OrderState.Submitted
-                                            || ordState == OrderState.Accepted))
+                                            || ordState == OrderState.Accepted
+                                            || ordState == OrderState.ChangePending  // 1102Z-C [RR-2a]: Order alive during Account.Change() round-trip — no cancel gap
+                                            || ordState == OrderState.Unknown      // V12.Phantom-Fix [FIX-2]: guards T1→T3 race residual (entry in dict before broker ACK)
+                                            || ordState == OrderState.Initialized)) // V12.Phantom-Fix [FIX-2]: guards very-new orders before first state transition
                                     {
                                         hasWorkingEntry   = true;
                                         blockingOrderName  = string.IsNullOrEmpty(ord.Name) ? kvp.Key : ord.Name;
@@ -289,7 +293,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 int masterExpectedQty = 0;
-                expectedPositions.TryGetValue(Account.Name, out masterExpectedQty);
+                // Build 1102U [BUG-1]: Composite key + stateLock guard.
+                lock (stateLock) { expectedPositions.TryGetValue(ExpKey(Account.Name), out masterExpectedQty); }
 
                 if (shouldLog && (masterExpectedQty != 0 || masterActualQty != 0))
                 {
@@ -305,7 +310,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        bool isCriticalDesync = (masterActualQty != 0 && masterExpectedQty == 0) || (Math.Sign(masterActualQty) != Math.Sign(masterExpectedQty) && masterExpectedQty != 0);
+                        // REAP-01: Suppress critical-desync evaluation within ReaperFillGraceTicks of a
+                        // fresh expectedPositions reservation. During the broker-fill confirmation lag
+                        // (expectedPositions = N, broker actual still = 0), REAPER would otherwise see
+                        // a ghost position and queue a spurious flatten of the Master account.
+                        long stampTicks = Interlocked.Read(ref _lastExpectedPositionSetTicks);
+                        bool inFillGrace = stampTicks > 0 &&
+                            (DateTime.UtcNow.Ticks - stampTicks) < ReaperFillGraceTicks;
+
+                        bool isCriticalDesync = !inFillGrace &&
+                            ((masterActualQty != 0 && masterExpectedQty == 0) ||
+                             (Math.Sign(masterActualQty) != Math.Sign(masterExpectedQty) && masterExpectedQty != 0));
+
+                        if (inFillGrace && shouldLog)
+                            Print($"[REAPER] {Account.Name} (Master): Fill grace active ({(DateTime.UtcNow.Ticks - stampTicks) / TimeSpan.TicksPerMillisecond}ms elapsed) — desync check suppressed.");
 
                         if (isCriticalDesync)
                         {
@@ -414,7 +432,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
 
                         // V12.1101E [F-06]: Serialize expectedPositions mutation under stateLock.
-                        SetExpectedPositionLocked(accountName, 0);
+                        // Build 1102U [BUG-1]: Composite key for instrument-scoped clear.
+                        SetExpectedPositionLocked(ExpKey(accountName), 0);
                         Print($"[REAPER] ✓ MARSHAL-FLATTEN (Unmanaged) executed on strategy thread for {accountName}");
                     }
                     else
@@ -432,14 +451,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// <summary>
         /// V12.Phase8.2: Processes queued repair requests on the strategy thread.
         /// Re-issues the original entry order for a desynced follower account.
-        /// Safety: market price must be within RepairTickFence ticks of original EntryPrice.
-        /// Uses Market order (user decision: priority = fleet sync, accept slippage).
+        /// Uses the stored EntryOrderType for symmetrical repairs.
+        /// RepairTickFence is enforced only for Market repairs (chasing price).
         /// </summary>
         private void ProcessReaperRepairQueue()
         {
             string accountName;
             while (_reaperRepairQueue.TryDequeue(out accountName))
             {
+                string repairKey = accountName + "_" + Instrument.FullName;
                 try
                 {
                     // 1. Find the stored PositionInfo for this account in activePositions
@@ -463,19 +483,41 @@ namespace NinjaTrader.NinjaScript.Strategies
                         continue;
                     }
 
-                    // 2. Safety Fence: current market price must be within RepairTickFence ticks of original entry
-                    double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
-                    double priceDiff = Math.Abs(currentPrice - repairPos.EntryPrice);
-                    double fenceDistance = RepairTickFence * tickSize;
+                    OrderType repairOrderType = repairPos.EntryOrderType;
+                    double repairEntryPrice = Instrument.MasterInstrument.RoundToTickSize(repairPos.EntryPrice);
+                    double repairLimitPrice = 0;
+                    double repairStopPrice = 0;
 
-                    if (priceDiff > fenceDistance)
+                    if (repairOrderType == OrderType.Limit)
                     {
-                        // V12.Phase8.3: Actionable diagnostic — tells trader how to override if needed
-                        Print($"[REAPER] REPAIR BLOCKED: Price fence exceeded for {accountName}. " +
-                              $"Current={currentPrice:F2}, Entry={repairPos.EntryPrice:F2}, " +
-                              $"Diff={priceDiff:F4} > Fence={fenceDistance:F4} ({RepairTickFence} ticks). " +
-                              $"Adjust RepairTickFence if you want to force entry.");
-                        continue;
+                        repairLimitPrice = repairEntryPrice;
+                    }
+                    else if (repairOrderType == OrderType.StopMarket)
+                    {
+                        repairStopPrice = repairEntryPrice;
+                    }
+                    else if (repairOrderType == OrderType.StopLimit)
+                    {
+                        repairLimitPrice = repairEntryPrice;
+                        repairStopPrice = repairEntryPrice;
+                    }
+
+                    // 2. Safety Fence: enforce only when repair submits a Market order.
+                    if (repairOrderType == OrderType.Market)
+                    {
+                        double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
+                        double priceDiff = Math.Abs(currentPrice - repairEntryPrice);
+                        double fenceDistance = RepairTickFence * tickSize;
+
+                        if (priceDiff > fenceDistance)
+                        {
+                            // V12.Phase8.3: Actionable diagnostic — tells trader how to override if needed
+                            Print($"[REAPER] REPAIR BLOCKED: Price fence exceeded for {accountName}. " +
+                                  $"Current={currentPrice:F2}, Entry={repairEntryPrice:F2}, " +
+                                  $"Diff={priceDiff:F4} > Fence={fenceDistance:F4} ({RepairTickFence} ticks). " +
+                                  $"Adjust RepairTickFence if you want to force entry.");
+                            continue;
+                        }
                     }
 
                     // 3. Resolve account object
@@ -488,22 +530,27 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // 4. Mark in-flight to prevent double-repair
                     // V12.Phase8.3: Key includes instrument for cross-chart uniqueness
-                    string repairKey = accountName + "_" + Instrument.FullName;
                     lock (stateLock) { _repairInFlight.Add(repairKey); }
 
                     // 5. Re-issue entry order using the SIMA acct.CreateOrder + acct.Submit pattern
                     OrderAction action = repairPos.Direction == MarketPosition.Long
                         ? OrderAction.Buy : OrderAction.SellShort;
                     int quantity = repairPos.TotalContracts;
-                    string repairSignal = "Repair_" + repairPos.SignalName;
+                    // FIX-C1 [Build 1102Z]: Use the original activePositions key as the NT8 signal name.
+                    // The old "Repair_" prefix diverged the signal name from the key, breaking the
+                    // identity chain: activePositions key == entryOrders key == order signal name.
+                    // OnOrderUpdate.entryOrders.Values.Contains(order) would return false on fill,
+                    // SubmitBracketOrders would never be called, and the position would be naked.
+                    string repairSignal = repairEntryName;
 
                     Order repairEntry = targetAcct.CreateOrder(
                         Instrument,
                         action,
-                        OrderType.Market,
+                        repairOrderType,
                         TimeInForce.Gtc,
                         quantity,
-                        0, 0,
+                        repairLimitPrice,
+                        repairStopPrice,
                         "",
                         repairSignal,
                         null);
@@ -523,8 +570,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // order submission. A manual flatten may have zeroed expectedPositions while
                     // this repair was sitting in the queue — submitting into a flat account would
                     // create a "Phantom Repair" (ghost long/short with no corresponding Risk stop).
+                    // Build 1102U [BUG-1]: Composite key + stateLock guard (was unguarded on background thread).
                     int currentExpected = 0;
-                    expectedPositions.TryGetValue(accountName, out currentExpected);
+                    lock (stateLock) { expectedPositions.TryGetValue(ExpKey(accountName), out currentExpected); }
                     if (currentExpected == 0)
                     {
                         Print($"[REAPER REPAIR] ⚠ RACE GUARD ABORT for {accountName}: " +
@@ -533,10 +581,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                         continue;
                     }
 
+                    // FIX-C2 [Build 1102Z]: Register repair order under the ORIGINAL activePositions key
+                    // and reset BracketSubmitted so OnOrderUpdate will call SubmitBracketOrders on fill.
+                    //
+                    // Without this:
+                    //   1. entryOrders[repairEntryName] still references the OLD (cancelled/missing) entry.
+                    //   2. OnOrderUpdate's entryOrders.Values.Contains(repairEntry) returns false.
+                    //   3. SubmitBracketOrders is never called → position is naked (no stop, no targets).
+                    //
+                    // BracketSubmitted = false is required for Market-entry repair: the original bracket
+                    // orders were co-submitted at dispatch time and are now gone (account was desync'd).
+                    // For Limit/StopMarket repairs it was already false, so this is a safe no-op there.
+                    lock (stateLock)
+                    {
+                        repairPos.BracketSubmitted = false;
+                        entryOrders[repairEntryName] = repairEntry;
+                    }
+
                     targetAcct.Submit(new[] { repairEntry });
 
-                    Print($"[REAPER REPAIR] \u2713 Repair order submitted for {accountName}: " +
-                          $"{action} {quantity} @ Market (original entry={repairPos.EntryPrice:F2})");
+                    Print($"[REAPER REPAIR] \u2713 Repair order submitted for {accountName} under key={repairEntryName}: " +
+                          $"{action} {quantity} {repairOrderType} " +
+                          $"{(repairOrderType == OrderType.Market ? "@ Market" : "@ " + repairEntryPrice.ToString("F2"))} " +
+                          $"(original entry={repairEntryPrice:F2})");
 
                     // 6. Clear DESYNC chart label for this account (defensive — label may or may not exist)
                     try

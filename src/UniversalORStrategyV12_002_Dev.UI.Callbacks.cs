@@ -94,6 +94,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // ═══════════════════════════════════════════════════════════════════
                 Point mouseInPanel = e.GetPosition(ChartPanel as System.Windows.IInputElement);
 
+                // Build 1102Z: UI Safety Fence — Ignore clicks outside the actual price plotting area
+                // This prevents trades from triggering when clicking on the side panel, price axis, or scrollbars.
+                if (mouseInPanel.X < 0 || mouseInPanel.X > ChartPanel.W || mouseInPanel.Y < 0 || mouseInPanel.Y > ChartPanel.H)
+                {
+                    return;
+                }
+
                 double panelHeight = ChartPanel.H;
                 double maxPrice = ChartPanel.MaxValue;
                 double minPrice = ChartPanel.MinValue;
@@ -113,8 +120,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double clickPrice = maxPrice - (yRatio * priceRange);
 
                 string modeLabel = momoActive ? "MOMO" : "RMA";
-                Print(string.Format("{0} v12.4 CLICK: panelY={1:F1}, effH={2:F1}, ratio={3:F3}, price={4:F2} (Market={5:F2})",
-                    modeLabel, mouseInPanel.Y, effectivePriceHeight, yRatio, clickPrice, currentPrice));
+                Print(string.Format("{0} v12.4 CLICK: x={1:F1}, y={2:F1}, w={3:F1}, h={4:F1}, ratio={5:F3}, price={6:F2} (Market={7:F2})",
+                    modeLabel, mouseInPanel.X, mouseInPanel.Y, ChartPanel.W, panelHeight, yRatio, clickPrice, currentPrice));
 
                 // Round to tick size
                 clickPrice = Instrument.MasterInstrument.RoundToTickSize(clickPrice);

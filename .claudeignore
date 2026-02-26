@@ -1,0 +1,18 @@
+# Ignore AI System Plumbing to save tokens
+.agent/
+.agents/
+mcp-servers/
+node_modules/
+.npm/
+
+# Ignore Build Artifacts
+bin/
+obj/
+*.bak*
+*.tmp
+*.log
+
+# Ignore VS / System Noise
+.vscode/
+.history/
+.git/

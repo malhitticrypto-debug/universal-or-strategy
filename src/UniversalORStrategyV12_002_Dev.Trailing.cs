@@ -355,11 +355,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         newStopPrice = beStop;
                         newTrailLevel = 1;
+                        // [Build 1102J] Prevent the ManualBreakevenArmed path from re-firing redundantly.
+                        pos.ManualBreakevenTriggered = true;
                     }
                     else if (pos.Direction == MarketPosition.Short && beStop < pos.CurrentStopPrice)
                     {
                         newStopPrice = beStop;
                         newTrailLevel = 1;
+                        // [Build 1102J] Prevent the ManualBreakevenArmed path from re-firing redundantly.
+                        pos.ManualBreakevenTriggered = true;
                     }
                 }
 
@@ -460,7 +464,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (activePositions.TryGetValue(kvp.Key, out var pos) && pos.EntryFilled && pos.RemainingContracts > 0)
                         {
                             Print(string.Format("V8.30: Creating EMERGENCY replacement stop for {0}", kvp.Key));
-                            CreateNewStopOrder(kvp.Key, pending.Quantity, pending.StopPrice, pending.Direction);
+                            // V12.1101E [F-02]: Use live RemainingContracts under stateLock instead of stale pending.Quantity
+                            int replacementQty;
+                            lock (stateLock)
+                            {
+                                replacementQty = pos.RemainingContracts;
+                            }
+                            CreateNewStopOrder(kvp.Key, replacementQty, pending.StopPrice, pending.Direction);
                         }
                     }
                 }
@@ -478,7 +488,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             try
             {
-                double validatedStopPrice = ValidateStopPrice(pos.Direction, newStopPrice);
+                double validatedStopPrice = ValidateStopPrice(pos.Direction, newStopPrice, newTrailLevel, pos.EntryPrice);
 
                 // V8.30: Thread-safe update using TryGetValue to avoid TOCTOU race
                 if (pendingStopReplacements.TryGetValue(entryName, out var existingPending))
@@ -742,6 +752,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             try
             {
+                if (activePositions.Count == 0)
+                {
+                    Print("[BE_INFO] No active trades in memory to move.");
+                    return;
+                }
+
                 foreach (var kvp in activePositions.ToArray())
                 {
                     PositionInfo pos = kvp.Value;
@@ -757,6 +773,26 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // Round to tick size
                     newStopPrice = Instrument.MasterInstrument.RoundToTickSize(newStopPrice);
+
+                    // [V12.12] ARM GUARD: If price hasn't cleared the BE threshold yet, arm instead of executing.
+                    // ManageTrailingStops() will call UpdateStopOrder when price crosses the threshold.
+                    if (lastKnownPrice <= 0)
+                    {
+                        Print(string.Format("[BE_ABORT] {0}: Price data stale (0). Waiting for next tick.", entryName));
+                        continue;
+                    }
+                    double referencePrice = lastKnownPrice;
+                    bool priceCleared = pos.Direction == MarketPosition.Long
+                        ? referencePrice >= newStopPrice
+                        : referencePrice <= newStopPrice;
+
+                    if (!priceCleared)
+                    {
+                        pos.ManualBreakevenArmed = true;
+                        pos.ManualBreakevenTriggered = false;
+                        Print(string.Format("[V12] BE Armed: {0} Price has not reached threshold. Shielding entry once cleared.", entryName));
+                        continue;
+                    }
 
                     // Only move stop if it's a better price (profit-protecting direction)
                     bool isBetter = (pos.Direction == MarketPosition.Long && newStopPrice > pos.CurrentStopPrice)

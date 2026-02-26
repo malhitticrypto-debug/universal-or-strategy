@@ -35,6 +35,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             Minutes_30 = 30
         }
 
+        public enum TargetMode
+        {
+            ATR,
+            Ticks,
+            Points,
+            Runner
+        }
+
         #endregion
 
         #region Properties
@@ -62,9 +70,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Display(Name = "Risk Per Trade ($)", GroupName = "2. Risk", Order = 1)]
         public double RiskPerTrade { get; set; }
 
+        /// <summary>DEPRECATED (Phase 9.1). Never consumed by Sizing engine. Use MaxRiskAmount (=RiskPerTrade) only.</summary>
+        [Browsable(false)]
         [NinjaScriptProperty]
-        [Range(1, int.MaxValue)]
-        [Display(Name = "Reduced Risk ($)", GroupName = "2. Risk", Order = 2)]
         public double ReducedRiskPerTrade { get; set; }
 
         [NinjaScriptProperty]
@@ -78,6 +86,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name = "Stop Threshold (Points)", GroupName = "2. Risk", Order = 4)]
         public double StopThresholdPoints { get; set; }
+
+        /// <summary>SLIP-01: Points reserved as a slippage buffer when sizing follower contracts.
+        /// Ensures follower dollar risk stays ≤ MaxRiskAmount even if entry fills at a worse price than master.
+        /// Default = 1.0 pt. Set to 0 to disable.</summary>
+        [NinjaScriptProperty]
+        [Range(0, 10)]
+        [Display(Name = "Slippage Cushion (pts)", GroupName = "2. Risk", Order = 5)]
+        public double SlippageCushionPoints { get; set; }
 
         [NinjaScriptProperty]
         [Range(1, 100)]
@@ -100,36 +116,45 @@ namespace NinjaTrader.NinjaScript.Strategies
         public int MGCMaximum { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Target 1 Fixed Points", GroupName = "3. Targets", Order = 1)]
-        public double Target1FixedPoints { get; set; }
+        [Display(Name = "Target 1 Value", GroupName = "3. Targets", Order = 1)]
+        public double Target1Value { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Target 2 ATR Multiplier", GroupName = "3. Targets", Order = 2)]
-        public double Target2Multiplier { get; set; }
+        [Display(Name = "Target 2 Value", GroupName = "3. Targets", Order = 2)]
+        public double Target2Value { get; set; }
 
         [NinjaScriptProperty]
-        [Display(Name = "Target 3 ATR Multiplier", GroupName = "3. Targets", Order = 3)]
-        public double Target3Multiplier { get; set; }
+        [Display(Name = "Target 3 Value", GroupName = "3. Targets", Order = 3)]
+        public double Target3Value { get; set; }
 
         [NinjaScriptProperty]
-        [Range(0, 100)]
-        [Display(Name = "T1 Quantity %", GroupName = "3. Targets", Order = 4)]
-        public int T1ContractPercent { get; set; }
+        [Display(Name = "Target 4 Value", GroupName = "3. Targets", Order = 4)]
+        public double Target4Value { get; set; }
 
         [NinjaScriptProperty]
-        [Range(0, 100)]
-        [Display(Name = "T2 Quantity %", GroupName = "3. Targets", Order = 5)]
-        public int T2ContractPercent { get; set; }
+        [Display(Name = "Target 5 Value", GroupName = "3. Targets", Order = 5)]
+        public double Target5Value { get; set; }
+
 
         [NinjaScriptProperty]
-        [Range(0, 100)]
-        [Display(Name = "T3 Quantity %", GroupName = "3. Targets", Order = 6)]
-        public int T3ContractPercent { get; set; }
+        [Display(Name = "T1 Mode", GroupName = "3. Targets", Order = 11)]
+        public TargetMode T1Type { get; set; }
 
         [NinjaScriptProperty]
-        [Range(0, 100)]
-        [Display(Name = "T4 Quantity % (Runner)", GroupName = "3. Targets", Order = 7)]
-        public int T4ContractPercent { get; set; }
+        [Display(Name = "T2 Mode", GroupName = "3. Targets", Order = 12)]
+        public TargetMode T2Type { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T3 Mode", GroupName = "3. Targets", Order = 13)]
+        public TargetMode T3Type { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T4 Mode", GroupName = "3. Targets", Order = 14)]
+        public TargetMode T4Type { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "T5 Mode", GroupName = "3. Targets", Order = 15)]
+        public TargetMode T5Type { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name = "Stop Multiplier", GroupName = "4. Stops", Order = 1)]
@@ -197,14 +222,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         [NinjaScriptProperty]
         [Display(Name = "RMA Stop Multiplier", GroupName = "7. RMA", Order = 3)]
         public double RMAStopATRMultiplier { get; set; }
-
-        [NinjaScriptProperty]
-        [Display(Name = "RMA T1 Multiplier", GroupName = "7. RMA", Order = 4)]
-        public double RMAT1ATRMultiplier { get; set; }
-
-        [NinjaScriptProperty]
-        [Display(Name = "RMA T2 Multiplier", GroupName = "7. RMA", Order = 5)]
-        public double RMAT2ATRMultiplier { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name = "TREND Enabled", GroupName = "8. TREND", Order = 1)]
@@ -286,6 +303,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         public string ChaseIfTouchPoints { get; set; }
 
         [NinjaScriptProperty]
+        [DefaultValue(true)]
         [Display(Name = "Reaper Audit Enabled", GroupName = "12. SIMA", Order = 9)]
         public bool ReaperAuditEnabled { get; set; }
 
@@ -293,6 +311,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         [Range(500, 60000)]
         [Display(Name = "Reaper Interval (ms)", GroupName = "12. SIMA", Order = 10)]
         public int ReaperIntervalMs { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 50)]
+        [Display(Name = "Repair Tick Fence", GroupName = "12. SIMA", Order = 11)]
+        public int RepairTickFence { get; set; }
+
+        [NinjaScriptProperty]
+        [Range(1, 100)]
+        [Display(Name = "Fleet Parity Multiplier", Description = "Lot-size scaling for followers (e.g. 10 for ES→MES)", GroupName = "12. SIMA", Order = 12)]
+        public int FleetParityMultiplier { get; set; }
 
         [NinjaScriptProperty]
         [Display(Name = "Enable Compliance Hub", GroupName = "13. Compliance", Order = 1)]
@@ -328,9 +356,40 @@ namespace NinjaTrader.NinjaScript.Strategies
         public double TrailingDrawdownLimit { get; set; }
 
         [NinjaScriptProperty]
-        [Range(0, 1000)]
         [Display(Name = "DD Warning Buffer ($)", GroupName = "13. Compliance", Order = 8)]
         public double TrailingDrawdownWarningBuffer { get; set; }
+
+        #endregion
+
+        #region RMA Intelligence Properties (Phase 9.2)
+
+        [NinjaScriptProperty]
+        [Display(Name = "Enable RMA Intelligence", GroupName = "14. RMA Intelligence", Order = 1)]
+        public bool RmaIntelligenceEnabled { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Exhaustion ATR Mult", GroupName = "14. RMA Intelligence", Order = 2)]
+        public double RmaExhaustionAtrMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Stretched Candle Mult", GroupName = "14. RMA Intelligence", Order = 3)]
+        public double RmaStretchedCandleMultiplier { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Fresh Candle ATR Buffer", GroupName = "14. RMA Intelligence", Order = 4)]
+        public double RmaFreshCandleBufferAtr { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Proximity Ticks", GroupName = "14. RMA Intelligence", Order = 5)]
+        public int RmaProximityTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Cancellation Ticks", GroupName = "14. RMA Intelligence", Order = 6)]
+        public int RmaCancellationTicks { get; set; }
+
+        [NinjaScriptProperty]
+        [Display(Name = "Use MTF Confluence", GroupName = "14. RMA Intelligence", Order = 7)]
+        public bool RmaUseMtfConfluence { get; set; }
 
         #endregion
     }

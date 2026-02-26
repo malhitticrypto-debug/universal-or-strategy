@@ -48,62 +48,113 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.StopMarket, pos.TotalContracts, 0, validatedStopPrice, "", "Stop_" + entryName)
                     : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.StopMarket, pos.TotalContracts, 0, validatedStopPrice, "", "Stop_" + entryName);
 
+                // V12.Audit [S-001]: Null-guard stop submission result. If broker rejects or drops
+                // the stop, flatten immediately — never leave a position with a false "protected" state.
+                if (stopOrder == null)
+                {
+                    Print(string.Format("[BRACKET_FATAL] Stop order submission returned null for {0}. Flattening.", entryName));
+                    FlattenPositionByName(entryName);
+                    return;
+                }
                 stopOrders[entryName] = stopOrder;
 
-                // Submit T1 limit order ONLY if T1 quantity > 0 AND TotalContracts > 1
-                // V8.15: For 1-contract trades, we treat it as a runner (no initial target)
-                if (pos.T1Contracts > 0 && pos.TotalContracts > 1)
+                int nonRunnerLimitQty = 0;
+                int runnerQty = 0;
+
+                for (int targetNum = 1; targetNum <= 5; targetNum++)
                 {
-                    Order t1Order = pos.Direction == MarketPosition.Long
-                        ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, pos.T1Contracts, pos.Target1Price, 0, "", "T1_" + entryName)
-                        : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, pos.T1Contracts, pos.Target1Price, 0, "", "T1_" + entryName);
+                    int targetQty = GetTargetContracts(pos, targetNum);
+                    if (targetQty <= 0) continue; // skip orphan/zero fills
 
-                    target1Orders[entryName] = t1Order;
+                    // Universal Ladder: runner detection is slot-based only — T(n)Type == Runner.
+                    if (IsRunnerTarget(targetNum))
+                    {
+                        runnerQty += targetQty;
+                        Print(string.Format("[FORENSIC] T{0} {1}: Runner qty={2} — limit SKIPPED",
+                            targetNum, entryName, targetQty));
+                        continue;
+                    }
+
+                    double targetPrice = GetTargetPrice(pos, targetNum);
+                    if (targetPrice <= 0)
+                    {
+                        Print(string.Format("[TARGET_SKIP] T{0} for {1} has qty={2} but invalid price={3:F2}; skipped",
+                            targetNum, entryName, targetQty, targetPrice));
+                        continue;
+                    }
+
+                    // V12.Phase7 [C-04]: Round target price to valid tick boundary before submission.
+                    targetPrice = Instrument.MasterInstrument.RoundToTickSize(targetPrice);
+
+                    Print(string.Format("[FORENSIC] T{0} {1}: qty={2} price={3:F2} submitting limit",
+                        targetNum, entryName, targetQty, targetPrice));
+
+                    Order limitOrder = pos.Direction == MarketPosition.Long
+                        ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, targetQty, targetPrice, 0, "", "T" + targetNum + "_" + entryName)
+                        : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, targetQty, targetPrice, 0, "", "T" + targetNum + "_" + entryName);
+
+                    var targetDict = GetTargetOrdersDictionary(targetNum);
+                    // V12.Audit [S-015]: Only store non-null target orders. A null result means
+                    // broker rejected the target — skip storage so the slot stays empty rather
+                    // than tracking a null reference. Stop is still present; no flatten needed.
+                    if (targetDict != null)
+                    {
+                        if (limitOrder == null)
+                        {
+                            Print(string.Format("[TARGET_WARN] Target {0} order submission returned null for {1}. Target tracking disabled.", targetNum, entryName));
+                        }
+                        else
+                        {
+                            targetDict[entryName] = limitOrder;
+                        }
+                    }
+
+                    nonRunnerLimitQty += targetQty;
                 }
-                else if (pos.TotalContracts == 1)
-                {
-                    Print(string.Format("V8.15: 1-contract trade detected for {0}. Treating as RUNNER (no initial target).", entryName));
-                }
 
-                // Submit T2 limit order ONLY if T2 quantity > 0
-                if (pos.T2Contracts > 0)
-                {
-                    Order t2Order = pos.Direction == MarketPosition.Long
-                        ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, pos.T2Contracts, pos.Target2Price, 0, "", "T2_" + entryName)
-                        : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, pos.T2Contracts, pos.Target2Price, 0, "", "T2_" + entryName);
-
-                    target2Orders[entryName] = t2Order;
-                }
-
-                // v5.13: Submit T3 limit order ONLY if T3 quantity > 0
-                if (pos.T3Contracts > 0)
-                {
-                    Order t3Order = pos.Direction == MarketPosition.Long
-                        ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, pos.T3Contracts, pos.Target3Price, 0, "", "T3_" + entryName)
-                        : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, pos.T3Contracts, pos.Target3Price, 0, "", "T3_" + entryName);
-
-                    target3Orders[entryName] = t3Order;
-                }
-
-                // NOTE: T4 (runner) has no limit order - it trails with stop
-
-                pos.BracketSubmitted = true;
                 pos.CurrentStopPrice = validatedStopPrice;
 
-                // Build bracket summary message with all 4 targets
+                // Zero-trust stop audit: stop quantity must always cover full position.
+                if (stopOrder != null && stopOrder.Quantity != pos.TotalContracts)
+                {
+                    Print(string.Format("[STOP_AUDIT] MISMATCH {0}: StopQty={1} Total={2}",
+                        entryName, stopOrder.Quantity, pos.TotalContracts));
+                }
+                else
+                {
+                    Print(string.Format("[STOP_AUDIT] OK {0}: StopQty={1} NonRunnerLimits={2} RunnerQty={3}",
+                        entryName, pos.TotalContracts, nonRunnerLimitQty, runnerQty));
+                }
+
+                // V12.Audit [S-003]: BracketSubmitted is set AFTER the stop quantity audit so that
+                // a mismatch detected above does not leave the position flagged as fully protected.
+                pos.BracketSubmitted = true;
+
                 StringBuilder bracketMsg = new StringBuilder();
                 string tradeType = pos.IsRMATrade ? "RMA" : "OR";
-                bracketMsg.AppendFormat("{0} BRACKET V8.0: Stop@{1:F2}", tradeType, validatedStopPrice);
-                if (pos.T1Contracts > 0)
-                    bracketMsg.AppendFormat(" | T1:{0}@{1:F2}(+{2}pt)", pos.T1Contracts, pos.Target1Price, Target1FixedPoints);
-                if (pos.T2Contracts > 0)
-                    bracketMsg.AppendFormat(" | T2:{0}@{1:F2}", pos.T2Contracts, pos.Target2Price);
-                if (pos.T3Contracts > 0)
-                    bracketMsg.AppendFormat(" | T3:{0}@{1:F2}", pos.T3Contracts, pos.Target3Price);
-                if (pos.T4Contracts > 0)
-                    bracketMsg.AppendFormat(" | T4:{0}@trail", pos.T4Contracts);
+                bracketMsg.AppendFormat("{0} BRACKET V12.1101E: Stop@{1:F2}", tradeType, validatedStopPrice);
+                for (int targetNum = 1; targetNum <= 5; targetNum++)
+                {
+                    int targetQty = GetTargetContracts(pos, targetNum);
+                    if (targetQty <= 0) continue;
+
+                    bool isRunnerSlot = IsRunnerTarget(targetNum);
+
+                    if (isRunnerSlot)
+                        bracketMsg.AppendFormat(" | T{0}:{1}@trail", targetNum, targetQty);
+                    else
+                        bracketMsg.AppendFormat(" | T{0}:{1}@{2:F2}", targetNum, targetQty, GetTargetPrice(pos, targetNum));
+                }
 
                 Print(bracketMsg.ToString());
+
+                // V12.Audit [D-007]: Verify target contract sum matches total position size.
+                int _targetSum = nonRunnerLimitQty + runnerQty;
+                if (_targetSum != pos.TotalContracts)
+                {
+                    Print(string.Format("[BRACKET_WARN] Target sum mismatch for {0}: targets={1} totalContracts={2}. Distribution may have lost contracts.",
+                        entryName, _targetSum, pos.TotalContracts));
+                }
             }
             catch (Exception ex)
             {
@@ -111,66 +162,240 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        private void UpdateStopQuantity(string entryName, PositionInfo pos)
+        /// <summary>
+        /// Phase 9.1 [SYNC_ALL]: Recalculates and re-submits or cancels limit target orders for
+        /// all active positions based on current TnType settings and live ATR.
+        /// Runs on the strategy thread. Called directly from ProcessIpcCommands() SYNC_ALL handler.
+        /// </summary>
+        private void RefreshActivePositionOrders()
         {
-            if (!stopOrders.ContainsKey(entryName)) return;
-            if (pos.RemainingContracts <= 0) return;
-            // V12.41: No trailing/updates before entry fill is confirmed
-            if (!pos.EntryFilled) return;
-
-            try
+            if (activePositions == null || activePositions.IsEmpty)
             {
-                Order currentStop = stopOrders[entryName];
+                Print("[SYNC_ALL] No active positions to refresh.");
+                return;
+            }
 
-                // V8.11 FIX: Store pending replacement BEFORE cancelling
-                // This ensures we only create a new stop when the old one is confirmed cancelled
-                if (currentStop != null && (currentStop.OrderState == OrderState.Working || currentStop.OrderState == OrderState.Accepted))
+            // Snapshot under stateLock — satisfies stateLock invariant for dict reads
+            List<KeyValuePair<string, PositionInfo>> snapshot;
+            lock (stateLock)
+            {
+                snapshot = activePositions.ToList();
+            }
+
+            int refreshed = 0;
+            foreach (var kvp in snapshot)
+            {
+                string entryName = kvp.Key;
+                PositionInfo pos = kvp.Value;
+
+                // Guard: entry must be filled and position open
+                if (!pos.EntryFilled || pos.RemainingContracts <= 0) continue;
+
+                // Guard: skip SIMA followers — fleet dispatch is out of scope for Phase 9.1
+                if (pos.IsFollower)
                 {
-                    // V8.31: Check if there's already a pending replacement to prevent duplicates
-                    if (pendingStopReplacements.ContainsKey(entryName))
-                    {
-                        // Just update the quantity, don't create a new pending
-                        if (pendingStopReplacements.TryGetValue(entryName, out var existingPending))
-                        {
-                            existingPending.Quantity = pos.RemainingContracts;
-                            Print(string.Format("V8.31: Updated existing pending replacement for {0} to {1} contracts", entryName, pos.RemainingContracts));
-                        }
-                        return;
-                    }
-
-                    // Store the replacement info
-                    var newPending = new PendingStopReplacement
-                    {
-                        EntryName = entryName,
-                        Quantity = pos.RemainingContracts,
-                        StopPrice = pos.CurrentStopPrice,
-                        Direction = pos.Direction,
-                        OldOrder = currentStop,
-                        CreatedTime = DateTime.Now  // V8.31: Added for timeout support
-                    };
-
-                    // V8.31: Thread-safe add
-                    if (pendingStopReplacements.TryAdd(entryName, newPending))
-                    {
-                        Interlocked.Increment(ref pendingReplacementCount);
-                    }
-
-                    // Cancel old stop - replacement will be created in OnOrderUpdate when confirmed
-                    CancelOrder(currentStop);
-                    Print(string.Format("STOP CANCEL PENDING: {0} | Will replace with {1} contracts @ {2:F2}",
-                        entryName, pos.RemainingContracts, pos.CurrentStopPrice));
+                    Print(string.Format("[SYNC_ALL] Skipping follower position {0}", entryName));
+                    continue;
                 }
-                else
+
+                for (int targetNum = 1; targetNum <= 5; targetNum++)
                 {
-                    // No existing stop to cancel, create new one directly
-                    // V12.41: Pass the entry name for stricter validation
-                    CreateNewStopOrder(entryName, pos.RemainingContracts, pos.CurrentStopPrice, pos.Direction);
+                    // Skip already-filled targets
+                    if (IsTargetFilled(pos, targetNum)) continue;
+
+                    int targetQty = GetTargetContracts(pos, targetNum);
+                    if (targetQty <= 0) continue;
+
+                    var targetDict = GetTargetOrdersDictionary(targetNum);
+                    if (targetDict == null) continue;
+
+                    // Check if a live limit order exists for this target slot
+                    Order existingOrder = null;
+                    bool hasWorkingOrder = targetDict.TryGetValue(entryName, out existingOrder) &&
+                                           existingOrder != null &&
+                                           (existingOrder.OrderState == OrderState.Working ||
+                                            existingOrder.OrderState == OrderState.Accepted);
+
+                    // [C-06 parity]: Skip ChangePending orders to avoid broker race
+                    if (existingOrder != null && existingOrder.OrderState == OrderState.ChangePending)
+                    {
+                        Print(string.Format("[SYNC_ALL] T{0} {1}: ChangePending — skipping", targetNum, entryName));
+                        continue;
+                    }
+
+                    bool isNowRunner = IsRunnerTarget(targetNum);
+
+                    if (isNowRunner)
+                    {
+                        // Runner targets must have NO limit order — cancel any existing one
+                        if (hasWorkingOrder)
+                        {
+                            try
+                            {
+                                CancelOrder(existingOrder);
+                                targetDict.TryRemove(entryName, out _);
+                                Print(string.Format("[SYNC_ALL] T{0} {1}: Limit cancelled → now Runner", targetNum, entryName));
+                                refreshed++;
+                            }
+                            catch (Exception ex)
+                            {
+                                Print(string.Format("[SYNC_ALL] T{0} {1}: CancelOrder failed — {2}", targetNum, entryName, ex.Message));
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Limit/ATR/Ticks/Points: recalculate price from live ATR and entry
+                    // Build 1102Y [P-06]: Role-aware reprice — RMA/SIMA positions use stamped role; others use slot-based.
+                    double newPrice = CalculateTargetPriceFromPos(pos.Direction, pos.EntryPrice, pos, targetNum);
+                    if (newPrice <= 0)
+                    {
+                        Print(string.Format("[SYNC_ALL] T{0} {1}: Calculated price invalid ({2:F2}) — skipped", targetNum, entryName, newPrice));
+                        continue;
+                    }
+
+                    if (hasWorkingOrder)
+                    {
+                        // Shift existing limit if it moved by ≥ 1 tick
+                        if (Math.Abs(existingOrder.LimitPrice - newPrice) >= tickSize)
+                        {
+                            try
+                            {
+                                ChangeOrder(existingOrder, existingOrder.Quantity, newPrice, 0);
+                                switch (targetNum)
+                                {
+                                    case 1: pos.Target1Price = newPrice; break;
+                                    case 2: pos.Target2Price = newPrice; break;
+                                    case 3: pos.Target3Price = newPrice; break;
+                                    case 4: pos.Target4Price = newPrice; break;
+                                    case 5: pos.Target5Price = newPrice; break;
+                                }
+                                Print(string.Format("[SYNC_ALL] T{0} {1}: Repriced → {2:F2}", targetNum, entryName, newPrice));
+                                refreshed++;
+                            }
+                            catch (Exception ex)
+                            {
+                                Print(string.Format("[SYNC_ALL] T{0} {1}: ChangeOrder failed — {2}", targetNum, entryName, ex.Message));
+                            }
+                        }
+                        else
+                        {
+                            Print(string.Format("[SYNC_ALL] T{0} {1}: Price unchanged at {2:F2} — no action", targetNum, entryName, newPrice));
+                        }
+                    }
+                    else
+                    {
+                        // No working order (e.g. Runner→Limit swap): submit a fresh limit order
+                        try
+                        {
+                            Order newLimit = pos.Direction == MarketPosition.Long
+                                ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, targetQty, newPrice, 0, "", "T" + targetNum + "_" + entryName)
+                                : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, targetQty, newPrice, 0, "", "T" + targetNum + "_" + entryName);
+
+                            if (newLimit != null)
+                            {
+                                targetDict[entryName] = newLimit;
+                                switch (targetNum)
+                                {
+                                    case 1: pos.Target1Price = newPrice; break;
+                                    case 2: pos.Target2Price = newPrice; break;
+                                    case 3: pos.Target3Price = newPrice; break;
+                                    case 4: pos.Target4Price = newPrice; break;
+                                    case 5: pos.Target5Price = newPrice; break;
+                                }
+                                Print(string.Format("[SYNC_ALL] T{0} {1}: New limit submitted @ {2:F2} qty={3}", targetNum, entryName, newPrice, targetQty));
+                                refreshed++;
+                            }
+                            else
+                            {
+                                Print(string.Format("[SYNC_ALL] T{0} {1}: SubmitOrderUnmanaged returned null @ {2:F2}", targetNum, entryName, newPrice));
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Print(string.Format("[SYNC_ALL] T{0} {1}: Submit failed — {2}", targetNum, entryName, ex.Message));
+                        }
+                    }
                 }
             }
-            catch (Exception ex)
+
+            Print(string.Format("[SYNC_ALL] Complete. Positions scanned: {0} | Actions taken: {1}", snapshot.Count, refreshed));
+        }
+
+        /// <summary>
+        /// Updates the stop order quantity after a partial target fill.
+        /// </summary>
+        /// <remarks>
+        /// V12.Audit [C-08]: Callers MUST ensure the <paramref name="pos"/> reference is
+        /// read under <c>stateLock</c> or from within a callback that is already serialized
+        /// by the NinjaTrader dispatch thread. Passing a stale <paramref name="pos"/> can
+        /// result in the stop being undersized relative to actual remaining contracts.
+        /// </remarks>
+        private void UpdateStopQuantity(string entryName, PositionInfo pos)
+        {
+            // V12.Hardening [RISK-01]: Atomic update guard
+            // Locks stateLock to prevent dirty reads of pos.RemainingContracts while ApplyTargetFill is modifying it
+            lock (stateLock)
             {
-                Print(string.Format("âš ï¸ ERROR UpdateStopQuantity for {0}: {1}", entryName, ex.Message));
-                Print(string.Format("âš ï¸ POSITION MAY BE UNPROTECTED: {0} contracts", pos.RemainingContracts));
+                if (!stopOrders.ContainsKey(entryName)) return;
+                if (pos.RemainingContracts <= 0) return;
+                // V12.41: No trailing/updates before entry fill is confirmed
+                if (!pos.EntryFilled) return;
+
+                try
+                {
+                    Order currentStop = stopOrders[entryName];
+
+                    // V8.11 FIX: Store pending replacement BEFORE cancelling
+                    // This ensures we only create a new stop when the old one is confirmed cancelled
+                    if (currentStop != null && (currentStop.OrderState == OrderState.Working || currentStop.OrderState == OrderState.Accepted))
+                    {
+                        // V8.31: Check if there's already a pending replacement to prevent duplicates
+                        if (pendingStopReplacements.ContainsKey(entryName))
+                        {
+                            // Just update the quantity, don't create a new pending
+                            if (pendingStopReplacements.TryGetValue(entryName, out var existingPending))
+                            {
+                                existingPending.Quantity = pos.RemainingContracts;
+                                Print(string.Format("V8.31: Updated existing pending replacement for {0} to {1} contracts", entryName, pos.RemainingContracts));
+                            }
+                            return;
+                        }
+
+                        // Store the replacement info
+                        var newPending = new PendingStopReplacement
+                        {
+                            EntryName = entryName,
+                            Quantity = pos.RemainingContracts,
+                            StopPrice = pos.CurrentStopPrice,
+                            Direction = pos.Direction,
+                            OldOrder = currentStop,
+                            CreatedTime = DateTime.Now  // V8.31: Added for timeout support
+                        };
+
+                        // V8.31: Thread-safe add
+                        if (pendingStopReplacements.TryAdd(entryName, newPending))
+                        {
+                            Interlocked.Increment(ref pendingReplacementCount);
+                        }
+
+                        // Cancel old stop - replacement will be created in OnOrderUpdate when confirmed
+                        CancelOrder(currentStop);
+                        Print(string.Format("STOP CANCEL PENDING: {0} | Will replace with {1} contracts @ {2:F2}",
+                            entryName, pos.RemainingContracts, pos.CurrentStopPrice));
+                    }
+                    else
+                    {
+                        // No existing stop to cancel, create new one directly
+                        // V12.41: Pass the entry name for stricter validation
+                        CreateNewStopOrder(entryName, pos.RemainingContracts, pos.CurrentStopPrice, pos.Direction);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Print(string.Format("⚠️ ERROR UpdateStopQuantity for {0}: {1}", entryName, ex.Message));
+                    Print(string.Format("⚠️ POSITION MAY BE UNPROTECTED: {0} contracts", pos.RemainingContracts));
+                }
             }
         }
 
@@ -200,15 +425,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return;
                 }
 
-                // V8.31: Check if a working stop already exists for this entry to prevent duplicates
+                // V12.Phase7 [C-06]: Check if any live stop already exists for this entry (Working, Accepted,
+                // ChangePending, or ChangeSubmitted). Without ChangePending guard, a ChangeOrder in flight
+                // causes a second stop to be created — leading to stacked stops that can reverse the position.
                 if (stopOrders.TryGetValue(entryName, out var existingStop))
                 {
-                    if (existingStop != null && (existingStop.OrderState == OrderState.Working || existingStop.OrderState == OrderState.Accepted))
+                    if (existingStop != null && (
+                        existingStop.OrderState == OrderState.Working ||
+                        existingStop.OrderState == OrderState.Accepted ||
+                        existingStop.OrderState == OrderState.ChangePending ||
+                        existingStop.OrderState == OrderState.ChangeSubmitted))
                     {
-                        Print(string.Format("V8.31: SKIPPING duplicate stop creation for {0} - stop already working", entryName));
+                        Print(string.Format("V12.Phase7: SKIPPING duplicate stop for {0} — existing stop state={1}", entryName, existingStop.OrderState));
                         return;
                     }
                 }
+
+                // V12.Phase7 [C-04]: Round stop price to valid tick boundary.
+                // CreateNewStopOrder receives raw prices that may not be tick-aligned.
+                // Off-tick prices are rejected by the broker, leaving the position unprotected.
+                stopPrice = Instrument.MasterInstrument.RoundToTickSize(stopPrice);
 
                 Order newStop = null;
                 OrderAction exitAction = direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
@@ -245,6 +481,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 stopOrders[entryName] = newStop;
+
+                // [LATENCY_AUDIT] Measure OCO turnaround: CreatedTime was stamped in UpdateStopQuantity() when
+                // the target fill triggered the pending stop replacement. The delta = Target Fill -> Stop Cancel
+                // confirmed -> new stop submitted — the full OCO lifecycle round-trip.
+                if (pendingStopReplacements.TryGetValue(entryName, out var pendingForLatency))
+                {
+                    double ocoLatencyMs = (DateTime.Now - pendingForLatency.CreatedTime).TotalMilliseconds;
+                    Print(string.Format("[LATENCY_AUDIT] Target Fill -> Stop Cancel Delta: {0:F1}ms (Entry: {1})",
+                        ocoLatencyMs, entryName));
+                }
+
                 Print(string.Format("STOP QTY UPDATED: {0} contracts @ {1:F2} (Order: {2})",
                     quantity, stopPrice, newStop.Name));
             }
@@ -254,35 +501,78 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        private double ValidateStopPrice(MarketPosition direction, double desiredStopPrice)
+        private double ValidateStopPrice(MarketPosition direction, double desiredStopPrice, int level = 0, double entryPrice = 0)
         {
             // V12.41: Use real-time price instead of stale bar Close[0]
             double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
             double tickSize = Instrument.MasterInstrument.TickSize;
-            double minDistance = 2 * tickSize;
+            
+            // [V12.1102E] RELAXED SAFETY: For Manual BE (Level 1), allow zero-tick distance from market.
+            // This prevents the safety guard from pulling back a BE stop that price has just reached.
+            // Standard trailing (Level > 1) still enforces a 2-tick buffer.
+            double minDistance = (level == 1) ? 0 : (2 * tickSize);
+
+            double resultStop = desiredStopPrice;
 
             if (direction == MarketPosition.Long)
             {
-                if (desiredStopPrice >= currentPrice)
+                // For BE (Level 1), only adjust if stop is STRICTLY above market (illegal).
+                // Equality is allowed for BE to prevent safety pull-back on the threshold cross.
+                bool isIllegal = (level == 1) ? (desiredStopPrice > currentPrice) : (desiredStopPrice >= currentPrice);
+
+                if (isIllegal)
                 {
-                    double validStop = currentPrice - minDistance;
-                    Print(string.Format("STOP VALIDATION: Adjusted LONG stop from {0:F2} to {1:F2} (was at/above market)",
-                        desiredStopPrice, validStop));
-                    return validStop;
+                    if (level == 1 && entryPrice > 0)
+                    {
+                        // [Build 1102J] Entry Shield: for BE moves, clamp directly to entry price floor.
+                        // Do NOT snap to current market — that drags the stop into negative territory.
+                        resultStop = entryPrice;
+                        Print(string.Format("[1102J] STOP VALIDATION: BE SHIELD clamped LONG stop from {0:F2} to entry floor {1:F2}",
+                            desiredStopPrice, resultStop));
+                    }
+                    else
+                    {
+                        resultStop = currentPrice - (level == 1 ? 0 : minDistance);
+                        Print(string.Format("STOP VALIDATION: Adjusted LONG stop from {0:F2} to {1:F2} (Level {2} {3} market)",
+                            desiredStopPrice, resultStop, level, (level == 1 ? "above" : "at/above")));
+                    }
                 }
             }
             else
             {
-                if (desiredStopPrice <= currentPrice)
+                bool isIllegal = (level == 1) ? (desiredStopPrice < currentPrice) : (desiredStopPrice <= currentPrice);
+
+                if (isIllegal)
                 {
-                    double validStop = currentPrice + minDistance;
-                    Print(string.Format("STOP VALIDATION: Adjusted SHORT stop from {0:F2} to {1:F2} (was at/below market)",
-                        desiredStopPrice, validStop));
-                    return validStop;
+                    if (level == 1 && entryPrice > 0)
+                    {
+                        // [Build 1102J] Entry Shield: for BE moves, clamp directly to entry price floor.
+                        // Do NOT snap to current market — that drags the stop into negative territory.
+                        resultStop = entryPrice;
+                        Print(string.Format("[1102J] STOP VALIDATION: BE SHIELD clamped SHORT stop from {0:F2} to entry floor {1:F2}",
+                            desiredStopPrice, resultStop));
+                    }
+                    else
+                    {
+                        resultStop = currentPrice + (level == 1 ? 0 : minDistance);
+                        Print(string.Format("STOP VALIDATION: Adjusted SHORT stop from {0:F2} to {1:F2} (Level {2} {3} market)",
+                            desiredStopPrice, resultStop, level, (level == 1 ? "below" : "at/below")));
+                    }
                 }
             }
 
-            return desiredStopPrice;
+            // [Build 1102H] Profit Floor: secondary backstop — ensures resultStop never crosses
+            // below entry for Long (or above entry for Short) regardless of how resultStop was set.
+            if (level == 1 && entryPrice > 0)
+            {
+                if (direction == MarketPosition.Long && resultStop < entryPrice)
+                    resultStop = entryPrice;
+                else if (direction == MarketPosition.Short && resultStop > entryPrice)
+                    resultStop = entryPrice;
+            }
+
+            // V12.Phase7 [C-04]: Always round to valid tick boundary before returning.
+            return Instrument.MasterInstrument.RoundToTickSize(resultStop);
         }
 
         #endregion
@@ -381,191 +671,185 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void FlattenAll()
         {
-            isFlattenRunning = true; // V12.13b: Suppress stop re-submit during flatten
-            try
+            // V1101E HOT-PATCH: Serialize entire flatten pipeline to prevent overlap with Reaper/order callbacks.
+            lock (stateLock)
             {
-                // V10 GHOST FIX: Scan for actual live position even if activePositions is empty
-                int liveQty = 0;
-                MarketPosition liveDir = MarketPosition.Flat;
-                if (Position != null)
+                isFlattenRunning = true; // V12.13b: Suppress stop re-submit during flatten
+                try
                 {
-                    liveQty = Position.Quantity;
-                    liveDir = Position.MarketPosition;
-                }
-
-                if (activePositions.Count == 0 && liveQty > 0)
-                {
-                     Print(string.Format("FLATTEN GHOST: Closing ORPHANED position of {0} contracts", liveQty));
-                     if (liveDir == MarketPosition.Long)
-                         SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, liveQty, 0, 0, "", "Flatten_Ghost");
-                     else
-                         SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Market, liveQty, 0, 0, "", "Flatten_Ghost");
-
-                     return;
-                }
-
-                if (activePositions.Count == 0 && Position.MarketPosition == MarketPosition.Flat)
-                {
-                    Print("FLATTEN: No active positions to close");
-                    // Still run SIMA flatten just in case of desync
-                    if (EnableSIMA) FlattenAllApexAccounts();
-                    return;
-                }
-
-                Print("FLATTEN: Closing all positions...");
-
-                // V12.13b: Removed ExitLong/ExitShort block (managed-mode methods incompatible with IsUnmanaged=true)
-                // Unmanaged flatten via SubmitOrderUnmanaged is handled below at the per-position level
-
-                // 2. Clear all pending entry orders on Master
-                foreach (var entryOrder in entryOrders.Values)
-                {
-                    if (entryOrder != null && (entryOrder.OrderState == OrderState.Working || entryOrder.OrderState == OrderState.Accepted))
-                        CancelOrder(entryOrder);
-                }
-
-                // 3. Flatten SIMA Fleet
-                if (EnableSIMA)
-                {
-                    FlattenAllApexAccounts();
-                }
-
-                // V12.2: Reset Sync State
-                isLongArmed = false;
-                isShortArmed = false;
-
-                List<string> positionsToCleanup = new List<string>();
-
-                // V8.30: Thread-safe snapshot iteration
-                foreach (var kvp in activePositions.ToArray())
-                {
-                    if (!activePositions.ContainsKey(kvp.Key)) continue;
-                    PositionInfo pos = kvp.Value;
-                    string entryName = kvp.Key;
-
-                    if (pos.EntryFilled)
+                    // V10 GHOST FIX: Scan for actual live position even if activePositions is empty
+                    int liveQty = 0;
+                    MarketPosition liveDir = MarketPosition.Flat;
+                    if (Position != null)
                     {
-                        Print(string.Format("FLATTEN: Closing filled {0} position",
-                            pos.Direction == MarketPosition.Long ? "LONG" : "SHORT"));
+                        liveQty = Position.Quantity;
+                        liveDir = Position.MarketPosition;
+                    }
 
-                        // V8.31: Cancel ALL bracket orders comprehensively
-                        // Cancel stop order (may have multiple from rapid trailing)
-                        if (stopOrders.TryGetValue(entryName, out var stopOrder))
+                    if (activePositions.Count == 0 && liveQty > 0)
+                    {
+                         Print(string.Format("FLATTEN GHOST: Closing ORPHANED position of {0} contracts", liveQty));
+                         if (liveDir == MarketPosition.Long)
+                             SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, liveQty, 0, 0, "", "Flatten_Ghost");
+                         else
+                             SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Market, liveQty, 0, 0, "", "Flatten_Ghost");
+
+                         return;
+                    }
+
+                    if (activePositions.Count == 0 && Position.MarketPosition == MarketPosition.Flat)
+                    {
+                        Print("FLATTEN: No active positions to close");
+                        // Still run SIMA flatten just in case of desync
+                        if (EnableSIMA)
                         {
-                            if (stopOrder != null && (stopOrder.OrderState == OrderState.Working || stopOrder.OrderState == OrderState.Accepted || stopOrder.OrderState == OrderState.Submitted))
+                            // V1101E HOT-PATCH: Keep flatten guard asserted across nested SIMA flatten call.
+                            isFlattenRunning = true;
+                            FlattenAllApexAccounts();
+                            isFlattenRunning = true;
+                        }
+                        return;
+                    }
+
+                    Print("FLATTEN: Closing all positions...");
+
+                    // V12.13b: Removed ExitLong/ExitShort block (managed-mode methods incompatible with IsUnmanaged=true)
+                    // Unmanaged flatten via SubmitOrderUnmanaged is handled below at the per-position level
+
+                    // 2. Clear all pending entry orders on Master
+                    foreach (var entryOrder in entryOrders.Values)
+                    {
+                        if (entryOrder != null && (entryOrder.OrderState == OrderState.Working || entryOrder.OrderState == OrderState.Accepted))
+                            CancelOrder(entryOrder);
+                    }
+
+                    // 3. Flatten SIMA Fleet
+                    if (EnableSIMA)
+                    {
+                        // V1101E HOT-PATCH: Keep flatten guard asserted across nested SIMA flatten call.
+                        isFlattenRunning = true;
+                        FlattenAllApexAccounts();
+                        isFlattenRunning = true;
+                    }
+
+                    // V12.2: Reset Sync State
+                    isLongArmed = false;
+                    isShortArmed = false;
+
+                    // V1102Q [RUNNER-LEAK]: Explicit follower sweep. 
+                    // Purge all follower metadata from memory to prevent ghost entries.
+                    foreach (var kvp in activePositions.ToArray())
+                    {
+                        if (kvp.Value.IsFollower)
+                        {
+                            activePositions.TryRemove(kvp.Key, out _);
+                            entryOrders.TryRemove(kvp.Key, out _);
+                            Print($"[V1102Q] Follower Sweep: Purged {kvp.Key} from memory");
+                        }
+                    }
+
+                    // V8.30: Thread-safe snapshot iteration (Master/Main entries)
+                    foreach (var kvp in activePositions.ToArray())
+                    {
+                        if (!activePositions.ContainsKey(kvp.Key)) continue;
+                        PositionInfo pos = kvp.Value;
+                        string entryName = kvp.Key;
+
+                        if (pos.EntryFilled)
+                        {
+                            Print(string.Format("FLATTEN: Closing filled {0} position",
+                                pos.Direction == MarketPosition.Long ? "LONG" : "SHORT"));
+
+                            // V12.1101E [PH5-COLLIDE-01]: Lifecycle-safe stop cancellation.
+                            // Keep stop dictionary refs until broker-confirmed terminal state.
+                            RequestStopCancelLifecycleSafe(entryName);
+                            Print(string.Format("FLATTEN: Requested stop lifecycle cancel for {0}", entryName));
+
+                            // V8.31: Also clear any pending stop replacements to prevent orphaned stops
+                            if (pendingStopReplacements.TryRemove(entryName, out _))
                             {
-                                CancelOrder(stopOrder);
-                                Print(string.Format("FLATTEN: Cancelling stop for {0}", entryName));
+                                Interlocked.Decrement(ref pendingReplacementCount);
+                                Print(string.Format("V8.31: Cleared pending stop replacement for {0}", entryName));
                             }
-                        }
 
-                        // V8.31: Also clear any pending stop replacements to prevent orphaned stops
-                        if (pendingStopReplacements.TryRemove(entryName, out _))
-                        {
-                            Interlocked.Decrement(ref pendingReplacementCount);
-                            Print(string.Format("V8.31: Cleared pending stop replacement for {0}", entryName));
-                        }
+                            // Cancel all target orders (T1-T5)
+                            for (int tNum = 1; tNum <= 5; tNum++)
+                            {
+                                var tDict = GetTargetOrdersDictionary(tNum);
+                                if (tDict != null && tDict.TryGetValue(entryName, out var tOrder))
+                                {
+                                    if (tOrder != null && (tOrder.OrderState == OrderState.Working || tOrder.OrderState == OrderState.Accepted || tOrder.OrderState == OrderState.Submitted))
+                                        CancelOrder(tOrder);
+                                }
+                            }
 
-                        // Cancel T1 order
-                        if (target1Orders.TryGetValue(entryName, out var t1Order))
-                        {
-                            if (t1Order != null && (t1Order.OrderState == OrderState.Working || t1Order.OrderState == OrderState.Accepted || t1Order.OrderState == OrderState.Submitted))
-                                CancelOrder(t1Order);
-                        }
+                            // V8.28 FIX: Use LIVE position quantity instead of cached RemainingContracts
+                            int livePositionQty = 0;
+                            try
+                            {
+                                if (Position != null && Position.MarketPosition != MarketPosition.Flat)
+                                    livePositionQty = Position.Quantity;
+                            }
+                            catch (Exception pEx) { Print("Flatten Error reading Position: " + pEx.Message); }
 
-                        // Cancel T2 order
-                        if (target2Orders.TryGetValue(entryName, out var t2Order))
-                        {
-                            if (t2Order != null && (t2Order.OrderState == OrderState.Working || t2Order.OrderState == OrderState.Accepted || t2Order.OrderState == OrderState.Submitted))
-                                CancelOrder(t2Order);
-                        }
+                            // Use the smaller of cached and live to avoid overselling
+                            // V10 DIAGNOSTIC: Print values
+                            Print(string.Format("FLATTEN DIAGNOSTIC: Entry={0} Cached={1} Live={2}", entryName, pos.RemainingContracts, livePositionQty));
 
-                        // V8.31: Cancel T3 order
-                        if (target3Orders.TryGetValue(entryName, out var t3Order))
-                        {
-                            if (t3Order != null && (t3Order.OrderState == OrderState.Working || t3Order.OrderState == OrderState.Accepted || t3Order.OrderState == OrderState.Submitted))
-                                CancelOrder(t3Order);
-                        }
+                            // V10 FLATTEN FIX: Trust cached contracts if live is 0 (latency protection)
+                            // If cached says we have contracts, we close them.
+                            int flattenQty = pos.RemainingContracts;
 
-                        // V8.31: Cancel T4 order
-                        if (target4Orders.TryGetValue(entryName, out var t4Order))
-                        {
-                            if (t4Order != null && (t4Order.OrderState == OrderState.Working || t4Order.OrderState == OrderState.Accepted || t4Order.OrderState == OrderState.Submitted))
-                                CancelOrder(t4Order);
-                        }
+                            if (livePositionQty > 0)
+                            {
+                                 // If NinjaTrader agrees we have a position, use the smaller to act safe?
+                                 // No, if real position is smaller, we might be over-closing.
+                                 // But if real is larger, we under-close.
+                                 // Let's stick to closing what we know we opened.
+                                 flattenQty = pos.RemainingContracts;
+                            }
 
-                        // V8.28 FIX: Use LIVE position quantity instead of cached RemainingContracts
-                        int livePositionQty = 0;
-                        try
-                        {
-                            if (Position != null && Position.MarketPosition != MarketPosition.Flat)
-                                livePositionQty = Position.Quantity;
-                        }
-                        catch (Exception pEx) { Print("Flatten Error reading Position: " + pEx.Message); }
+                            // Submit market order to close position
+                            if (flattenQty > 0)
+                            {
+                                Order flattenOrder = pos.Direction == MarketPosition.Long
+                                    ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, flattenQty, 0, 0, "", "Flatten_" + entryName)
+                                    : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Market, flattenQty, 0, 0, "", "Flatten_" + entryName);
 
-                        // Use the smaller of cached and live to avoid overselling
-                        // V10 DIAGNOSTIC: Print values
-                        Print(string.Format("FLATTEN DIAGNOSTIC: Entry={0} Cached={1} Live={2}", entryName, pos.RemainingContracts, livePositionQty));
+                                if (flattenOrder == null) Print("FLATTEN ERROR: SubmitOrderUnmanaged returned NULL");
+                                else Print(string.Format("FLATTEN SENT: {0} {1} contracts", pos.Direction == MarketPosition.Long ? "SELL" : "BUY", flattenQty));
+                            }
+                            else
+                            {
+                                 Print("FLATTEN SKIPPED: Qty is 0");
+                            }
 
-                        // V10 FLATTEN FIX: Trust cached contracts if live is 0 (latency protection)
-                        // If cached says we have contracts, we close them.
-                        int flattenQty = pos.RemainingContracts;
-
-                        if (livePositionQty > 0)
-                        {
-                             // If NinjaTrader agrees we have a position, use the smaller to act safe?
-                             // No, if real position is smaller, we might be over-closing.
-                             // But if real is larger, we under-close.
-                             // Let's stick to closing what we know we opened.
-                             flattenQty = pos.RemainingContracts;
-                        }
-
-                        // Submit market order to close position
-                        if (flattenQty > 0)
-                        {
-                            Order flattenOrder = pos.Direction == MarketPosition.Long
-                                ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, flattenQty, 0, 0, "", "Flatten_" + entryName)
-                                : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Market, flattenQty, 0, 0, "", "Flatten_" + entryName);
-
-                            if (flattenOrder == null) Print("FLATTEN ERROR: SubmitOrderUnmanaged returned NULL");
-                            else Print(string.Format("FLATTEN SENT: {0} {1} contracts", pos.Direction == MarketPosition.Long ? "SELL" : "BUY", flattenQty));
                         }
                         else
                         {
-                             Print("FLATTEN SKIPPED: Qty is 0");
-                        }
-
-                        positionsToCleanup.Add(entryName);
-                    }
-                    else
-                    {
-                        // Cancel pending entry order
-                        if (entryOrders.ContainsKey(entryName))
-                        {
-                            Order entryOrder = entryOrders[entryName];
-                            if (entryOrder != null && (entryOrder.OrderState == OrderState.Working || entryOrder.OrderState == OrderState.Accepted))
+                            // Cancel pending entry order
+                            if (entryOrders.ContainsKey(entryName))
                             {
-                                CancelOrder(entryOrder);
-                                Print(string.Format("FLATTEN: Cancelled pending {0} entry order @ {1:F2}",
-                                    pos.Direction == MarketPosition.Long ? "LONG" : "SHORT", pos.EntryPrice));
+                                Order entryOrder = entryOrders[entryName];
+                                if (entryOrder != null && (entryOrder.OrderState == OrderState.Working || entryOrder.OrderState == OrderState.Accepted))
+                                {
+                                    CancelOrder(entryOrder);
+                                    Print(string.Format("FLATTEN: Cancelled pending {0} entry order @ {1:F2}",
+                                        pos.Direction == MarketPosition.Long ? "LONG" : "SHORT", pos.EntryPrice));
+                                }
                             }
                         }
-                        positionsToCleanup.Add(entryName);
                     }
                 }
-
-                foreach (string key in positionsToCleanup)
+                catch (Exception ex)
                 {
-                    CleanupPosition(key);
+                    Print("ERROR FlattenAll: " + ex.Message);
                 }
-            }
-            catch (Exception ex)
-            {
-                Print("ERROR FlattenAll: " + ex.Message);
-            }
-            finally
-            {
-                isFlattenRunning = false; // V12.13b: Always release guard
+                finally
+                {
+                    // V1101E HOT-PATCH: Release flatten guard only after serialized flatten pipeline exits.
+                    isFlattenRunning = false; // V12.13b: Always release guard
+                }
             }
         }
 
@@ -590,36 +874,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                         else CancelOrder(stopOrder);
                     }
                 }
-                if (target1Orders.TryGetValue(entryName, out var t1Order) && t1Order != null)
+                // Cancel all target orders (T1-T5)
+                for (int tNum = 1; tNum <= 5; tNum++)
                 {
-                    if (t1Order.OrderState == OrderState.Working || t1Order.OrderState == OrderState.Accepted)
+                    var tDict = GetTargetOrdersDictionary(tNum);
+                    if (tDict != null && tDict.TryGetValue(entryName, out var tOrder) && tOrder != null)
                     {
-                        if (isFleetFollower) pos.ExecutingAccount.Cancel(new[] { t1Order });
-                        else CancelOrder(t1Order);
-                    }
-                }
-                if (target2Orders.TryGetValue(entryName, out var t2Order) && t2Order != null)
-                {
-                    if (t2Order.OrderState == OrderState.Working || t2Order.OrderState == OrderState.Accepted)
-                    {
-                        if (isFleetFollower) pos.ExecutingAccount.Cancel(new[] { t2Order });
-                        else CancelOrder(t2Order);
-                    }
-                }
-                if (target3Orders.TryGetValue(entryName, out var t3Order) && t3Order != null)
-                {
-                    if (t3Order.OrderState == OrderState.Working || t3Order.OrderState == OrderState.Accepted)
-                    {
-                        if (isFleetFollower) pos.ExecutingAccount.Cancel(new[] { t3Order });
-                        else CancelOrder(t3Order);
-                    }
-                }
-                if (target4Orders.TryGetValue(entryName, out var t4Order) && t4Order != null)
-                {
-                    if (t4Order.OrderState == OrderState.Working || t4Order.OrderState == OrderState.Accepted)
-                    {
-                        if (isFleetFollower) pos.ExecutingAccount.Cancel(new[] { t4Order });
-                        else CancelOrder(t4Order);
+                        if (tOrder.OrderState == OrderState.Working || tOrder.OrderState == OrderState.Accepted)
+                        {
+                            if (isFleetFollower) pos.ExecutingAccount.Cancel(new[] { tOrder });
+                            else CancelOrder(tOrder);
+                        }
                     }
                 }
 
@@ -674,82 +939,177 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
 
+        // V12.1101E [DESYNC-01]: Terminal-only removal. Returns true if order is Filled, Cancelled, Rejected, or Unknown.
+        private static bool IsOrderTerminal(OrderState state)
+        {
+            return state == OrderState.Filled || state == OrderState.Cancelled
+                || state == OrderState.Rejected || state == OrderState.Unknown;
+        }
+
+        // V12.1101E [DESYNC-01]: True if any stop/target/entry dict still holds a non-terminal order for this entry.
+        private bool HasActiveOrPendingOrderForEntry(string entryName)
+        {
+            if (stopOrders.TryGetValue(entryName, out var stop) && stop != null && !IsOrderTerminal(stop.OrderState))
+                return true;
+
+            for (int tNum = 1; tNum <= 5; tNum++)
+            {
+                var tDict = GetTargetOrdersDictionary(tNum);
+                if (tDict != null && tDict.TryGetValue(entryName, out var tOrder) && tOrder != null && !IsOrderTerminal(tOrder.OrderState))
+                    return true;
+            }
+
+            if (entryOrders.TryGetValue(entryName, out var e) && e != null && !IsOrderTerminal(e.OrderState)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// V12.1101E [DESYNC-01]: Terminal-only cleanup. Only TryRemove when order is Filled/Cancelled/Rejected/Unknown;
+        /// if Working/Accepted/Pending, call CancelOrder but do NOT remove — OnOrderUpdate will remove on terminal state.
+        /// activePositions is removed only at the end and only when no dict still holds an active/pending order.
+        /// </summary>
         private void CleanupPosition(string entryName)
         {
-            // V8.17 EMERGENCY FIX: Move removal to TOP to prevent recursion
-            // V8.30: Use atomic TryRemove for thread-safe removal
-            if (!activePositions.TryRemove(entryName, out _)) return;
-            SymmetryGuardForgetEntry(entryName);
+            if (string.IsNullOrEmpty(entryName)) return;
+            if (!activePositions.ContainsKey(entryName)) return;
 
             int cancelledStops = 0;
             int cancelledTargets = 0;
             int cancelledEntries = 0;
 
-            // V8.17 FIX: Use explicit dictionary-based cancellation instead of scanning ALL Account.Orders
-            // V8.30: Use TryRemove for thread-safe atomic removal
+            // Build 1102U [BUG-2a]: Fleet followers must use Account.Cancel() — not CancelOrder() which only
+            // works for orders submitted through this strategy instance's NinjaScript order management.
+            // Follower orders are submitted via acct.Submit(), so they require the broker-level cancel API.
+            bool isFollowerForCleanup = activePositions.TryGetValue(entryName, out var cleanupPosRef)
+                && cleanupPosRef.IsFollower && cleanupPosRef.ExecutingAccount != null;
 
-            // Cancel stop order
-            if (stopOrders.TryRemove(entryName, out var stopOrder))
+            // Stop: TryGetValue only; remove only if terminal; otherwise cancel and keep ref
+            if (stopOrders.TryGetValue(entryName, out var stopOrder))
             {
-                if (stopOrder != null && (stopOrder.OrderState == OrderState.Working || stopOrder.OrderState.ToString().Contains("Pending")))
+                if (stopOrder != null)
                 {
-                    CancelOrder(stopOrder);
-                    cancelledStops++;
+                    if (IsOrderTerminal(stopOrder.OrderState))
+                        stopOrders.TryRemove(entryName, out _);
+                    else
+                    {
+                        if (isFollowerForCleanup)
+                            cleanupPosRef.ExecutingAccount.Cancel(new[] { stopOrder });
+                        else
+                            CancelOrder(stopOrder);
+                        cancelledStops++;
+                    }
+                }
+                else
+                    stopOrders.TryRemove(entryName, out _);
+            }
+
+            // T1-T5: TryGetValue only; remove only if terminal; otherwise cancel and keep ref
+            for (int tNum = 1; tNum <= 5; tNum++)
+            {
+                var tDict = GetTargetOrdersDictionary(tNum);
+                if (tDict == null) continue;
+
+                if (tDict.TryGetValue(entryName, out var tOrder))
+                {
+                    if (tOrder != null)
+                    {
+                        if (IsOrderTerminal(tOrder.OrderState))
+                            tDict.TryRemove(entryName, out _);
+                        else
+                        {
+                            if (isFollowerForCleanup)
+                                cleanupPosRef.ExecutingAccount.Cancel(new[] { tOrder });
+                            else
+                                CancelOrder(tOrder);
+                            cancelledTargets++;
+                        }
+                    }
+                    else
+                    {
+                        tDict.TryRemove(entryName, out _);
+                    }
                 }
             }
 
-            // Cancel T1
-            if (target1Orders.TryRemove(entryName, out var t1Order))
+            // Entry: TryGetValue only; remove only if terminal; otherwise cancel and keep ref
+            if (entryOrders.TryGetValue(entryName, out var eOrder))
             {
-                if (t1Order != null && (t1Order.OrderState == OrderState.Working || t1Order.OrderState.ToString().Contains("Pending")))
+                if (eOrder != null)
                 {
-                    CancelOrder(t1Order);
-                    cancelledTargets++;
+                    if (IsOrderTerminal(eOrder.OrderState))
+                        entryOrders.TryRemove(entryName, out _);
+                    else
+                    {
+                        if (isFollowerForCleanup)
+                            cleanupPosRef.ExecutingAccount.Cancel(new[] { eOrder });
+                        else
+                            CancelOrder(eOrder);
+                        cancelledEntries++;
+                    }
                 }
+                else
+                    entryOrders.TryRemove(entryName, out _);
             }
 
-            // Cancel T2
-            if (target2Orders.TryRemove(entryName, out var t2Order))
-            {
-                if (t2Order != null && (t2Order.OrderState == OrderState.Working || t2Order.OrderState.ToString().Contains("Pending")))
-                {
-                    CancelOrder(t2Order);
-                    cancelledTargets++;
-                }
-            }
-
-            // Cancel T3
-            if (target3Orders.TryRemove(entryName, out var t3Order))
-            {
-                if (t3Order != null && (t3Order.OrderState == OrderState.Working || t3Order.OrderState.ToString().Contains("Pending")))
-                {
-                    CancelOrder(t3Order);
-                    cancelledTargets++;
-                }
-            }
-
-            // Cancel T4/Entry
-            if (entryOrders.TryRemove(entryName, out var eOrder))
-            {
-                if (eOrder != null && (eOrder.OrderState == OrderState.Working || eOrder.OrderState.ToString().Contains("Pending")))
-                {
-                    CancelOrder(eOrder);
-                    cancelledEntries++;
-                }
-            }
-
-            // V8.30: Thread-safe removal with count decrement for pending replacements
             if (pendingStopReplacements.TryRemove(entryName, out _))
-            {
                 Interlocked.Decrement(ref pendingReplacementCount);
-            }
-            target4Orders.TryRemove(entryName, out _);
 
-            // Log cleanup summary
             if (cancelledStops > 0 || cancelledTargets > 0 || cancelledEntries > 0)
-            {
                 Print(string.Format("CLEANUP SUMMARY for {0}: Stops={1} Targets={2} Entries={3}",
                     entryName, cancelledStops, cancelledTargets, cancelledEntries));
+
+            // V12.Phase8.2 [META-GUARD]: Pre-compute followerExpected before any purge decision.
+            // If the Reaper has a non-zero expectedPositions for this account, a Repair Hook is planning
+            // to re-issue the entry. Purging now would destroy the PositionInfo metadata
+            // (price/qty/direction) that the Repair Hook reads to reconstruct the order.
+            int followerExpected = 0;
+            if (activePositions.TryGetValue(entryName, out var metaGuardCheck)
+                && metaGuardCheck.IsFollower
+                && metaGuardCheck.ExecutingAccount != null)
+            {
+                string followerAcctName = metaGuardCheck.ExecutingAccount.Name;
+                lock (stateLock)
+                {
+                    // Build 1102U [BUG-1]: Must use composite key to match new ExpKey scheme.
+                    expectedPositions.TryGetValue(ExpKey(followerAcctName), out followerExpected);
+                }
+                if (followerExpected != 0)
+                {
+                    Print(string.Format("[META-GUARD] {0}: Broker is flat but expectedPositions={1}. " +
+                        "Retaining activePositions metadata for Repair Hook. Will purge after repair completes.",
+                        entryName, followerExpected));
+                    // [Phase 8.2 Part 3] Explicit early-return: prevent fall-through into FIX-ZP-02
+                    // which would forcibly purge activePositions even when the Repair Hook is pending.
+                    return;
+                }
+            }
+
+            // V12.1101E [DESYNC-01]: Defer activePositions removal until no dict holds an active/pending order.
+            // V12.Phase8.2 [META-GUARD]: Skip purge if Reaper Repair Hook is active (followerExpected != 0).
+            if (followerExpected == 0 && !HasActiveOrPendingOrderForEntry(entryName))
+            {
+                if (activePositions.TryRemove(entryName, out _))
+                    SymmetryGuardForgetEntry(entryName);
+            }
+
+            // [FIX-ZP-02]: Secondary safety net for SIMA followers — force purge if broker confirms flat.
+            // Guards against lingering non-terminal dict entries preventing HasActiveOrPendingOrderForEntry
+            // from returning false even though the actual broker position is already flat.
+            if (followerExpected == 0
+                && activePositions.TryGetValue(entryName, out var followerCheck)
+                && followerCheck.IsFollower
+                && followerCheck.ExecutingAccount != null)
+            {
+                var brokerPos = followerCheck.ExecutingAccount.Positions
+                    .FirstOrDefault(p => p.Instrument == Instrument);
+                if (brokerPos != null && brokerPos.MarketPosition == MarketPosition.Flat)
+                {
+                    if (activePositions.TryRemove(entryName, out _))
+                    {
+                        SymmetryGuardForgetEntry(entryName);
+                        Print(string.Format("[FIXED_G] Purging {0} - confirmed flat by broker.", entryName));
+                    }
+                }
             }
         }
 
@@ -767,6 +1127,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 (target2Orders, "T2"),
                 (target3Orders, "T3"),
                 (target4Orders, "T4"),
+                (target5Orders, "T5"),
                 (stopOrders, "STOP"),
                 (entryOrders, "ENTRY"),
             };
@@ -804,6 +1165,47 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         Print(string.Format("V12.17: WARNING UNPROTECTED POSITION: {0} has {1} contracts with NO STOP after {2}. Manual intervention may be required.",
                             removedKey, auditPos.RemainingContracts, reason));
+                    }
+                }
+            }
+
+            // [FIX-ZP-01]: After any terminal order ref is removed, re-evaluate position purge eligibility.
+            // Deliberately NOT calling CleanupPosition here to avoid cancelling live remaining orders
+            // (e.g. T2-T5 still working after T1 fills). HasActiveOrPendingOrderForEntry is the safe gate.
+            if (foundInDict && !string.IsNullOrEmpty(removedKey))
+            {
+                if (!HasActiveOrPendingOrderForEntry(removedKey))
+                {
+                    // [1102G] Guard: Never purge a position that still holds open contracts.
+                    if (activePositions.TryGetValue(removedKey, out var purgeCheck) && purgeCheck.RemainingContracts > 0)
+                        return;
+
+                    // V12.Phase8.2 [META-GUARD]: If this is a follower with a pending repair,
+                    // preserve activePositions metadata so the Repair Hook can reconstruct the order.
+                    if (activePositions.TryGetValue(removedKey, out var ghostMetaCheck)
+                        && ghostMetaCheck.IsFollower
+                        && ghostMetaCheck.ExecutingAccount != null)
+                    {
+                        string ghostAcctName = ghostMetaCheck.ExecutingAccount.Name;
+                        int ghostExpected = 0;
+                        lock (stateLock)
+                        {
+                            // Build 1102U [BUG-1]: Composite key parity — must match ExpKey scheme.
+                            expectedPositions.TryGetValue(ExpKey(ghostAcctName), out ghostExpected);
+                        }
+                        if (ghostExpected != 0)
+                        {
+                            Print(string.Format("[META-GUARD] {0}: ZOMBIE_PURGE suppressed — expectedPositions={1} on {2}. " +
+                                "Retaining metadata for Repair Hook.",
+                                removedKey, ghostExpected, ghostAcctName));
+                            return;
+                        }
+                    }
+
+                    if (activePositions.TryRemove(removedKey, out _))
+                    {
+                        SymmetryGuardForgetEntry(removedKey);
+                        Print(string.Format("[ZOMBIE_PURGE] {0}: all order refs terminal. Purging activePositions.", removedKey));
                     }
                 }
             }
@@ -858,7 +1260,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Check if this order has one of our prefix signatures
                     string name = order.Name;
                     if (name.StartsWith("Stop_") || name.StartsWith("T1_") || name.StartsWith("T2_") ||
-                        name.StartsWith("T3_") || name.StartsWith("T4_") || name.StartsWith("Flatten_") || name.StartsWith("Trim_"))
+                        name.StartsWith("T3_") || name.StartsWith("T4_") || name.StartsWith("T5_") ||
+                        name.StartsWith("Flatten_") || name.StartsWith("Trim_"))
                     {
                         // Check if we actually have an active position for this
                         string entryName = "";
@@ -923,7 +1326,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 var reverseCheckDicts = new (ConcurrentDictionary<string, Order> dict, string label)[]
                 {
                     (stopOrders, "STOP"), (target1Orders, "T1"), (target2Orders, "T2"),
-                    (target3Orders, "T3"), (target4Orders, "T4"), (entryOrders, "ENTRY"),
+                    (target3Orders, "T3"), (target4Orders, "T4"), (target5Orders, "T5"), (entryOrders, "ENTRY"),
                 };
 
                 foreach (var (dict, label) in reverseCheckDicts)

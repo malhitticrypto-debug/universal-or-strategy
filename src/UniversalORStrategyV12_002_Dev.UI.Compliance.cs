@@ -369,56 +369,175 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// Triggered when ANY of the 20 Apex accounts has an execution (entry or exit)
+        /// V12.Phase7 [C-09]: Compliance enforcement gate.
+        /// Returns false if the account has breached any hard compliance limit (severity 2).
+        /// Call this at the START of every entry method — if false, abort and do not submit orders.
+        /// Severity levels: 0 = OK, 1 = warning, 2 = hard block (drawdown breached or flat rule).
+        /// </summary>
+        private bool IsOrderAllowed(string accountName = null)
+        {
+            if (!EnableComplianceHub) return true;
+
+            string acctName = accountName ?? Account?.Name;
+            if (string.IsNullOrEmpty(acctName)) return true;
+
+            // Hard-block: trailing drawdown breached
+            if (accountEquityPeak.TryGetValue(acctName, out double peak) && peak > 0 && TrailingDrawdownLimit > 0)
+            {
+                double balance = 0;
+                Account currentAccount = this.Account;
+                if (currentAccount != null)
+                {
+                    try { balance = currentAccount.Get(NinjaTrader.Cbi.AccountItem.CashValue, NinjaTrader.Cbi.Currency.UsDollar); } catch { }
+                }
+                double buffer = balance - (peak - TrailingDrawdownLimit);
+                if (buffer <= 0)
+                {
+                    Print(string.Format("[COMPLIANCE BLOCKED] Entry suppressed for {0}: Trailing drawdown breached. Buffer=${1:F2}", acctName, buffer));
+                    return false;
+                }
+            }
+
+            // Hard-block: daily profit cap reached (for SIMA fleet accounts)
+            if (EnableSIMA && EnableConsistencyLock)
+            {
+                if (accountDailyProfit.TryGetValue(acctName, out double dp) && MaxDailyProfitCap > 0 && dp >= MaxDailyProfitCap)
+                {
+                    Print(string.Format("[COMPLIANCE BLOCKED] Entry suppressed for {0}: Daily profit cap hit. DayPL=${1:F2}", acctName, dp));
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Triggered when ANY of the 20 Apex accounts has an execution (entry or exit).
+        /// V12.Phase6 [CONCURRENCY-01]: This fires on the BROKER THREAD. We enqueue and marshal
+        /// to the strategy thread via TriggerCustomEvent to avoid cross-thread mutation of
+        /// strategy state (entryOrders, activePositions, compliance counters).
         /// </summary>
         private void OnAccountExecutionUpdate(object sender, ExecutionEventArgs e)
         {
             if (e == null) return;
 
-            // V12.8: Block entire handler during mass flatten to prevent UI thread freeze
-            if (isFlattenRunning) return;
+            // V12.1101E [TM-02]: Broker-thread callback only enqueues work; state mutation stays on strategy thread.
+            Account execAccount = sender as Account;
+            _accountExecutionQueue.Enqueue(new QueuedAccountExecution { Account = execAccount, EventArgs = e });
+            try { TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null); } catch { }
 
-            // V12.8: Only log per-execution when ComplianceHub is active
-            if (EnableComplianceHub)
-                Print(string.Format("[COMPLIANCE] Execution Update received for account."));
-
-            if (EnableComplianceHub)
+            // [STRESS_TEST Phase 9.0] Fleet Density Burst: when isStressTestEnabled, inject 2 duplicate events
+            // to simulate a high-message-density burst. Validates that the EntryFilled guard in
+            // ProcessAccountExecutionQueue blocks redundant bracket submissions under heavy fire.
+            if (isStressTestEnabled)
             {
-                Account execAccount = sender as Account;
-                if (execAccount != null)
-                {
-                    TrackTradeEntry(execAccount, e.Execution);
-                    UpdateAccountMetricsFromAccount(execAccount);
-                }
+                var burstItem = new QueuedAccountExecution { Account = execAccount, EventArgs = e };
+                _accountExecutionQueue.Enqueue(burstItem);
+                _accountExecutionQueue.Enqueue(burstItem);
+                Print(string.Format("[STRESS_BURST] Injected 2 duplicate execution signals for account {0}",
+                    execAccount?.Name ?? "unknown"));
+                try { TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null); } catch { }
+            }
+        }
+
+        /// <summary>
+        /// V12.Phase6 [CONCURRENCY-01]: Processes queued account execution events on the STRATEGY THREAD.
+        /// Drains the entire queue each invocation to prevent starvation under heavy fill bursts.
+        /// </summary>
+        private void ProcessAccountExecutionQueue()
+        {
+            // V12.1101E [PH5-THREAD-01]: Buffer-and-wait during flatten.
+            // Keep queued executions intact and retry when flatten releases.
+            if (isFlattenRunning)
+            {
+                try { TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null); } catch { }
+                return;
             }
 
-            // V12.7: Check if this fill is for a fleet entry with deferred brackets
-            try
+            QueuedAccountExecution item;
+            while (_accountExecutionQueue.TryDequeue(out item))
             {
-                Order filledOrder = e.Execution?.Order;
-                if (filledOrder != null && filledOrder.OrderState == OrderState.Filled)
+                if (isFlattenRunning)
                 {
-                    foreach (var kvp in entryOrders.ToArray())
+                    _accountExecutionQueue.Enqueue(item);
+                    try { TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null); } catch { }
+                    return;
+                }
+
+                if (EnableComplianceHub)
+                    Print(string.Format("[COMPLIANCE] Execution Update received for account."));
+
+                if (EnableComplianceHub && item.Account != null)
+                {
+                    TrackTradeEntry(item.Account, item.EventArgs.Execution);
+                    UpdateAccountMetricsFromAccount(item.Account);
+                }
+
+                // V12.7: Check if this fill is for a fleet entry with deferred brackets
+                try
+                {
+                    Order filledOrder = item.EventArgs.Execution?.Order;
+                    if (filledOrder != null && filledOrder.OrderState == OrderState.Filled)
                     {
-                        if (kvp.Value == filledOrder)
+                        foreach (var kvp in entryOrders.ToArray())
                         {
-                            string fleetKey = kvp.Key;
-                            if (activePositions.TryGetValue(fleetKey, out var pos) && pos.IsFollower && !pos.EntryFilled)
+                            if (kvp.Value == filledOrder)
                             {
-                                double fleetFillPrice = e.Execution != null ? e.Execution.Price : 0;
-                                SymmetryGuardOnFollowerFill(fleetKey, pos, fleetFillPrice);
+                                string fleetKey = kvp.Key;
+                                if (activePositions.TryGetValue(fleetKey, out var pos) && pos.IsFollower && !pos.EntryFilled)
+                                {
+                                    double fleetFillPrice = item.EventArgs.Execution != null ? item.EventArgs.Execution.Price : 0;
+                                    SymmetryGuardOnFollowerFill(fleetKey, pos, fleetFillPrice);
+                                }
+                                else if (isStressTestEnabled && activePositions.TryGetValue(fleetKey, out var dupPos) && dupPos.IsFollower && dupPos.EntryFilled)
+                                {
+                                    // [STRESS_BURST] Dedup guard caught a duplicate burst signal — bracket already submitted.
+                                    Print(string.Format("[STRESS_BURST] DedupGuard HIT: {0} already EntryFilled — duplicate bracket blocked.", fleetKey));
+                                }
+                                break;
                             }
-                            break;
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Print($"[SIMA V12.7] Error in fleet bracket submission: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Print($"[SIMA V12.7] Error in fleet bracket submission: {ex.Message}");
+                }
+
+                // EMERGENCY FIX [H-15]: After any fleet execution, check if the account is now flat.
+                // Syncs expectedPositions when position is closed externally (e.g., manual UI flatten).
+                // [1102Y-V4 PERSISTENCE GATE]: Skip flat-clear for entry fills. The broker Positions
+                // collection may not yet reflect the new position at this point in the callback,
+                // producing a stale-flat read that wipes expectedPositions during fill registration.
+                // Only exit fills (Sell / BuyToCover) are safe to use as flat-check triggers.
+                try
+                {
+                    Account fleetAcct = item.Account;
+                    if (fleetAcct != null && expectedPositions != null && expectedPositions.ContainsKey(ExpKey(fleetAcct.Name)))
+                    {
+                        Order execOrder = item.EventArgs?.Execution?.Order;
+                        bool isEntryFill = execOrder != null &&
+                            (execOrder.OrderAction == OrderAction.Buy || execOrder.OrderAction == OrderAction.SellShort);
+                        if (isEntryFill)
+                        {
+                            Print($"[ProcessAccountExecutionQueue] [1102Y-V4] Entry fill for {fleetAcct.Name} — Persistence Gate active, flat-check skipped.");
+                        }
+                        else
+                        {
+                            var brokerPos = fleetAcct.Positions.FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
+                            bool nowFlat = (brokerPos == null || brokerPos.MarketPosition == MarketPosition.Flat);
+                            if (nowFlat)
+                            {
+                                SetExpectedPositionLocked(ExpKey(fleetAcct.Name), 0);
+                                Print($"[ProcessAccountExecutionQueue] Fleet {fleetAcct.Name} is Flat — expectedPositions cleared for {Instrument.FullName}");
+                            }
+                        }
+                    }
+                }
+                catch { }
             }
 
-            // Update the compliance log with latest balances (only if ComplianceHub is on and not mass-flattening)
+            // Update the compliance log once after draining all queued events
             if (EnableComplianceHub && !isFlattenRunning)
                 LogApexPerformance();
         }
@@ -435,11 +554,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             try
             {
-                StringBuilder sb = new StringBuilder();
-                sb.AppendLine("{");
-                sb.AppendLine("  \"Timestamp\": \"" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\",");
-                sb.AppendLine("  \"Instrument\": \"" + Instrument.FullName + "\",");
-                sb.AppendLine("  \"Accounts\": [");
+                StringBuilder sbCompliance = new StringBuilder();
+                sbCompliance.AppendLine("{");
+                sbCompliance.AppendLine("  \"Timestamp\": \"" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "\",");
+                sbCompliance.AppendLine("  \"Instrument\": \"" + Instrument.FullName + "\",");
+                sbCompliance.AppendLine("  \"Accounts\": [");
 
                 List<Account> accounts = GetComplianceAccounts();
                 DateTime nowInZone = GetComplianceNow();
@@ -450,7 +569,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     if (acct == null) continue;
 
-                    if (count > 0) sb.Append(",\n");
+                    if (count > 0) sbCompliance.Append(",\n");
 
                     UpdateAccountMetricsFromAccount(acct);
 
@@ -462,30 +581,39 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int uniqueDays = GetUniqueTradingDays(acct.Name);
                     double maxDrawdown = accountMaxDrawdown.TryGetValue(acct.Name, out var dd) ? dd : 0;
 
-                    sb.AppendLine("    {");
-                    sb.AppendLine("      \"Name\": \"" + acct.Name + "\",");
-                    sb.AppendLine("      \"Balance\": " + balance.ToString("F2") + ",");
-                    sb.AppendLine("      \"DailyPL\": " + dailyPL.ToString("F2") + ",");
-                    sb.AppendLine("      \"TotalProfit\": " + totalProfit.ToString("F2") + ",");
-                    sb.AppendLine("      \"TradeCount\": " + tradeCount + ",");
-                    sb.AppendLine("      \"UniqueDays\": " + uniqueDays + ",");
-                    sb.AppendLine("      \"MaxDrawdown\": " + maxDrawdown.ToString("F2") + ",");
+                    sbCompliance.AppendLine("    {");
+                    sbCompliance.AppendLine("      \"Name\": \"" + acct.Name + "\",");
+                    
+                    var brokerPos = acct.Positions.FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
+                    int actualQty = (brokerPos != null && brokerPos.MarketPosition != MarketPosition.Flat)
+                        ? (brokerPos.MarketPosition == MarketPosition.Long ? brokerPos.Quantity : -brokerPos.Quantity) : 0;
+                    int expectedQty = 0;
+                    if (expectedPositions != null) expectedPositions.TryGetValue(ExpKey(acct.Name), out expectedQty);
+
+                    sbCompliance.AppendLine("      \"ActualQty\": " + actualQty + ",");
+                    sbCompliance.AppendLine("      \"ExpectedQty\": " + expectedQty + ",");
+                    sbCompliance.AppendLine("      \"Balance\": " + balance.ToString("F2") + ",");
+                    sbCompliance.AppendLine("      \"DailyPL\": " + dailyPL.ToString("F2") + ",");
+                    sbCompliance.AppendLine("      \"TotalProfit\": " + totalProfit.ToString("F2") + ",");
+                    sbCompliance.AppendLine("      \"TradeCount\": " + tradeCount + ",");
+                    sbCompliance.AppendLine("      \"UniqueDays\": " + uniqueDays + ",");
+                    sbCompliance.AppendLine("      \"MaxDrawdown\": " + maxDrawdown.ToString("F2") + ",");
                     bool isConnected = acct.Connection?.Status == ConnectionStatus.Connected;
-                    sb.AppendLine("      \"Connection\": \"" + (isConnected ? "Connected" : "Disconnected") + "\"");
-                    sb.Append("    }");
+                    sbCompliance.AppendLine("      \"Connection\": \"" + (isConnected ? "Connected" : "Disconnected") + "\"");
+                    sbCompliance.Append("    }");
                     count++;
                 }
 
-                sb.AppendLine("\n  ]");
-                sb.AppendLine("}");
+                sbCompliance.AppendLine("\n  ]");
+                sbCompliance.AppendLine("}");
 
                 // V12.40 FREEZE FIX: Fire-and-forget async write — never blocks UI thread
-                string jsonPayload = sb.ToString();
+                string jsonPayload = sbCompliance.ToString();
                 string path = complianceLogPath;
                 lastComplianceLog = DateTime.Now;
                 Task.Run(() =>
                 {
-                    try { System.IO.File.WriteAllText(path, jsonPayload); }
+                    try { if (path != null) System.IO.File.WriteAllText(path, jsonPayload); }
                     catch { /* swallow — compliance log is best-effort */ }
                 });
             }

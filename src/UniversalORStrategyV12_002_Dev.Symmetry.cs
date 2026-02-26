@@ -49,33 +49,60 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private const int SymmetryMaxSlippageTicks = 4;
         private const double SymmetryMaxSlippageUsdPerContract = 20.0;
-        private static readonly TimeSpan SymmetryAnchorWait = TimeSpan.FromMilliseconds(900);
+        private static readonly TimeSpan SymmetryAnchorWait = TimeSpan.FromMilliseconds(2000);
         private static readonly TimeSpan SymmetryDispatchTtl = TimeSpan.FromMinutes(5);
 
         private string SymmetryGuardBeginDispatch(string tradeType, OrderAction action, int quantity, double requestedEntryPrice)
         {
-            string dispatchId = string.Format("SG_{0}_{1}_{2}",
-                DateTime.UtcNow.Ticks,
-                SymmetryNormalizeTradeType(tradeType),
-                (int)action);
+            string normalizedType = SymmetryNormalizeTradeType(tradeType);
+            MarketPosition direction = (action == OrderAction.Buy || action == OrderAction.BuyToCover)
+                ? MarketPosition.Long : MarketPosition.Short;
 
-            var ctx = new SymmetryDispatchContext
+            // V12.Audit [Q4-001]: Atomic read-check-write to eliminate TOCTOU in duplicate dispatch guard.
+            // Phase 7 [H-11] left the loop and insertion unguarded — two concurrent callers could both
+            // pass the "no existing dispatch" check and insert competing contexts. The entire compound
+            // check-then-insert is now serialised under stateLock so the operation is atomic.
+            lock (stateLock)
             {
-                DispatchId = dispatchId,
-                TradeType = SymmetryNormalizeTradeType(tradeType),
-                Direction = (action == OrderAction.Buy || action == OrderAction.BuyToCover)
-                    ? MarketPosition.Long
-                    : MarketPosition.Short,
-                ExpectedQuantity = Math.Max(1, quantity),
-                CreatedUtc = DateTime.UtcNow,
-                MasterAnchorPrice = Instrument != null
-                    ? Instrument.MasterInstrument.RoundToTickSize(requestedEntryPrice)
-                    : requestedEntryPrice,
-                IsResolved = false
-            };
+                DateTime now = DateTime.UtcNow;
 
-            symmetryDispatchById[dispatchId] = ctx;
-            return dispatchId;
+                // V12.Phase7 [H-11]: Prevent duplicate dispatches for the same signal+direction.
+                // If an active (non-expired, unresolved) dispatch already exists for this trade type and direction,
+                // return the existing ID instead of creating a second one that would double fleet entries.
+                foreach (var kvp in symmetryDispatchById)
+                {
+                    var existing = kvp.Value;
+                    if (existing.TradeType == normalizedType &&
+                        existing.Direction == direction &&
+                        !existing.IsResolved &&
+                        (now - existing.CreatedUtc) < SymmetryDispatchTtl)
+                    {
+                        Print(string.Format("[SYMMETRY] Duplicate dispatch suppressed: {0} {1} — reusing {2}", normalizedType, direction, existing.DispatchId));
+                        return existing.DispatchId;
+                    }
+                }
+
+                string dispatchId = string.Format("SG_{0}_{1}_{2}",
+                    now.Ticks,
+                    normalizedType,
+                    (int)action);
+
+                var ctx = new SymmetryDispatchContext
+                {
+                    DispatchId = dispatchId,
+                    TradeType = normalizedType,
+                    Direction = direction,
+                    ExpectedQuantity = Math.Max(1, quantity),
+                    CreatedUtc = now,
+                    MasterAnchorPrice = Instrument != null
+                        ? Instrument.MasterInstrument.RoundToTickSize(requestedEntryPrice)
+                        : requestedEntryPrice,
+                    IsResolved = false
+                };
+
+                symmetryDispatchById[dispatchId] = ctx;
+                return dispatchId;
+            }
         }
 
         private void SymmetryGuardRegisterFollower(string dispatchId, string fleetEntryName)
@@ -176,11 +203,37 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return false;
 
             followerPos.EntryFilled = true;
-            if (followerPos.RemainingContracts <= 0)
-                followerPos.RemainingContracts = Math.Max(1, followerPos.TotalContracts);
+            lock (stateLock)
+            {
+                if (followerPos.RemainingContracts <= 0)
+                    followerPos.RemainingContracts = Math.Max(1, followerPos.TotalContracts);
+            }
 
             if (!followerPos.BracketSubmitted)
+            {
+                // [ANCHOR-01] V12.Phase7.1: Pre-check master anchor before initial bracket submission.
+                // If master already filled (anchor resolved), apply it now so the broker receives
+                // master-anchored prices on the FIRST submission — eliminates the "wrong-prices-first
+                // + retarget" double round-trip that causes transient drift in volatile bursts.
+                if (symmetryFleetEntryToDispatch.TryGetValue(fleetEntryName, out var preCheckId) &&
+                    symmetryDispatchById.TryGetValue(preCheckId, out var preCheckCtx))
+                {
+                    bool anchorReady;
+                    double preCheckAnchor;
+                    lock (preCheckCtx.Sync)
+                    {
+                        anchorReady   = preCheckCtx.IsResolved;
+                        preCheckAnchor = preCheckCtx.MasterAnchorPrice;
+                    }
+                    if (anchorReady && preCheckAnchor > 0)
+                    {
+                        Print(string.Format("[ANCHOR-01] Pre-applying master anchor {0:F2} for {1} — bracket will use master fill price",
+                            preCheckAnchor, fleetEntryName));
+                        SymmetryGuardApplyMasterAnchor(followerPos, preCheckAnchor);
+                    }
+                }
                 SymmetryGuardSubmitFollowerBracket(fleetEntryName, followerPos);
+            }
 
             var pending = new PendingFollowerFill
             {
@@ -217,7 +270,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string fleetEntryName = kvp.Key;
                 PendingFollowerFill pending = kvp.Value;
 
-                if (!activePositions.TryGetValue(fleetEntryName, out var pos) || pos == null || !pos.IsFollower)
+                // V12.Phase8 [F-04]: Guard activePositions read with stateLock to prevent
+                // torn observations concurrent with ExecuteSmartDispatchEntry commits/removals.
+                PositionInfo pos = null;
+                lock (stateLock) { activePositions.TryGetValue(fleetEntryName, out pos); }
+                if (pos == null || !pos.IsFollower)
                 {
                     symmetryPendingFollowerFills.TryRemove(fleetEntryName, out _);
                     SymmetryGuardForgetEntry(fleetEntryName);
@@ -233,8 +290,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private bool SymmetryGuardTryResolveFollower(string fleetEntryName, PositionInfo pos, PendingFollowerFill pending, DateTime nowUtc)
         {
+            SymmetryDispatchContext ctx = null;
             if (!symmetryFleetEntryToDispatch.TryGetValue(fleetEntryName, out var dispatchId) ||
-                !symmetryDispatchById.TryGetValue(dispatchId, out var ctx))
+                !symmetryDispatchById.TryGetValue(dispatchId, out ctx) ||
+                ctx == null)
             {
                 if (nowUtc - pending.QueuedUtc >= SymmetryAnchorWait)
                 {
@@ -244,7 +303,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return false;
             }
 
-            if (!ctx.IsResolved)
+            bool isResolved;
+            double masterAnchor;
+            lock (ctx.Sync)
+            {
+                // V1101E HOT-PATCH: Snapshot dispatch state under ctx.Sync, then release before any stateLock path.
+                isResolved = ctx.IsResolved;
+                masterAnchor = ctx.MasterAnchorPrice;
+            }
+
+            if (!isResolved)
             {
                 if (nowUtc - pending.QueuedUtc >= SymmetryAnchorWait)
                 {
@@ -254,7 +322,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return false;
             }
 
-            double masterAnchor = ctx.MasterAnchorPrice;
             double slippagePoints = Math.Abs(pending.FleetFillPrice - masterAnchor);
             double slippageTicks = tickSize > 0 ? slippagePoints / tickSize : 0.0;
             double slippageUsdPerContract = pointValue > 0 ? slippagePoints * pointValue : 0.0;
@@ -273,15 +340,36 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return true;
             }
 
+            // [ANCHOR-02] V12.Phase7.1: Capture entry price before anchor application to detect
+            // whether ANCHOR-01 already submitted the bracket with master-anchored prices.
+            // If priorEntryPrice ≈ masterAnchor (within 1 tick), the bracket is already correct
+            // and the retarget cancel+replace round-trip can be skipped.
+            double priorEntryPrice;
+            lock (stateLock) { priorEntryPrice = pos.EntryPrice; }
+
             SymmetryGuardApplyMasterAnchor(pos, masterAnchor);
 
             if (pos.BracketSubmitted)
-                SymmetryGuardRetargetExistingFollowerBracket(fleetEntryName, pos);
+            {
+                bool alreadyAnchored = tickSize > 0 && Math.Abs(priorEntryPrice - masterAnchor) < tickSize;
+                if (alreadyAnchored)
+                {
+                    Print(string.Format(
+                        "[ANCHOR-02] Bracket already anchor-aligned for {0} (prior={1:F2} anchor={2:F2}) — retarget skipped",
+                        fleetEntryName, priorEntryPrice, masterAnchor));
+                }
+                else
+                {
+                    SymmetryGuardRetargetExistingFollowerBracket(fleetEntryName, pos);
+                }
+            }
             else
+            {
                 SymmetryGuardSubmitFollowerBracket(fleetEntryName, pos);
+            }
 
             Print(string.Format(
-                "[SYMMETRY_GUARD] ANCHORED | {0} | Master={1:F2} Fleet={2:F2} Slip={3:F1} ticks (${4:F2}/ct) | Scalp Anchor T1={5:F2} | Runner T4=Trail",
+                "[SYMMETRY_GUARD] ANCHORED | {0} | Master={1:F2} Fleet={2:F2} Slip={3:F1} ticks (${4:F2}/ct) | Scalp Anchor T1={5:F2} | Runner Targets=Trail",
                 fleetEntryName, masterAnchor, pending.FleetFillPrice, slippageTicks, slippageUsdPerContract, pos.Target1Price));
 
             return true;
@@ -290,29 +378,41 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SymmetryGuardApplyMasterAnchor(PositionInfo pos, double masterAnchor)
         {
             double anchor = Instrument.MasterInstrument.RoundToTickSize(masterAnchor);
-            double oldBase = pos.EntryPrice > 0 ? pos.EntryPrice : anchor;
 
-            double stopDist = Math.Abs(oldBase - pos.InitialStopPrice);
-            if (stopDist <= 0)
-                stopDist = Math.Abs(oldBase - pos.CurrentStopPrice);
+            // V12.Phase8 [F-04]: Acquire stateLock for the entire anchor update to prevent
+            // torn reads from Trailing.cs observing partial price state (e.g., new stop but old targets).
+            lock (stateLock)
+            {
+                double oldBase = pos.EntryPrice > 0 ? pos.EntryPrice : anchor;
 
-            double t1Dist = Math.Abs(pos.Target1Price - oldBase);
-            double t2Dist = Math.Abs(pos.Target2Price - oldBase);
-            double t3Dist = Math.Abs(pos.Target3Price - oldBase);
+                double stopDist = Math.Abs(oldBase - pos.InitialStopPrice);
+                if (stopDist <= 0)
+                    stopDist = Math.Abs(oldBase - pos.CurrentStopPrice);
 
-            double stop = pos.Direction == MarketPosition.Long ? anchor - stopDist : anchor + stopDist;
-            double t1 = pos.Direction == MarketPosition.Long ? anchor + t1Dist : anchor - t1Dist;
-            double t2 = pos.Direction == MarketPosition.Long ? anchor + t2Dist : anchor - t2Dist;
-            double t3 = pos.Direction == MarketPosition.Long ? anchor + t3Dist : anchor - t3Dist;
+                double t1Dist = Math.Abs(pos.Target1Price - oldBase);
+                double t2Dist = Math.Abs(pos.Target2Price - oldBase);
+                double t3Dist = Math.Abs(pos.Target3Price - oldBase);
+                double t4Dist = Math.Abs(pos.Target4Price - oldBase);
+                double t5Dist = Math.Abs(pos.Target5Price - oldBase);
 
-            pos.EntryPrice = anchor;
-            pos.ExtremePriceSinceEntry = anchor;
+                double stop = pos.Direction == MarketPosition.Long ? anchor - stopDist : anchor + stopDist;
+                double t1 = pos.Direction == MarketPosition.Long ? anchor + t1Dist : anchor - t1Dist;
+                double t2 = pos.Direction == MarketPosition.Long ? anchor + t2Dist : anchor - t2Dist;
+                double t3 = pos.Direction == MarketPosition.Long ? anchor + t3Dist : anchor - t3Dist;
+                double t4 = pos.Direction == MarketPosition.Long ? anchor + t4Dist : anchor - t4Dist;
+                double t5 = pos.Direction == MarketPosition.Long ? anchor + t5Dist : anchor - t5Dist;
 
-            pos.InitialStopPrice = Instrument.MasterInstrument.RoundToTickSize(stop);
-            pos.CurrentStopPrice = pos.InitialStopPrice;
-            pos.Target1Price = Instrument.MasterInstrument.RoundToTickSize(t1);
-            pos.Target2Price = Instrument.MasterInstrument.RoundToTickSize(t2);
-            pos.Target3Price = Instrument.MasterInstrument.RoundToTickSize(t3);
+                pos.EntryPrice = anchor;
+                pos.ExtremePriceSinceEntry = anchor;
+
+                pos.InitialStopPrice = Instrument.MasterInstrument.RoundToTickSize(stop);
+                pos.CurrentStopPrice = pos.InitialStopPrice;
+                pos.Target1Price = Instrument.MasterInstrument.RoundToTickSize(t1);
+                pos.Target2Price = Instrument.MasterInstrument.RoundToTickSize(t2);
+                pos.Target3Price = Instrument.MasterInstrument.RoundToTickSize(t3);
+                pos.Target4Price = Instrument.MasterInstrument.RoundToTickSize(t4);
+                pos.Target5Price = Instrument.MasterInstrument.RoundToTickSize(t5);
+            }
         }
 
         private void SymmetryGuardSubmitFollowerBracket(string fleetEntryName, PositionInfo pos)
@@ -329,67 +429,108 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             string stopSig = SymmetryTrim("Stop_" + fleetEntryName, 40);
             Order stop = acct.CreateOrder(Instrument, exitAction, OrderType.StopMarket,
-                TimeInForce.Gtc, Math.Max(1, pos.RemainingContracts), 0, validatedStop, ocoId, stopSig, null);
+                TimeInForce.Gtc, Math.Max(1, pos.TotalContracts), 0, validatedStop, ocoId, stopSig, null);
             stopOrders[fleetEntryName] = stop;
             ordersToSubmit.Add(stop);
 
-            if (pos.T1Contracts > 0 && pos.TotalContracts > 1)
-            {
-                string t1Sig = SymmetryTrim("T1_" + fleetEntryName, 40);
-                Order t1 = acct.CreateOrder(Instrument, exitAction, OrderType.Limit,
-                    TimeInForce.Gtc, pos.T1Contracts, pos.Target1Price, 0, ocoId, t1Sig, null);
-                target1Orders[fleetEntryName] = t1;
-                ordersToSubmit.Add(t1);
-            }
+            int nonRunnerLimitQty = 0;
+            int runnerQty = 0;
 
-            if (pos.T2Contracts > 0)
+            for (int targetNum = 1; targetNum <= 5; targetNum++)
             {
-                string t2Sig = SymmetryTrim("T2_" + fleetEntryName, 40);
-                Order t2 = acct.CreateOrder(Instrument, exitAction, OrderType.Limit,
-                    TimeInForce.Gtc, pos.T2Contracts, pos.Target2Price, 0, ocoId, t2Sig, null);
-                target2Orders[fleetEntryName] = t2;
-                ordersToSubmit.Add(t2);
-            }
+                int targetQty = GetTargetContracts(pos, targetNum);
+                if (targetQty <= 0) continue;
 
-            if (pos.T3Contracts > 0)
-            {
-                string t3Sig = SymmetryTrim("T3_" + fleetEntryName, 40);
-                Order t3 = acct.CreateOrder(Instrument, exitAction, OrderType.Limit,
-                    TimeInForce.Gtc, pos.T3Contracts, pos.Target3Price, 0, ocoId, t3Sig, null);
-                target3Orders[fleetEntryName] = t3;
-                ordersToSubmit.Add(t3);
+                if (IsRunnerTarget(targetNum))
+                {
+                    runnerQty += targetQty;
+                    continue;
+                }
+
+                double targetPrice = GetTargetPrice(pos, targetNum);
+                if (targetPrice <= 0)
+                {
+                    Print(string.Format("[SYMMETRY TARGET_SKIP] T{0} for {1} has qty={2} but invalid price={3:F2}; skipped",
+                        targetNum, fleetEntryName, targetQty, targetPrice));
+                    continue;
+                }
+
+                // [PARITY-01] V12.Phase7.1: Explicit tick rounding on limit price — defensive guard
+                // against broker "Price Rejected" when target arithmetic crosses a tick boundary
+                // (e.g., MYM 1.0-tick or cross-instrument parity adjustments).
+                double roundedTargetPrice = Instrument.MasterInstrument.RoundToTickSize(targetPrice);
+                string targetSig = SymmetryTrim("T" + targetNum + "_" + fleetEntryName, 40);
+                Order target = acct.CreateOrder(
+                    Instrument,
+                    exitAction,
+                    OrderType.Limit,
+                    TimeInForce.Gtc,
+                    targetQty,
+                    roundedTargetPrice,
+                    0,
+                    ocoId,
+                    targetSig,
+                    null);
+
+                switch (targetNum)
+                {
+                    case 1: target1Orders[fleetEntryName] = target; break;
+                    case 2: target2Orders[fleetEntryName] = target; break;
+                    case 3: target3Orders[fleetEntryName] = target; break;
+                    case 4: target4Orders[fleetEntryName] = target; break;
+                    case 5: target5Orders[fleetEntryName] = target; break;
+                }
+
+                ordersToSubmit.Add(target);
+                nonRunnerLimitQty += targetQty;
             }
 
             acct.Submit(ordersToSubmit.ToArray());
             pos.BracketSubmitted = true;
+            Print(string.Format("[SYMMETRY STOP_AUDIT] OK {0}: StopQty={1} NonRunnerLimits={2} RunnerQty={3}",
+                fleetEntryName, pos.TotalContracts, nonRunnerLimitQty, runnerQty));
         }
 
         private void SymmetryGuardRetargetExistingFollowerBracket(string fleetEntryName, PositionInfo pos)
         {
             UpdateStopOrder(fleetEntryName, pos, pos.CurrentStopPrice, pos.CurrentTrailLevel);
-            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, target1Orders, "T1", pos.Target1Price);
-            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, target2Orders, "T2", pos.Target2Price);
-            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, target3Orders, "T3", pos.Target3Price);
+            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, 1, target1Orders);
+            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, 2, target2Orders);
+            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, 3, target3Orders);
+            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, 4, target4Orders);
+            SymmetryGuardReplaceExistingFollowerTarget(fleetEntryName, pos, 5, target5Orders);
         }
 
         private void SymmetryGuardReplaceExistingFollowerTarget(
             string fleetEntryName,
             PositionInfo pos,
-            ConcurrentDictionary<string, Order> dict,
-            string targetTag,
-            double newPrice)
+            int targetNumber,
+            ConcurrentDictionary<string, Order> dict)
         {
             if (pos.ExecutingAccount == null) return;
-            if (!dict.TryGetValue(fleetEntryName, out var oldTarget) || oldTarget == null) return;
+            string targetTag = "T" + targetNumber;
+            bool isRunner = IsRunnerTarget(targetNumber);
+            bool isFilled = IsTargetFilled(pos, targetNumber);
+            int qty = GetTargetContracts(pos, targetNumber);
 
-            int qty = oldTarget.Quantity;
-            if (qty <= 0)
+            if (isFilled || isRunner || qty <= 0)
             {
-                if (targetTag == "T1") qty = pos.T1Contracts;
-                else if (targetTag == "T2") qty = pos.T2Contracts;
-                else if (targetTag == "T3") qty = pos.T3Contracts;
+                if (dict.TryGetValue(fleetEntryName, out var staleTarget) && staleTarget != null)
+                {
+                    if (staleTarget.OrderState == OrderState.Working ||
+                        staleTarget.OrderState == OrderState.Accepted ||
+                        staleTarget.OrderState == OrderState.Submitted ||
+                        staleTarget.OrderState == OrderState.ChangePending)
+                    {
+                        pos.ExecutingAccount.Cancel(new[] { staleTarget });
+                    }
+                    dict.TryRemove(fleetEntryName, out _);
+                }
+                return;
             }
-            if (qty <= 0) return;
+
+            if (!dict.TryGetValue(fleetEntryName, out var oldTarget) || oldTarget == null)
+                return;
 
             if (oldTarget.OrderState == OrderState.Working ||
                 oldTarget.OrderState == OrderState.Accepted ||
@@ -398,6 +539,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 pos.ExecutingAccount.Cancel(new[] { oldTarget });
             }
+
+            double newPrice = GetTargetPrice(pos, targetNumber);
+            if (newPrice <= 0) return;
 
             OrderAction exitAction = pos.Direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
             string signalName = SymmetryTrim(targetTag + "_" + fleetEntryName, 40);
@@ -431,8 +575,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 fleetEntryName, reason, fleetFillPrice, slippageTicks, slippageUsdPerContract));
 
             pos.EntryFilled = true;
-            if (pos.RemainingContracts <= 0)
-                pos.RemainingContracts = Math.Max(1, pos.TotalContracts);
+            lock (stateLock)
+            {
+                if (pos.RemainingContracts <= 0)
+                    pos.RemainingContracts = Math.Max(1, pos.TotalContracts);
+            }
 
             FlattenPositionByName(fleetEntryName);
             CleanupPosition(fleetEntryName);
@@ -441,6 +588,34 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void SymmetryGuardTryResolveFollowersForDispatch(string dispatchId, DateTime nowUtc)
         {
+            if (string.IsNullOrEmpty(dispatchId))
+                return;
+
+            var followersToResolve = new List<string>();
+
+            if (symmetryDispatchById.TryGetValue(dispatchId, out var ctx) && ctx != null)
+            {
+                lock (ctx.Sync)
+                {
+                    // V1101E HOT-PATCH: Build follower worklist under ctx.Sync only; never call stateLock paths while holding ctx.Sync.
+                    foreach (string fleetEntryName in ctx.FollowerEntries)
+                    {
+                        if (string.IsNullOrEmpty(fleetEntryName))
+                            continue;
+
+                        if (!symmetryFleetEntryToDispatch.TryGetValue(fleetEntryName, out var linkedDispatch))
+                            continue;
+                        if (!string.Equals(linkedDispatch, dispatchId, StringComparison.Ordinal))
+                            continue;
+                        if (!symmetryPendingFollowerFills.ContainsKey(fleetEntryName))
+                            continue;
+
+                        followersToResolve.Add(fleetEntryName);
+                    }
+                }
+            }
+
+            // V1101E HOT-PATCH: Preserve legacy dispatch-map scan to catch followers missing from ctx.FollowerEntries.
             foreach (var kvp in symmetryPendingFollowerFills.ToArray())
             {
                 string fleetEntryName = kvp.Key;
@@ -448,10 +623,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                     continue;
                 if (!string.Equals(linkedDispatch, dispatchId, StringComparison.Ordinal))
                     continue;
+                if (followersToResolve.Contains(fleetEntryName))
+                    continue;
 
-                if (activePositions.TryGetValue(fleetEntryName, out var pos) && pos != null && pos.IsFollower)
+                followersToResolve.Add(fleetEntryName);
+            }
+
+            foreach (string fleetEntryName in followersToResolve)
+            {
+                if (!symmetryPendingFollowerFills.TryGetValue(fleetEntryName, out var pending))
+                    continue;
+
+                // V12.Phase8 [F-04]: Guard activePositions read with stateLock to prevent
+                // torn observations concurrent with ExecuteSmartDispatchEntry commits/removals.
+                PositionInfo pos = null;
+                lock (stateLock) { activePositions.TryGetValue(fleetEntryName, out pos); }
+                if (pos != null && pos.IsFollower)
                 {
-                    if (SymmetryGuardTryResolveFollower(fleetEntryName, pos, kvp.Value, nowUtc))
+                    if (SymmetryGuardTryResolveFollower(fleetEntryName, pos, pending, nowUtc))
                         symmetryPendingFollowerFills.TryRemove(fleetEntryName, out _);
                 }
             }
@@ -494,7 +683,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         foreach (string follower in ctx.FollowerEntries)
                         {
-                            if (activePositions.ContainsKey(follower))
+                            // V12.Phase8 [F-04]: activePositions is a ConcurrentDictionary but
+                            // ContainsKey here is used alongside ctx.FollowerEntries iteration under
+                            // ctx.Sync — acquire stateLock for the read to prevent torn observations
+                            // when ExecuteSmartDispatchEntry commits or removes entries concurrently.
+                            bool exists;
+                            lock (stateLock) { exists = activePositions.ContainsKey(follower); }
+                            if (exists)
                             {
                                 hasActiveFollowers = true;
                                 break;

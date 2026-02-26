@@ -51,7 +51,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             public string SignalId { get; set; }
             public double NewStopPrice { get; set; }
-            public int TrailLevel { get; set; }  // 0=BE, 1=Trail1, 2=Trail2, 3=Trail3
+            public int TrailLevel { get; set; }  // BE=0, 1=Trail1, 2=Trail2, 3=Trail3
             public DateTime Timestamp { get; set; }
         }
 
@@ -198,6 +198,38 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Broadcasting Methods
 
         /// <summary>
+        /// V12.Phase6 [ISOLATION]: Safe per-handler invocation. If one subscriber throws,
+        /// the exception is caught and remaining subscribers still receive the signal.
+        /// Prevents a single faulty handler from breaking the entire fan-out chain.
+        /// V12.Phase7.2: Added performance profiling to detect slow subscribers.
+        /// </summary>
+        private static void SafeInvoke<T>(EventHandler<T> handler, T args)
+        {
+            if (handler == null) return;
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            var invocationList = handler.GetInvocationList();
+
+            foreach (Delegate d in invocationList)
+            {
+                try
+                {
+                    ((EventHandler<T>)d).Invoke(null, args);
+                }
+                catch (Exception)
+                {
+                    // Swallow — subscriber isolation; don't break fan-out for other listeners
+                }
+            }
+            sw.Stop();
+            // Log only if fan-out takes > 1ms to keep the output clean
+            if (sw.Elapsed.TotalMilliseconds > 1.0)
+            {
+                NinjaTrader.Code.Output.Process(string.Format("[LATENCY_FANOUT] {0}: {1:F2}ms across {2} subscribers", 
+                    typeof(T).Name, sw.Elapsed.TotalMilliseconds, invocationList.Length), PrintTo.OutputTab1);
+            }
+        }
+
+        /// <summary>
         /// Broadcast a trade signal to all listening slaves
         /// </summary>
         public static void BroadcastTradeSignal(TradeSignal signal)
@@ -207,8 +239,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             signal.Timestamp = DateTime.Now;
 
-            // Invoke event - all slaves will receive this synchronously
-            OnTradeSignal?.Invoke(null, signal);
+            // V12.Phase6: Safe per-handler invocation with subscriber isolation
+            SafeInvoke(OnTradeSignal, signal);
         }
 
         /// <summary>
@@ -220,7 +252,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 throw new ArgumentNullException(nameof(update));
 
             update.Timestamp = DateTime.Now;
-            OnTrailUpdate?.Invoke(null, update);
+            SafeInvoke(OnTrailUpdate, update);
         }
 
         /// <summary>
@@ -232,7 +264,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 throw new ArgumentNullException(nameof(action));
 
             action.Timestamp = DateTime.Now;
-            OnTargetAction?.Invoke(null, action);
+            SafeInvoke(OnTargetAction, action);
         }
 
         /// <summary>
@@ -246,7 +278,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Timestamp = DateTime.Now
             };
 
-            OnFlattenAll?.Invoke(null, signal);
+            SafeInvoke(OnFlattenAll, signal);
         }
 
         /// <summary>
@@ -260,7 +292,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Timestamp = DateTime.Now
             };
 
-            OnBreakevenRequest?.Invoke(null, signal);
+            SafeInvoke(OnBreakevenRequest, signal);
         }
 
         /// <summary>
@@ -276,7 +308,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Timestamp = DateTime.Now
             };
 
-            OnStopUpdate?.Invoke(null, signal);
+            SafeInvoke(OnStopUpdate, signal);
         }
 
         /// <summary>
@@ -291,7 +323,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Timestamp = DateTime.Now
             };
 
-            OnEntryUpdate?.Invoke(null, signal);
+            SafeInvoke(OnEntryUpdate, signal);
         }
 
         /// <summary>
@@ -306,7 +338,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Timestamp = DateTime.Now
             };
 
-            OnOrderCancel?.Invoke(null, signal);
+            SafeInvoke(OnOrderCancel, signal);
         }
 
         /// <summary>
@@ -321,7 +353,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Timestamp = DateTime.Now
             };
 
-            OnExternalCommand?.Invoke(null, signal);
+            SafeInvoke(OnExternalCommand, signal);
         }
 
         #endregion

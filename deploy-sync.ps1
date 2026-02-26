@@ -18,6 +18,12 @@ $Mappings = @(
     # Strategy (Modularized V12_002 Series)
     @{ src = "UniversalORStrategyV12_002_Dev.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.Entries.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Entries.FFMA.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.FFMA.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Entries.OR.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.OR.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Entries.RMA.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.RMA.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Entries.MOMO.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.MOMO.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Entries.Trend.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.Trend.cs" },
+    @{ src = "UniversalORStrategyV12_002_Dev.Entries.Retest.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Entries.Retest.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.Orders.Callbacks.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Orders.Callbacks.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.Orders.Management.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.Orders.Management.cs" },
     @{ src = "UniversalORStrategyV12_002_Dev.SIMA.cs"; dst = Join-Path $NtStrategyDir "UniversalORStrategyV12_002_Dev.SIMA.cs" },

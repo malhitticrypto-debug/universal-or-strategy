@@ -121,12 +121,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice - stopDistance
                     : entryPrice + stopDistance);
 
-                bool useRmaTargetProfile = true;
-                double target1Price = CalculateTargetPrice(direction, entryPrice, 1, useRmaTargetProfile);
-                double target2Price = CalculateTargetPrice(direction, entryPrice, 2, useRmaTargetProfile);
-                double target3Price = CalculateTargetPrice(direction, entryPrice, 3, useRmaTargetProfile);
-                double target4Price = CalculateTargetPrice(direction, entryPrice, 4, useRmaTargetProfile);
-                double target5Price = CalculateTargetPrice(direction, entryPrice, 5, useRmaTargetProfile);
+                // Universal Ladder: T(n)Type dropdown drives all target pricing.
+                double target1Price = CalculateTargetPrice(direction, entryPrice, 1);
+                double target2Price = CalculateTargetPrice(direction, entryPrice, 2);
+                double target3Price = CalculateTargetPrice(direction, entryPrice, 3);
+                double target4Price = CalculateTargetPrice(direction, entryPrice, 4);
+                double target5Price = CalculateTargetPrice(direction, entryPrice, 5);
 
                 int t1Qty, t2Qty, t3Qty, t4Qty, t5Qty;
                 GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty, out t5Qty);
@@ -161,18 +161,30 @@ namespace NinjaTrader.NinjaScript.Strategies
                     BracketSubmitted = false,
                     ExtremePriceSinceEntry = entryPrice,
                     CurrentTrailLevel = 0,
+                    EntryOrderType = OrderType.Limit,
                     IsRMATrade = isRetestRmaMode,
                     IsTRENDTrade = false,
                     IsRetestTrade = true,              // V8.4: Mark as retest trade
                     RetestTrailActivated = false       // V8.4: Trail not activated yet
                 };
+                ApplyTargetLadderGuard(pos);
 
                 activePositions[entryName] = pos;
+
+                // Build 1102Y-V3 [MS-07]: Register Master expected BEFORE Limit entry.
+                int masterDeltaRetest = (direction == MarketPosition.Long) ? contracts : -contracts;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaRetest);
 
                 // Submit LIMIT order at OR High/Low (NO buffer)
                 Order entryOrder = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.Limit, contracts, entryPrice, 0, "", entryName)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.Limit, contracts, entryPrice, 0, "", entryName);
+
+                if (entryOrder == null)
+                {
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaRetest);
+                    Print("[ERROR][1102Y-V3] RETEST SubmitOrderUnmanaged NULL for " + entryName + " — rolled back.");
+                }
 
                 entryOrders[entryName] = entryOrder;
                 retestFiredThisSession = true;  // V12.1101E [B-2]: Arm latch — no further RETEST entries this session
@@ -181,7 +193,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print(string.Format("RETEST STOP: {0:F2} ({1:F2}x ATR = {2:F2}pts)",
                     stopPrice, RetestATRMultiplier, stopDistance));
                 Print(string.Format("RETEST TARGETS: T1:{0}@{1:F2}(+{2:F2}pt) | T2:{3}@{4:F2} | T3:{5}@{6:F2} | T4:{7}@{8:F2} | T5:{9}@{10:F2} (Runner targets trail-only)",
-                    t1Qty, target1Price, Target1FixedPoints,
+                    t1Qty, target1Price, target1Price - entryPrice,
                     t2Qty, target2Price, t3Qty, target3Price, t4Qty, target4Price, t5Qty, target5Price));
 
                 // V12.1: Smart Dispatch to SIMA Fleet
@@ -249,12 +261,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice - stopDistance
                     : entryPrice + stopDistance);
 
-                bool useRmaTargetProfile = true;
-                double target1Price = CalculateTargetPrice(direction, entryPrice, 1, useRmaTargetProfile);
-                double target2Price = CalculateTargetPrice(direction, entryPrice, 2, useRmaTargetProfile);
-                double target3Price = CalculateTargetPrice(direction, entryPrice, 3, useRmaTargetProfile);
-                double target4Price = CalculateTargetPrice(direction, entryPrice, 4, useRmaTargetProfile);
-                double target5Price = CalculateTargetPrice(direction, entryPrice, 5, useRmaTargetProfile);
+                // Universal Ladder: T(n)Type dropdown drives all target pricing.
+                double target1Price = CalculateTargetPrice(direction, entryPrice, 1);
+                double target2Price = CalculateTargetPrice(direction, entryPrice, 2);
+                double target3Price = CalculateTargetPrice(direction, entryPrice, 3);
+                double target4Price = CalculateTargetPrice(direction, entryPrice, 4);
+                double target5Price = CalculateTargetPrice(direction, entryPrice, 5);
 
                 int t1Qty, t2Qty, t3Qty, t4Qty, t5Qty;
                 GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty, out t5Qty);
@@ -288,17 +300,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                     BracketSubmitted = false,
                     ExtremePriceSinceEntry = entryPrice,
                     CurrentTrailLevel = 0,
+                    EntryOrderType = OrderType.Limit,
                     IsRMATrade = true,  // Uses RMA targets
                     IsRetestTrade = true,
                     RetestTrailActivated = false
                 };
+                ApplyTargetLadderGuard(pos);
 
                 activePositions[entryName] = pos;
+
+                // Build 1102Y-V3 [MS-08]: Register Master expected BEFORE Limit entry.
+                int masterDeltaRetestMnl = (direction == MarketPosition.Long) ? contracts : -contracts;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaRetestMnl);
 
                 // Submit LIMIT order at manual price
                 Order entryOrder = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.Limit, contracts, entryPrice, 0, "", entryName)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.Limit, contracts, entryPrice, 0, "", entryName);
+
+                if (entryOrder == null)
+                {
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaRetestMnl);
+                    Print("[ERROR][1102Y-V3] RETEST_MANUAL SubmitOrderUnmanaged NULL for " + entryName + " — rolled back.");
+                }
                 entryOrders[entryName] = entryOrder;
 
                 Print(string.Format("V12.27 RETEST_MANUAL: {0} {1}@{2:F2} LIMIT | Stop: {3:F2} | RMA Targets",

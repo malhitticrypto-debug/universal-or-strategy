@@ -163,12 +163,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string timestamp = DateTime.Now.ToString("HHmmssffff");
                 string entryName = signalName + "_" + timestamp;
 
-                bool useRmaTargetProfile = false;
-                double target1Price = CalculateTargetPrice(direction, entryPrice, 1, useRmaTargetProfile);
-                double target2Price = CalculateTargetPrice(direction, entryPrice, 2, useRmaTargetProfile);
-                double target3Price = CalculateTargetPrice(direction, entryPrice, 3, useRmaTargetProfile);
-                double target4Price = CalculateTargetPrice(direction, entryPrice, 4, useRmaTargetProfile);
-                double target5Price = CalculateTargetPrice(direction, entryPrice, 5, useRmaTargetProfile);
+                // Universal Ladder: T(n)Type dropdown drives all target pricing.
+                double target1Price = CalculateTargetPrice(direction, entryPrice, 1);
+                double target2Price = CalculateTargetPrice(direction, entryPrice, 2);
+                double target3Price = CalculateTargetPrice(direction, entryPrice, 3);
+                double target4Price = CalculateTargetPrice(direction, entryPrice, 4);
+                double target5Price = CalculateTargetPrice(direction, entryPrice, 5);
 
                 PositionInfo pos = new PositionInfo
                 {
@@ -196,8 +196,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     BracketSubmitted = false,
                     ExtremePriceSinceEntry = entryPrice,
                     CurrentTrailLevel = 0,
+                    EntryOrderType = OrderType.StopMarket,
                     IsRMATrade = false
                 };
+                ApplyTargetLadderGuard(pos);
 
                 activePositions[entryName] = pos;
 
@@ -205,20 +207,28 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string syncMsg = string.Format("POSITION_ENTERED|OR|{0}", contracts);
                 SendResponseToRemote(syncMsg);
 
+                // Build 1102Y-V3 [MS-03]: Register Master's expected position BEFORE StopMarket entry.
+                int masterDeltaOR = (direction == MarketPosition.Long) ? contracts : -contracts;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaOR);
+
                 // Submit entry order as stop market (breakout entry)
                 Order entryOrder = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.StopMarket, contracts, 0, entryPrice, "", entryName)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.StopMarket, contracts, 0, entryPrice, "", entryName);
 
+                if (entryOrder == null)
+                {
+                    // Build 1102Y-V3 [MS-03 ROLLBACK]: Submit failed — undo Order Ledger reservation.
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaOR);
+                    Print("[ERROR][1102Y-V3] OR SubmitOrderUnmanaged returned NULL for " + entryName + " — Master expected rolled back.");
+                }
+
                 entryOrders[entryName] = entryOrder;
 
                 Print(string.Format("OR ENTRY ORDER: {0} {1}@{2:F2} | Stop: {3:F2} | OR Range: {4:F2}",
                     signalName, contracts, entryPrice, stopPrice, sessionRange));
-                Print(string.Format("TARGETS: T1:{0}@{1:F2}(+{2:F2}pt) | T2:{3}@{4:F2}(+{5:F2}OR) | T3:{6}@{7:F2}(+{8:F2}OR) | T4:{9}@{10:F2} | T5:{11}@{12:F2} (Runner targets trail-only)",
-                    t1Qty, target1Price, Target1FixedPoints,
-                    t2Qty, target2Price, sessionRange * Target2Multiplier,
-                    t3Qty, target3Price, sessionRange * Target3Multiplier,
-                    t4Qty, target4Price, t5Qty, target5Price));
+                Print(string.Format("TARGETS: T1:{0}@{1:F2} | T2:{2}@{3:F2} | T3:{4}@{5:F2} | T4:{6}@{7:F2} | T5:{8}@{9:F2} (Runner targets trail-only)",
+                    t1Qty, target1Price, t2Qty, target2Price, t3Qty, target3Price, t4Qty, target4Price, t5Qty, target5Price));
 
                 // V12 SIMA: Dispatch to fleet (replaces legacy slave broadcast)
                 if (EnableSIMA)

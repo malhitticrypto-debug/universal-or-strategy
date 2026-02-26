@@ -167,12 +167,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 int totalContracts = contracts;
 
-                // Split: 1/3 at 9 EMA, 2/3 at 15 EMA
-                int entry1Qty = (int)Math.Ceiling(totalContracts / 3.0);
-                int entry2Qty = totalContracts - entry1Qty;
-
-                if (entry1Qty < 1) entry1Qty = 1;
-                if (entry2Qty < 1) entry2Qty = 1;
+                // TREND-SPLIT-FIX: Strict floor — E1 (EMA9) gets ⌊Total/3⌋, E2 (EMA15) gets remainder.
+                // Prevents risk budget overrun when Math.Ceiling pushes E1 past 1/3 of total contracts.
+                int entry1Qty = Math.Max(1, totalContracts / 3);
+                int entry2Qty = Math.Max(1, totalContracts - entry1Qty);
 
                 // Final validation: totalContracts = sum of entries
                 totalContracts = entry1Qty + entry2Qty;
@@ -187,42 +185,68 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string entry2Name = trendGroupId + "_E2";
 
                 // V8.31: ENTRY 1: 1/3 at 9 EMA with ATR-based stop from live EMA9
-                double entry1Price = ema9Value;
+                // V12.Phase6 [TICK-01]: Round EMA to valid tick increment before broker submission
+                double entry1Price = Instrument.MasterInstrument.RoundToTickSize(ema9Value);
                 double e1AtrStop = CalculateATRStopDistance(e1MultTrend);  // V12.30: Ceiling-rounded
-                double stop1Price = direction == MarketPosition.Long
-                    ? ema9Value - e1AtrStop  // V8.31: Stop is 1.1x ATR below live EMA9
-                    : ema9Value + e1AtrStop; // V8.31: Stop is 1.1x ATR above live EMA9
+                double stop1Price = Instrument.MasterInstrument.RoundToTickSize(direction == MarketPosition.Long
+                    ? entry1Price - e1AtrStop  // V8.31: Stop is 1.1x ATR below live EMA9
+                    : entry1Price + e1AtrStop); // V8.31: Stop is 1.1x ATR above live EMA9
 
                 // ENTRY 2: 2/3 at 15 EMA with ATR trailing stop
-                double entry2Price = ema15Value;
-                double stop2Price = direction == MarketPosition.Long
-                    ? ema15Value - CalculateATRStopDistance(e2MultTrend)
-                    : ema15Value + CalculateATRStopDistance(e2MultTrend);
+                // V12.Phase6 [TICK-01]: Round EMA to valid tick increment before broker submission
+                double entry2Price = Instrument.MasterInstrument.RoundToTickSize(ema15Value);
+                double stop2Price = Instrument.MasterInstrument.RoundToTickSize(direction == MarketPosition.Long
+                    ? entry2Price - CalculateATRStopDistance(e2MultTrend)
+                    : entry2Price + CalculateATRStopDistance(e2MultTrend));
 
                 // Create position info for Entry 1
                 PositionInfo pos1 = CreateTRENDPosition(entry1Name, direction, entry1Price, stop1Price,
                     entry1Qty, true, trendGroupId, isTrendRmaMode);
+                // Build 1102Y-V3 [LG-01]: Enforce staircase rule on E1.
+                ApplyTargetLadderGuard(pos1);
                 activePositions[entry1Name] = pos1;
 
                 // Create position info for Entry 2
                 PositionInfo pos2 = CreateTRENDPosition(entry2Name, direction, entry2Price, stop2Price,
                     entry2Qty, false, trendGroupId, isTrendRmaMode);
+                // Build 1102Y-V3 [LG-01]: Enforce staircase rule on E2.
+                ApplyTargetLadderGuard(pos2);
                 activePositions[entry2Name] = pos2;
 
                 // Link the entries together
                 linkedTRENDEntries[entry1Name] = entry2Name;
                 linkedTRENDEntries[entry2Name] = entry1Name;
 
+                // Build 1102Y-V3 [MS-04a]: Register Master expected for E1 BEFORE submit.
+                int masterDeltaE1 = (direction == MarketPosition.Long) ? entry1Qty : -entry1Qty;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaE1);
+
                 // Submit Entry 1 limit order
                 Order entryOrder1 = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.Limit, entry1Qty, entry1Price, 0, "", entry1Name)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.Limit, entry1Qty, entry1Price, 0, "", entry1Name);
+
+                if (entryOrder1 == null)
+                {
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaE1);
+                    Print("[ERROR][1102Y-V3] TREND E1 SubmitOrderUnmanaged NULL for " + entry1Name + " — rolled back.");
+                }
                 entryOrders[entry1Name] = entryOrder1;
+
+                // Build 1102Y-V3 [MS-04b]: Register Master expected for E2 BEFORE submit.
+                int masterDeltaE2 = (direction == MarketPosition.Long) ? entry2Qty : -entry2Qty;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaE2);
 
                 // Submit Entry 2 limit order
                 Order entryOrder2 = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.Limit, entry2Qty, entry2Price, 0, "", entry2Name)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.Limit, entry2Qty, entry2Price, 0, "", entry2Name);
+
+                if (entryOrder2 == null)
+                {
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaE2);
+                    Print("[ERROR][1102Y-V3] TREND E2 SubmitOrderUnmanaged NULL for " + entry2Name + " — rolled back.");
+                }
                 entryOrders[entry2Name] = entryOrder2;
 
                 Print(string.Format("TREND ORDERS PLACED: {0} Total={1} contracts",
@@ -241,7 +265,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         direction == MarketPosition.Long ? OrderAction.Buy : OrderAction.SellShort,
                         totalContracts,
                         currentPrice,
-                        OrderType.Market,
+                        OrderType.Limit,  // 1102Z-A F1: followers use Limit to match leader pullback price
                         entry1Name,
                         entry2Name);
                 }
@@ -258,12 +282,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         private PositionInfo CreateTRENDPosition(string entryName, MarketPosition direction,
             double entryPrice, double stopPrice, int contracts, bool isEntry1, string groupId, bool isRma)
         {
-            bool useRmaTargetProfile = true;
-            double target1Price = CalculateTargetPrice(direction, entryPrice, 1, useRmaTargetProfile);
-            double target2Price = CalculateTargetPrice(direction, entryPrice, 2, useRmaTargetProfile);
-            double target3Price = CalculateTargetPrice(direction, entryPrice, 3, useRmaTargetProfile);
-            double target4Price = CalculateTargetPrice(direction, entryPrice, 4, useRmaTargetProfile);
-            double target5Price = CalculateTargetPrice(direction, entryPrice, 5, useRmaTargetProfile);
+            // Universal Ladder: T(n)Type dropdown drives all target pricing.
+            double target1Price = CalculateTargetPrice(direction, entryPrice, 1);
+            double target2Price = CalculateTargetPrice(direction, entryPrice, 2);
+            double target3Price = CalculateTargetPrice(direction, entryPrice, 3);
+            double target4Price = CalculateTargetPrice(direction, entryPrice, 4);
+            double target5Price = CalculateTargetPrice(direction, entryPrice, 5);
 
             int t1Qty, t2Qty, t3Qty, t4Qty, t5Qty;
             GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty, out t5Qty);
@@ -271,7 +295,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             Print(string.Format("TREND POSITION: {0} contracts \u2192 T1:{1} T2:{2} T3:{3} T4:{4} T5:{5}",
                 contracts, t1Qty, t2Qty, t3Qty, t4Qty, t5Qty));
 
-            return new PositionInfo
+            var tPos = new PositionInfo
             {
                 SignalName = entryName,
                 Direction = direction,
@@ -299,12 +323,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BracketSubmitted = false,
                 ExtremePriceSinceEntry = entryPrice,
                 CurrentTrailLevel = 0,
+                EntryOrderType = OrderType.Limit,
                 IsRMATrade = isRma,
                 IsTRENDTrade = true,
                 IsTRENDEntry1 = isEntry1,
                 IsTRENDEntry2 = !isEntry1,
                 LinkedTRENDGroup = groupId
             };
+            return tPos;
         }
 
         private void ActivateTRENDMode()
@@ -357,11 +383,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                     ? entryPrice - stopDistance
                     : entryPrice + stopDistance);
 
-                bool useRmaTargetProfile = true;
-                double target1Price = CalculateTargetPrice(direction, entryPrice, 1, useRmaTargetProfile);
-                double target2Price = CalculateTargetPrice(direction, entryPrice, 2, useRmaTargetProfile);
-                double target3Price = CalculateTargetPrice(direction, entryPrice, 3, useRmaTargetProfile);
-
                 // V12.27: 100% risk - full position size supplied by caller (no split)
                 int t1Qty, t2Qty, t3Qty, t4Qty, t5Qty;
                 GetTargetDistribution(contracts, out t1Qty, out t2Qty, out t3Qty, out t4Qty, out t5Qty);
@@ -371,18 +392,31 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 PositionInfo pos = CreateTRENDPosition(entryName, direction, entryPrice, stopPrice,
                     contracts, true, "TMNL_" + DateTime.Now.Ticks, true);
+
+                // Build 1102Y-V3 [LG-01]: Enforce staircase rule.
+                ApplyTargetLadderGuard(pos);
                 activePositions[entryName] = pos;
+
+                // Build 1102Y-V3 [MS-05]: Register Master expected BEFORE submit.
+                int masterDeltaTMNL = (direction == MarketPosition.Long) ? contracts : -contracts;
+                AddExpectedPositionDeltaLocked(ExpKey(Account.Name), masterDeltaTMNL);
 
                 // Submit LIMIT order at manual price
                 Order entryOrder = direction == MarketPosition.Long
                     ? SubmitOrderUnmanaged(0, OrderAction.Buy, OrderType.Limit, contracts, entryPrice, 0, "", entryName)
                     : SubmitOrderUnmanaged(0, OrderAction.SellShort, OrderType.Limit, contracts, entryPrice, 0, "", entryName);
+
+                if (entryOrder == null)
+                {
+                    AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaTMNL);
+                    Print("[ERROR][1102Y-V3] TRENDManual SubmitOrderUnmanaged NULL for " + entryName + " — rolled back.");
+                }
                 entryOrders[entryName] = entryOrder;
 
                 Print(string.Format("V12.27 TREND_MANUAL: {0} {1}@{2:F2} LIMIT | Stop: {3:F2} | 100% Risk",
                     direction, contracts, entryPrice, stopPrice));
                 Print(string.Format("V12.27 TREND_MANUAL TARGETS: T1:{0}@{1:F2} | T2:{2}@{3:F2} | T3:{4}@{5:F2} | T4:{6}@{7:F2} | T5:{8}@{9:F2}",
-                    t1Qty, target1Price, t2Qty, target2Price, t3Qty, target3Price, t4Qty, pos.Target4Price, t5Qty, pos.Target5Price));
+                    t1Qty, pos.Target1Price, t2Qty, pos.Target2Price, t3Qty, pos.Target3Price, t4Qty, pos.Target4Price, t5Qty, pos.Target5Price));
 
                 if (EnableSIMA)
                 {

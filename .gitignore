@@ -3,6 +3,11 @@ bin/
 obj/
 *.bak*
 
+# AI System Plumbing (Claude Code / MCP / Antigravity)
+.agent/
+.agents/
+.mcp/
+
 # JavaScript / TestSprite noise
 node_modules/
 **/node_modules/

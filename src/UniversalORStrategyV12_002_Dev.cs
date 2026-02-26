@@ -50,7 +50,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double sessionRange;
         private bool isInORWindow;
         private bool orComplete;
-        private bool retestFiredThisSession;  // V12.1101E [B-2]: Latch — prevent multiple RETEST entries per session
+        private volatile bool retestFiredThisSession;  // V12.1101E [B-2]: Latch — prevent multiple RETEST entries per session | V12.Phase8 [F-06]: volatile for cross-thread visibility
         private DateTime orStartDateTime;
         private DateTime orEndDateTime;
         private DateTime sessionStartDateTime;
@@ -62,6 +62,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private double tickSize;
         private double pointValue;
         private int minContracts;
+        private int activeTargetCount = 1; // V12.Phase8.3: Dashboard target count (1–5). Isolated from minContracts to prevent risk floor corruption.
         private int maxContracts;  // V12.1101E [B-9]: Upper bound from MESMaximum/MGCMaximum — prevents runaway ATR sizer
 
         // ATR Indicator for RMA
@@ -100,7 +101,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         private ConcurrentDictionary<string, Order> target1Orders;
         private ConcurrentDictionary<string, Order> target2Orders;
         private ConcurrentDictionary<string, Order> target3Orders;  // v5.13: New T3 orders
-        private ConcurrentDictionary<string, Order> target4Orders;  // v5.13: New T4 orders (Runner)
+        private ConcurrentDictionary<string, Order> target4Orders;
+        private ConcurrentDictionary<string, Order> target5Orders;
 
         // V8.11: Track pending stop replacements to fix duplicate stop bug
         // V8.30: Replaced Dictionary with ConcurrentDictionary for thread-safe access
@@ -109,8 +111,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         // V12.Hardening: Execution dedup guard — prevents double-decrement from OnOrderUpdate + OnExecutionUpdate
         private readonly HashSet<string> processedExecutionIds = new HashSet<string>();
         private readonly Queue<string> processedExecutionIdQueue = new Queue<string>(); // For bounded pruning
-        private readonly object executionDeduplicateLock = new object();
+        // V12.1101E [F-08]: Secondary dedup cache when broker omits executionId.
+        private readonly HashSet<string> processedExecutionFallbackKeys = new HashSet<string>();
+        private readonly Queue<string> processedExecutionFallbackQueue = new Queue<string>(); // For bounded pruning
+        // V12.Phase7 [GAP-4]: executionDeduplicateLock removed — C-01 unified all dedup under stateLock
         private const int MaxProcessedExecutionIds = 500;
+
+        // V12.Phase6 [CONCURRENCY-01]: Marshal broker-thread account execution events to strategy thread
+        private struct QueuedAccountExecution { public Account Account; public ExecutionEventArgs EventArgs; }
+        private readonly ConcurrentQueue<QueuedAccountExecution> _accountExecutionQueue = new ConcurrentQueue<QueuedAccountExecution>();
+        // V12.1101E [TM-01]: Marshal broker-thread account order events to strategy thread.
+        private struct QueuedAccountOrderUpdate { public Account Account; public OrderEventArgs EventArgs; }
+        private readonly ConcurrentQueue<QueuedAccountOrderUpdate> _accountOrderQueue = new ConcurrentQueue<QueuedAccountOrderUpdate>();
 
         // RMA Mode tracking
         private volatile bool isRMAModeActive;
@@ -145,9 +157,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         // V11: RMA Anchor Logic
         public enum RmaAnchorType { Ema30, Ema65, Ema200, OrHigh, OrLow, Manual }
         private RmaAnchorType currentRmaAnchor = RmaAnchorType.Ema65; // Default to 65
-        private double lastMnlPrice = 0;
+        // V12.1101E [D-02]: Removed unused V11 manual-anchor remnants (lastMnlPrice, isMnlArmed).
         private double cachedMnlPrice = 0; // Thread-safe cache
-        private bool isMnlArmed = false;
 
         private DateTime lastStopManagementTime; // V8.13: Stop management throttling (100ms)
 
@@ -155,7 +166,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         private volatile int pendingReplacementCount = 0;
         private const int CIRCUIT_BREAKER_THRESHOLD = 5;
         private volatile bool circuitBreakerActive = false;
-        private DateTime circuitBreakerActivatedTime = DateTime.MinValue;
+        private long circuitBreakerActivatedTicks = 0; // V12.Phase8 [F-07]: long with Volatile barriers for cross-thread visibility
+        private DateTime circuitBreakerActivatedTime
+        {
+            get { return new DateTime(Volatile.Read(ref circuitBreakerActivatedTicks)); }
+            set { Volatile.Write(ref circuitBreakerActivatedTicks, value.Ticks); }
+        }
 
         // V8.30: DrawORBox throttling - prevents chart update saturation
         private DateTime lastDrawORBoxTime = DateTime.MinValue;
@@ -181,9 +197,25 @@ namespace NinjaTrader.NinjaScript.Strategies
         private Thread reaperThread;
         private volatile bool isReaperRunning;
         private volatile bool isFlattenRunning; // V12.8: Guard to pause Reaper during flatten
-        private ConcurrentDictionary<string, int> expectedPositions; // AccountName -> Expected Quantity (+ long, - short)
+        private ConcurrentDictionary<string, int> expectedPositions; // Build 1102U: Key = ExpKey(AccountName) = "AccountName_Instrument.FullName" -> Expected Quantity (+ long, - short)
         private int simaAccountCount = 0; // Cached count of detected Apex accounts
         private DateTime lastReaperLog = DateTime.MinValue;
+
+        // V12.Phase6 [UNSUB-TRACK]: Deterministic unsubscribe — tracks which accounts have active event handlers
+        private readonly HashSet<string> _subscribedAccountNames = new HashSet<string>();
+
+        // V12.Phase7 [H-10]: Mutex guard for SIMA enable/disable transitions — prevents partial state
+        // if two enable/disable calls interleave (e.g. IPC toggle while UI toggle in progress).
+        private readonly SemaphoreSlim _simaToggleSem = new SemaphoreSlim(1, 1);
+        // V12.Audit [H-10]: Tracks a toggle that could not complete due to semaphore timeout.
+        // ApplySimaState retries the pending toggle at the top of its next invocation.
+        private volatile bool _simaTogglePending = false;
+
+        // REAP-01: UTC ticks captured each time expectedPositions is set to a non-zero value.
+        // REAPER uses this to suppress false "Critical Desync" alerts within a 5-second grace window
+        // after a fresh master entry is submitted (broker-side fill confirmation lags expectedPositions).
+        private long _lastExpectedPositionSetTicks = 0;
+        private const long ReaperFillGraceTicks = 5L * TimeSpan.TicksPerSecond; // 5-second grace window
 
         // V12.1 SIMA Internal (ReaperAuditEnabled, ReaperIntervalMs now in Properties.cs)
 
@@ -216,18 +248,30 @@ namespace NinjaTrader.NinjaScript.Strategies
             public int T1Contracts;   // v5.13: 20% - Fixed 1pt quick profit
             public int T2Contracts;   // v5.13: 30% - 0.5x ATR
             public int T3Contracts;   // v5.13: 30% - 1.0x ATR
-            public int T4Contracts;   // v5.13: 20% - Runner/Trail
+            public int T4Contracts;
+            public int T5Contracts;
+            public int InitialTargetCount;   // Build 1102Y-V2 [U-03]: activeTargetCount snapshot at entry fill time
             public volatile int RemainingContracts; // V12.1101E [SK-08]: volatile — written from OnOrderUpdate, OnExecutionUpdate, OnBarUpdate threads
             public double EntryPrice;
+            public OrderType EntryOrderType = OrderType.Market;
             public double InitialStopPrice;
             public double CurrentStopPrice;
             public double Target1Price;  // v5.13: Fixed 1pt
             public double Target2Price;  // v5.13: 0.5x ATR
             public double Target3Price;  // v5.13: 1.0x ATR
+            public double Target4Price;
+            public double Target5Price;
             public bool EntryFilled;
             public bool T1Filled;
             public bool T2Filled;
             public bool T3Filled;       // v5.13: New flag
+            public bool T4Filled;
+            public bool T5Filled;
+            public int T1FilledQuantity; // V12.1101E hardening: cumulative executed quantity for partial-fill-safe accounting
+            public int T2FilledQuantity;
+            public int T3FilledQuantity;
+            public int T4FilledQuantity;
+            public int T5FilledQuantity;
             public bool BracketSubmitted;
             public double ExtremePriceSinceEntry;
             public int CurrentTrailLevel;
@@ -256,6 +300,205 @@ namespace NinjaTrader.NinjaScript.Strategies
             // V12.1: SIMA Multi-Account tracking
             public Account ExecutingAccount;    // The account this position belongs to (null = Master)
             public bool IsFollower;             // True if this is a SIMA follower position
+        }
+
+        private TargetMode GetTargetMode(int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: return T1Type;
+                case 2: return T2Type;
+                case 3: return T3Type;
+                case 4: return T4Type;
+                case 5: return T5Type;
+                default: return TargetMode.ATR;
+            }
+        }
+
+        private bool IsRunnerTarget(int targetNumber)
+        {
+            return GetTargetMode(targetNumber) == TargetMode.Runner;
+        }
+
+        // Universal Ladder: single-arg magnitude lookup — T(n)Value is the sole source of truth.
+        private double GetConfiguredTargetMagnitude(int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: return Target1Value;
+                case 2: return Target2Value;
+                case 3: return Target3Value;
+                case 4: return Target4Value;
+                case 5: return Target5Value;
+                default: return 0.0;
+            }
+        }
+
+        // Universal Ladder: single pricing oracle — reads T(n)Type + Target(n)Value, no role branching.
+        private double CalculateTargetPrice(MarketPosition direction, double entryPrice, int targetNumber)
+        {
+            TargetMode mode = GetTargetMode(targetNumber);
+            if (mode == TargetMode.Runner) return Instrument.MasterInstrument.RoundToTickSize(entryPrice);
+
+            double value = GetConfiguredTargetMagnitude(targetNumber);
+            if (value <= 0)
+            {
+                Print($"[PRICE_GUARD] T{targetNumber} value={value:F4} is non-positive. Using MinimumStop fallback to prevent price inversion.");
+                value = MinimumStop;
+            }
+            double offset;
+            switch (mode)
+            {
+                case TargetMode.ATR:
+                    offset = currentATR > 0 ? currentATR * value : value;
+                    break;
+                case TargetMode.Ticks:
+                    offset = value * tickSize;
+                    break;
+                case TargetMode.Points:
+                default:
+                    offset = value;
+                    break;
+            }
+
+            double rawPrice = direction == MarketPosition.Long
+                ? entryPrice + offset
+                : entryPrice - offset;
+            return Instrument.MasterInstrument.RoundToTickSize(rawPrice);
+        }
+
+        /// <summary>
+        /// Build 1102Y-V3 [LG-01]: Target Ladder Guard — "The Staircase Rule."
+        /// Iterates T1 → T5 and ensures every rung is at least one tick FURTHER from entry
+        /// than the rung before it. In low volatility the ATR-based T2 can be tighter than
+        /// the fixed Scalp (T1), causing price inversion and incorrect order slotting.
+        /// Call this after computing target prices and again after fill-price re-anchoring.
+        /// Slots that are zero (unused/runner) are skipped.
+        /// </summary>
+        private void ApplyTargetLadderGuard(PositionInfo pos)
+        {
+            if (pos == null) return;
+            bool isLong = pos.Direction == MarketPosition.Long;
+
+            double[] prices = new double[]
+            {
+                pos.Target1Price, pos.Target2Price, pos.Target3Price,
+                pos.Target4Price, pos.Target5Price
+            };
+
+            bool anyFixed = false;
+            for (int i = 1; i < prices.Length; i++)
+            {
+                if (prices[i] <= 0) continue; // Skip unused/runner slots
+                if (prices[i - 1] <= 0) continue; // Previous slot unused — nothing to compare against
+
+                double minValid = isLong
+                    ? prices[i - 1] + tickSize
+                    : prices[i - 1] - tickSize;
+
+                bool inverted = isLong ? (prices[i] < minValid) : (prices[i] > minValid);
+                if (inverted)
+                {
+                    Print(string.Format(
+                        "[LADDER_GUARD] T{0}={1:F4} is inside T{2}={3:F4} for {4}. Pushing T{0} to {5:F4}.",
+                        i + 1, prices[i], i, prices[i - 1], pos.SignalName, minValid));
+                    prices[i] = Instrument.MasterInstrument.RoundToTickSize(minValid);
+                    anyFixed = true;
+                }
+            }
+
+            pos.Target1Price = prices[0];
+            pos.Target2Price = prices[1];
+            pos.Target3Price = prices[2];
+            pos.Target4Price = prices[3];
+            pos.Target5Price = prices[4];
+
+            if (anyFixed)
+                Print(string.Format("[LADDER_GUARD] Ladder corrected for {0}: T1={1:F4} T2={2:F4} T3={3:F4} T4={4:F4} T5={5:F4}",
+                    pos.SignalName, pos.Target1Price, pos.Target2Price, pos.Target3Price, pos.Target4Price, pos.Target5Price));
+        }
+
+        // Universal Ladder: pure delegation — T(n)Type dropdown drives all pricing for all trade types.
+        private double CalculateTargetPriceFromPos(MarketPosition direction, double entryPrice, PositionInfo pos, int targetNumber)
+        {
+            return CalculateTargetPrice(direction, entryPrice, targetNumber);
+        }
+
+        private int GetTargetContracts(PositionInfo pos, int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: return pos.T1Contracts;
+                case 2: return pos.T2Contracts;
+                case 3: return pos.T3Contracts;
+                case 4: return pos.T4Contracts;
+                case 5: return pos.T5Contracts;
+                default: return 0;
+            }
+        }
+
+        private double GetTargetPrice(PositionInfo pos, int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: return pos.Target1Price;
+                case 2: return pos.Target2Price;
+                case 3: return pos.Target3Price;
+                case 4: return pos.Target4Price;
+                case 5: return pos.Target5Price;
+                default: return 0.0;
+            }
+        }
+
+        private bool IsTargetFilled(PositionInfo pos, int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: return pos.T1Filled;
+                case 2: return pos.T2Filled;
+                case 3: return pos.T3Filled;
+                case 4: return pos.T4Filled;
+                case 5: return pos.T5Filled;
+                default: return false;
+            }
+        }
+
+        private void MarkTargetFilled(PositionInfo pos, int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: pos.T1Filled = true; break;
+                case 2: pos.T2Filled = true; break;
+                case 3: pos.T3Filled = true; break;
+                case 4: pos.T4Filled = true; break;
+                case 5: pos.T5Filled = true; break;
+            }
+        }
+
+        private int GetTargetFilledQuantity(PositionInfo pos, int targetNumber)
+        {
+            switch (targetNumber)
+            {
+                case 1: return pos.T1FilledQuantity;
+                case 2: return pos.T2FilledQuantity;
+                case 3: return pos.T3FilledQuantity;
+                case 4: return pos.T4FilledQuantity;
+                case 5: return pos.T5FilledQuantity;
+                default: return 0;
+            }
+        }
+
+        private void SetTargetFilledQuantity(PositionInfo pos, int targetNumber, int filledQuantity)
+        {
+            int safeQty = Math.Max(0, filledQuantity);
+            switch (targetNumber)
+            {
+                case 1: pos.T1FilledQuantity = safeQty; break;
+                case 2: pos.T2FilledQuantity = safeQty; break;
+                case 3: pos.T3FilledQuantity = safeQty; break;
+                case 4: pos.T4FilledQuantity = safeQty; break;
+                case 5: pos.T5FilledQuantity = safeQty; break;
+            }
         }
 
         // V8.11: Class to track pending stop replacements
@@ -311,7 +554,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description = "Universal OR Strategy V12.12 - Modular Build";
+                Description = "Universal OR Strategy V12.12 - Build 1102K";
                 Name = "UniversalORStrategyV12_002";
                 Calculate = Calculate.OnPriceChange;  // CRITICAL FIX: Updates on every price tick for real-time trailing
                 EntriesPerDirection = 10;
@@ -333,8 +576,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Risk defaults
                 RiskPerTrade = 200;
-                ReducedRiskPerTrade = 200;
+                ReducedRiskPerTrade = 200; // deprecated — hidden in UI (RISK-01)
                 StopThresholdPoints = 5.0;
+                SlippageCushionPoints = 1.0; // SLIP-01: 1pt default cushion for follower slippage
                 MESMinimum = 1;
                 MESMaximum = 30;
                 MGCMinimum = 1;
@@ -342,19 +586,22 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Stop defaults
                 StopMultiplier = 0.5;
-                MinimumStop = 1.0;
+                MinimumStop = 4.0;  // 1102Z-A F2: raised floor from 1.0 to 4.0 for current volatility
                 MaximumStop = 15.0;  // V8.31: Increased from 8.0
                 IpcPort = 5001;
 
 
-                // v5.13: 4-Target System - T1=Fixed 1pt, T2-T4=ATR-based
-                Target1FixedPoints = 1.0;   // T1 = Fixed 1 point quick scalp
-                Target2Multiplier = 0.5;    // T2 = 0.5x ATR
-                Target3Multiplier = 1.0;    // T3 = 1.0x ATR
-                T1ContractPercent = 20;     // 20% quick scalp
-                T2ContractPercent = 30;     // 30%
-                T3ContractPercent = 30;     // 30%
-                T4ContractPercent = 20;     // 20% runner
+                // V12.1101E: 5-target system with configurable runner selection
+                Target1Value = 1.0;
+                Target2Value = 0.5;
+                Target3Value = 1.0;
+                Target4Value = 1.5;
+                Target5Value = 2.0;
+                T1Type = TargetMode.Points;
+                T2Type = TargetMode.ATR;
+                T3Type = TargetMode.ATR;
+                T4Type = TargetMode.ATR;
+                T5Type = TargetMode.Runner;
 
                 // Trailing stop defaults
                 BreakEvenTriggerPoints = 2.0;
@@ -374,8 +621,6 @@ namespace NinjaTrader.NinjaScript.Strategies
                 RMAEnabled = true;
                 RMAATRPeriod = 14;
                 RMAStopATRMultiplier = 1.1;
-                RMAT1ATRMultiplier = 0.5;
-                RMAT2ATRMultiplier = 1.0;
 
                 // V8.2: TREND defaults (V8.31: E1 now uses ATR from live EMA9)
                 TRENDEnabled = true;
@@ -403,6 +648,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ReaperIntervalMs = 1000;          // 1 second audit cycle
                 EnablePathB = false;
                 AutoFlattenDesync = false;
+                RepairTickFence = 8;
+                FleetParityMultiplier = 1; // V12.Phase8.7 [PARITY-01]: Set to 10 for ES→MES fleet parity
                 PathBStopPoints = 10.0;
                 PathBTargetPoints = 15.0;
                 ChaseIfTouchPoints = "0";
@@ -415,7 +662,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 PayoutMinTradingDays = 10;
                 PayoutMinProfit = 2600; // Common Apex 50K payout threshold (adjust per account)
                 TrailingDrawdownLimit = 2500; // Common Apex 50K trailing DD
-                TrailingDrawdownWarningBuffer = 200;
+                // RMA Intelligence defaults (Phase 9.2)
+                RmaIntelligenceEnabled = false; // Default to isolated/OFF
+                RmaExhaustionAtrMultiplier = 2.0;
+                RmaStretchedCandleMultiplier = 1.0;
+                RmaFreshCandleBufferAtr = 1.0;
+                RmaProximityTicks = 2;
+                RmaCancellationTicks = 4;
+                RmaUseMtfConfluence = true;
             }
             else if (State == State.Configure)
             {
@@ -427,7 +681,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 target1Orders = new ConcurrentDictionary<string, Order>(2, 4);
                 target2Orders = new ConcurrentDictionary<string, Order>(2, 4);
                 target3Orders = new ConcurrentDictionary<string, Order>(2, 4);  // v5.13
-                target4Orders = new ConcurrentDictionary<string, Order>(2, 4);  // v5.13
+                target4Orders = new ConcurrentDictionary<string, Order>(2, 4);
+                target5Orders = new ConcurrentDictionary<string, Order>(2, 4);
 
                 // V8.2: TREND linked entries tracking
                 // V8.30: Thread-safe dictionary
@@ -451,8 +706,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 dailySummaryCsvPath = System.IO.Path.Combine(logsDir, "DailySummaries.csv");
                 EnsureDailySummaryCsv();
 
-                // Add 5-min data series for ATR (index 1)
-                AddDataSeries(BarsPeriodType.Minute, 5);
+                // Add data series for MTF RMA Intelligence (Phase 9.2)
+                AddDataSeries(BarsPeriodType.Minute, 5);  // Index 1 (Primary for ATR)
+                AddDataSeries(BarsPeriodType.Minute, 10); // Index 2
+                AddDataSeries(BarsPeriodType.Minute, 15); // Index 3
 
                 // V12.002: Run Risk Logic Audit (The Testing Rig) on startup
                 ExecuteRiskLogicAudit();
@@ -480,6 +737,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     maxContracts = 20; // V12.1101E [B-9]: Conservative default for unknown instruments
                 }
 
+                // Universal Ladder: derive activeTargetCount from non-zero Target values at load time.
+                int loadedTargetCount = (Target1Value > 0 ? 1 : 0)
+                                      + (Target2Value > 0 ? 1 : 0)
+                                      + (Target3Value > 0 ? 1 : 0)
+                                      + (Target4Value > 0 ? 1 : 0)
+                                      + (Target5Value > 0 ? 1 : 0);
+                activeTargetCount = Math.Max(1, Math.Min(5, loadedTargetCount));
+
                 // Initialize ATR indicator on 5-min bars (BarsArray[1])
                 atrIndicator = this.ATR(BarsArray[1], RMAATRPeriod);
 
@@ -503,9 +768,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print(string.Format("UniversalORStrategy V12.14 | {0} | Tick: {1} | PV: ${2}", symbol, tickSize, pointValue));
                 Print(string.Format("Session: {0} - {1} {2} | OR: {3} min",
                     SessionStart.ToString("HH:mm"), SessionEnd.ToString("HH:mm"), SelectedTimeZone, (int)ORTimeframe));
-                Print(string.Format("OR Targets: T1={0}pt T2={1}xOR T3={2}xOR | Stop={3}xOR", Target1FixedPoints, Target2Multiplier, Target3Multiplier, StopMultiplier));
-                Print(string.Format("RMA: Enabled={0} ATR({1}) Stop={2}xATR T1={3}xATR T2={4}xATR",
-                    RMAEnabled, RMAATRPeriod, RMAStopATRMultiplier, RMAT1ATRMultiplier, RMAT2ATRMultiplier));
+                Print(string.Format("Targets: T1={0}({1}) T2={2}({3}) T3={4}({5}) T4={6}({7}) T5={8}({9}) | Stop={10}xOR",
+                    Target1Value, T1Type, Target2Value, T2Type, Target3Value, T3Type, Target4Value, T4Type, Target5Value, T5Type, StopMultiplier));
+                Print(string.Format("RMA: Enabled={0} ATR({1}) Stop={2}xATR",
+                    RMAEnabled, RMAATRPeriod, RMAStopATRMultiplier));
                 Print("V12.9 REPAIRED: Definitive Chart-Click Fix + Logic Refresh");
                 Print(string.Format("TREND: Enabled={0} E1Stop={1}xATR E2Trail={2}xATR", TRENDEnabled, TRENDEntry1ATRMultiplier, TRENDEntry2ATRMultiplier));
                 Print(string.Format("FFMA: Enabled={0} Distance={1}pt RSI={2}/{3}", FFMAEnabled, FFMAEMADistance, FFMARSIOversold, FFMARSIOverbought));
@@ -563,6 +829,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // V10.3: Unsubscribe
                 SignalBroadcaster.OnExternalCommand -= HandleExternalSignal;
 
+                // V12.Phase7 [C-08]: Clear ALL static SignalBroadcaster event handlers on termination.
+                // Static events survive instance disposal — without this, dead instance handlers accumulate
+                // and fire into garbage-collected strategy contexts on reload, causing phantom order submissions.
+                SignalBroadcaster.ClearAllSubscribers();
+
+                // V12.Phase7 [GAP-4]: Dispose SIMA toggle semaphore to release OS handle.
+                _simaToggleSem?.Dispose();
+
                 // Clear references
                 activePositions?.Clear();
                 entryOrders?.Clear();
@@ -570,7 +844,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 target1Orders?.Clear();
                 target2Orders?.Clear();
                 target3Orders?.Clear();  // v5.13
-                target4Orders?.Clear();  // v5.13
+                target4Orders?.Clear();
+                target5Orders?.Clear();
                 accountDailyProfit?.Clear();
                 accountTotalProfit?.Clear();
                 accountTradeCount?.Clear();
@@ -636,10 +911,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // CIT Logic
                 ManageCIT();
 
+                // Monitor RMA Proximity and Exhaustion (Phase 9.2)
+                MonitorRmaProximity();
+
                 // V8.2 FIX: Process pending TREND entry (deferred from button click)
                 if (pendingTRENDEntry)
                 {
-                    ExecuteTRENDEntry();
+                    double trendDist   = CalculateTRENDStopDistance();
+                    int trendContracts = CalculatePositionSize(trendDist);
+                    ExecuteTRENDEntry(trendContracts);
                 }
 
                 // Update ATR value from 5-min bars
@@ -744,8 +1024,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     Print(string.Format("OR COMPLETE at {0}: H={1:F2} L={2:F2} M={3:F2} R={4:F2}",
                         barTimeInZone.ToString("HH:mm:ss"), sessionHigh, sessionLow, sessionMid, sessionRange));
-                    Print(string.Format("OR Targets: T1=+{0:F2} T2=+{1:F2} Stop=-{2:F2}",
-                        Target1FixedPoints, sessionRange * Target2Multiplier, CalculateORStopDistance()));
+                    Print(string.Format("OR Targets: T1={0}({1}) T2={2}({3}) Stop=-{4:F2}",
+                        Target1Value, T1Type, Target2Value, T2Type, CalculateORStopDistance()));
 
                     // V8.30: Always draw immediately when OR completes (important event)
                     DrawORBox();
@@ -951,6 +1231,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             RemoveDrawObject("ORBox");
             RemoveDrawObject("ORMid");
+        }
+
+        // V12.1101Q [FIX-DRAW]: Ultimate fallback helper using 'object' to bypass namespace issues.
+        private object GetDrawObject(string tag)
+        {
+            if (DrawObjects == null) return null;
+            foreach (var o in DrawObjects)
+            {
+                if (o.Tag == tag) return o;
+            }
+            return null;
         }
 
         #endregion

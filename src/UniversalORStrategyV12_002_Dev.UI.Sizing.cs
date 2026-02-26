@@ -34,6 +34,48 @@ namespace NinjaTrader.NinjaScript.Strategies
     {
         #region V12.30 ATR Auto-Sizing Engine
 
+        // IS-01: Iron Shield Target Distribution [V12.BEYOND-BUG]
+        // Replaces percentage-based engine with count-based integer division.
+        // Source of truth: activeTargetCount (mirrors dashboard selection exactly).
+        // Ghost targets eliminated — T4/T5 are always 0 when count < 4/5.
+        // FIX-B [Build 1102Z]: Added targetCountOverride optional parameter.
+        // When a caller passes a pre-snapshotted count (e.g., dispatchTargetCount from SIMA),
+        // it is used instead of the live activeTargetCount global read. This prevents the
+        // IPC SET_TARGET_COUNT command from changing the distribution mid-dispatch.
+        // All existing call sites omit the parameter and continue using the live global (no breaking change).
+        private void GetTargetDistribution(int contracts, out int t1, out int t2, out int t3, out int t4, out int t5,
+            int targetCountOverride = -1)
+        {
+            t1 = 0; t2 = 0; t3 = 0; t4 = 0; t5 = 0;
+            if (contracts <= 0) return;
+
+            // IS-01: Clamp active target count (Source of Truth — mirrors dashboard selection).
+            // Use caller snapshot when provided; fall through to live activeTargetCount for all other call sites.
+            int count = (targetCountOverride >= 1 && targetCountOverride <= 5)
+                ? targetCountOverride
+                : Math.Max(1, Math.Min(5, activeTargetCount));
+
+            // IS-02: Integer-Division Distribution (remainder to T1 first — scalp anchor)
+            int[] buckets = new int[5];
+            int baseQty   = contracts / count;
+            int remainder = contracts % count;
+            for (int i = 0; i < count; i++)
+                buckets[i] = baseQty + (i < remainder ? 1 : 0);
+
+            // IS-03: Teleporting Backstop (Final Reserve Anchor)
+            int captureIndex = count - 1;
+
+            // V12.Audit [D-008]: Final Sum Gate
+            int distSum = buckets[0] + buckets[1] + buckets[2] + buckets[3] + buckets[4];
+            if (distSum != contracts)
+            {
+                Print(string.Format("[SIZING_FATAL] Sum={0} Expected={1}. Forcing to T{2}.", distSum, contracts, count));
+                buckets[captureIndex] += contracts - distSum;
+            }
+
+            t1 = buckets[0]; t2 = buckets[1]; t3 = buckets[2]; t4 = buckets[3]; t5 = buckets[4];
+        }
+
         /// <summary>
         /// V12.30: ATR Auto-Sizing Engine — Core Sizing Method
         /// 1. stopDistanceRaw → Ceiling to whole point
@@ -51,14 +93,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             double stopDollars = stopPoints * pointValue;
             if (stopDollars <= 0) return Math.Max(1, minContracts);
 
-            // STEP 2: FLOOR the quantity (never exceed $MaxRisk)
-            int contracts = (int)Math.Floor(riskToUse / stopDollars);
+            // SLIP-01: Subtract slippage cushion from risk budget before sizing.
+            // Followers may fill at worse prices than master (entry slippage); their stop
+            // is at the same absolute level → actual dollar risk = (fillPrice - stop) × qty × pv.
+            // Cushion ensures worst-case follower risk stays ≤ MaxRiskAmount.
+            double slippageCushionDollars = SlippageCushionPoints * pointValue;
+            double effectiveRisk = riskToUse - slippageCushionDollars;
+
+            // STEP 2: FLOOR the quantity (never exceed $MaxRisk after slippage reserve)
+            int contracts = (int)Math.Floor(effectiveRisk / stopDollars);
+
+            // V12.Phase8.3: Diagnostic warning when ATR/Risk math produces 0 — makes risk-floor fallbacks visible
+            if (contracts == 0)
+                Print($"[SIZING] Risk/Stop math resulted in 0 — falling back to minContracts floor ({minContracts}). Risk=${riskToUse:F0}, StopDollars=${stopDollars:F0}");
 
             // V12.1101E [B-9]: Clamp to [minContracts, maxContracts] — prevents runaway sizing on
             // tiny ATR values (e.g., flat market) from hitting broker limits or compliance thresholds.
             contracts = Math.Max(minContracts, Math.Min(contracts, maxContracts));
 
-            Print($"[V12.30 SIZING] RawStop={stopDistanceRaw:F2} → Ceiling={stopPoints:F0}pt | Risk=${riskToUse:F0} | StopDollars=${stopDollars:F0} | Qty={contracts} | Clamp=[{minContracts},{maxContracts}]");
+            Print($"[V12.30 SIZING] RawStop={stopDistanceRaw:F2} → Ceiling={stopPoints:F0}pt | Risk=${riskToUse:F0} | Cushion=${slippageCushionDollars:F0} | EffRisk=${effectiveRisk:F0} | StopDollars=${stopDollars:F0} | Qty={contracts} | Clamp=[{minContracts},{maxContracts}]");
             return contracts;
         }
 
@@ -74,58 +127,6 @@ namespace NinjaTrader.NinjaScript.Strategies
             double rawStop = currentATR * atrMultiplier;
             double ceilingStop = Math.Ceiling(rawStop);  // Round UP to whole point
             return Math.Max(MinimumStop, Math.Min(ceilingStop, MaximumStop));
-        }
-
-        private void GetTargetDistribution(int contracts, out int t1, out int t2, out int t3, out int t4)
-        {
-            // V12.40 PRIORITY FILL: Always respect user percentages.
-            // For small lots (≤4), the percentage math naturally assigns 0 to lower-priority targets.
-            // T4 (runner) gets the remainder — guaranteed ≥1 when contracts > 1.
-
-            // Single contract = pure runner (T4), no split possible
-            if (contracts <= 1)
-            {
-                t1 = 0; t2 = 0; t3 = 0; t4 = contracts;
-                return;
-            }
-
-            t1 = (int)Math.Floor(contracts * T1ContractPercent / 100.0);
-            t2 = (int)Math.Floor(contracts * T2ContractPercent / 100.0);
-            t3 = (int)Math.Floor(contracts * T3ContractPercent / 100.0);
-
-            // V12.1101E [MATH-01]: CAP running sum BEFORE computing T4.
-            // The old approach computed t4 = contracts - t1 - t2 - t3, which goes negative when
-            // percentages sum > 100%. The post-hoc clamp then floored t4 to 0 while t1+t2+t3
-            // already consumed contracts+N slots — creating phantom contract totals.
-            // Fix: reduce T3 → T2 → T1 proportionally so t4 is always ≥ 1 before subtraction.
-            int runningSum = t1 + t2 + t3;
-            int maxAllowed = contracts - 1; // always reserve ≥1 slot for T4 runner
-            if (runningSum > maxAllowed)
-            {
-                int excess = runningSum - maxAllowed;
-                // Shed from lowest-priority first: T3 → T2 → T1
-                t3 = Math.Max(0, t3 - excess);
-                excess = (t1 + t2 + t3) - maxAllowed;
-                if (excess > 0) { t2 = Math.Max(0, t2 - excess); }
-                excess = (t1 + t2 + t3) - maxAllowed;
-                if (excess > 0) { t1 = Math.Max(1, t1 - excess); }
-            }
-            t4 = contracts - t1 - t2 - t3; // guaranteed ≥ 1
-
-            // Ensure T1 gets at least 1 (the quick scalp anchor)
-            if (t1 < 1) { t1 = 1; t4 = Math.Max(0, t4 - 1); }
-
-            // Runner (T4) must get at least 1 on multi-contract trades
-            if (t4 < 1)
-            {
-                // Steal from lowest-priority filled target: T3 → T2
-                if (t3 > 0) { t3--; t4 = 1; }
-                else if (t2 > 0) { t2--; t4 = 1; }
-                else { t1 = contracts - 1; t2 = 0; t3 = 0; t4 = 1; }
-            }
-
-            // Safety floors: ensure no negatives remain after any edge-case adjustments
-            t1 = Math.Max(0, t1); t2 = Math.Max(0, t2); t3 = Math.Max(0, t3); t4 = Math.Max(0, t4);
         }
 
         /// <summary>
@@ -157,6 +158,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Skip modes that don't use ATR-based stops
                 if (pos.IsFFMATrade || pos.IsMOMOTrade) continue;
 
+                // V1102Q [SOVEREIGN-DRIFT]: Followers skip active ATR-sync. 
+                // They purely follow the master-dispatched quantity.
+                if (pos.IsFollower) continue;
+
                 // Get the entry order
                 Order entryOrder;
                 if (!entryOrders.TryGetValue(entryName, out entryOrder)) continue;
@@ -174,48 +179,66 @@ namespace NinjaTrader.NinjaScript.Strategies
                     continue;
                 }
 
-                // Determine ATR multiplier for this trade type
-                double atrMult = GetATRMultiplierForPosition(pos);
-                double newStopDist = CalculateATRStopDistance(atrMult);
-                int    newQty     = CalculatePositionSize(newStopDist);
+                // [RACE-05]: Compute sizing math + flicker check + stop-price update atomically under stateLock.
+                // Prevents volatility drift where currentATR changes between math and state mutation.
+                // ChangeOrder broker call is staged outside the lock (broker API must not hold our lock).
+                int    newQty;
+                bool   needsQtyChange;
+                string syncLog;
+                // [M8.2 SIZING-SYNC]: Capture expected-position delta for Live Sync quantity changes.
+                int    expectedDelta = 0;
+                string acctName     = null;
 
-                // V12.45 TICK-AWARE FLICKER CHECK: Use tickSize for meaningful comparison
-                // Only sync if ceiling stop changed by at least 1 tick OR quantity changed
-                double oldCeilingStop = Math.Ceiling(Math.Abs(pos.EntryPrice - pos.CurrentStopPrice));
-                double newCeilingStop = newStopDist;
-
-                double stopDelta = Math.Abs(newCeilingStop - oldCeilingStop);
-                if (stopDelta < tickSize && newQty == pos.TotalContracts)
-                    continue;  // No material change — skip
-
-                // SYNC: Update quantity and stop
-                try
+                lock (stateLock)
                 {
+                    double atrMult    = GetATRMultiplierForPosition(pos);
+                    double newStopDist = CalculateATRStopDistance(atrMult);
+                    newQty            = CalculatePositionSize(newStopDist);
+
+                    // V12.45 TICK-AWARE FLICKER CHECK: use tickSize for meaningful comparison
+                    double oldCeilingStop = Math.Ceiling(Math.Abs(pos.EntryPrice - pos.CurrentStopPrice));
+                    double stopDelta      = Math.Abs(newStopDist - oldCeilingStop);
+                    if (stopDelta < tickSize && newQty == pos.TotalContracts)
+                        continue;  // No material change — skip (releases lock before continuing)
+
                     double newStopPrice = pos.Direction == MarketPosition.Long
                         ? pos.EntryPrice - newStopDist
                         : pos.EntryPrice + newStopDist;
 
-                    // Update the entry order quantity via ChangeOrder
-                    if (newQty != entryOrder.Quantity)
-                    {
-                        ChangeOrder(entryOrder, newQty, entryOrder.LimitPrice, entryOrder.StopPrice);
-                    }
-
-                    // Update position info
-                    pos.TotalContracts = newQty;
+                    // Stop prices update immediately — they reflect intent and are safe before broker confirmation.
                     pos.CurrentStopPrice = newStopPrice;
                     pos.InitialStopPrice = newStopPrice;
 
-                    // Recalculate target distribution
-                    int t1, t2, t3, t4;
-                    GetTargetDistribution(newQty, out t1, out t2, out t3, out t4);
-                    pos.T1Contracts = t1;
-                    pos.T2Contracts = t2;
-                    pos.T3Contracts = t3;
-                    pos.T4Contracts = t4;
-                    pos.RemainingContracts = newQty;
+                    // [VOLATILITY-01]: TotalContracts / distribution are NOT updated here.
+                    // They are committed in OnOrderUpdate when broker confirms the ChangeOrder (Accepted state).
+                    // This prevents Desync-01 if the broker rejects the size change.
+                    needsQtyChange = newQty != entryOrder.Quantity;
+                    if (needsQtyChange)
+                    {
+                        // [M8.2 SIZING-SYNC]: Mirror the quantity change into expectedPositions so Reaper
+                        // sees the updated target size before the fill arrives.
+                        int qtyDelta    = newQty - entryOrder.Quantity;
+                        expectedDelta   = pos.Direction == MarketPosition.Long ? qtyDelta : -qtyDelta;
+                        acctName        = (pos.IsFollower && pos.ExecutingAccount != null)
+                                            ? pos.ExecutingAccount.Name : Account.Name;
+                    }
+                    syncLog = $"[V12.45 SYNC] {entryName}: Stop {oldCeilingStop:F0}→{newStopDist:F0}pt | Qty {entryOrder.Quantity}→{newQty} | ATR={currentATR:F2}";
+                }
 
-                    Print($"[V12.45 SYNC] {entryName}: Stop {oldCeilingStop:F0}→{newCeilingStop:F0}pt | Qty {entryOrder.Quantity}→{newQty} | ATR={currentATR:F2}");
+                // ChangeOrder must be called outside stateLock — broker API call.
+                try
+                {
+                    if (needsQtyChange)
+                    {
+                        ChangeOrder(entryOrder, newQty, entryOrder.LimitPrice, entryOrder.StopPrice);
+                        // [M8.2 SIZING-SYNC]: Update expectedPositions only after ChangeOrder succeeds.
+                        // A failed ChangeOrder (caught below) will not leave a stale expectedPositions delta.
+                        AddExpectedPositionDeltaLocked(ExpKey(acctName), expectedDelta);
+                        // V12.Phantom-Fix [FIX-3]: Log only when a ChangeOrder is actually sent.
+                        // Unconditional Print on every bar created hundreds of no-op log lines
+                        // while a Limit order sat pending fill on tick/renko charts.
+                        Print(syncLog);
+                    }
                 }
                 catch (Exception ex)
                 {

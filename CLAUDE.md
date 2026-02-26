@@ -1,0 +1,43 @@
+# NinjaScript V12 Project Standards
+
+- **Language**: C# 8.0 / .NET Framework 4.8 (NinjaTrader 8).
+- **Concurrency**: All state mutations (activePositions, expectedPositions) MUST be guarded by lock(stateLock).
+- **Lifecycle**: Semaphores (_simaToggleSem) MUST be released in finally blocks.
+- **Refactoring**: Prefer explicit FirstOrDefault logic for instrument lookups (Reaper parity).
+- **Style**: Use PascalCase for methods, camelCase for local variables. Avoid dense one-liners; prioritize "Metabolic Elegance."
+
+## 🛡️ Protocol Hardening (V12.Phase7)
+
+### 1. Scope Control
+- **Surgical Edits**: AI agents MUST restrict code modifications to the specific files requested in the Mission Brief. NEVER refactor unrelated files without explicit Director authorization.
+- **Zero-Trust Planning**: Always generate an `implementation_plan.md` before applying code changes to local files.
+
+### 2. WPF/UI Guardrails
+- **Escalation**: If a UI layout or positioning task enters a loop (more than 2 failed attempts), the agent MUST halt and escalate to the Director for manual layout review.
+- **Headless Mode**: Prefer headless execution for batch logic updates; do not attempt complex UI re-styling without a visual brief.
+
+### 3. Path & Deployment Management
+- **Source Truth**: All primary NinjaScript logic resides in `src/`.
+- **Deployment**: Local builds MUST be synced to `C:\Users\Mohammed Khalid\Documents\NinjaTrader 8\bin\Custom\Strategies\` using the `./deploy-sync.ps1` script (or `/deploy` skill).
+
+## 🏁 Environment Truths (NinjaScript/NT8)
+
+- **Execution Context**: Codes executes in NinjaTrader 8. `Print()` outputs ONLY to the NT8 UI Output Window, not to local logs on disk.
+- **Built-in Indicators**: Managed by the NT8 installer; DO NOT attempt to modify or fix built-in indicator files via code.
+- **WPF Layouts**: Chart Trader panels REQUIRE hard-coded pixel widths. Do NOT attempt relative layouts (Star, Stretch) as they fail in the injected window context.
+- **Large Files**: For `.cs` files >500 lines, use `grep` and chunked reads. Never attempt to replace the entire file content.
+
+## ⚛️ Atomic Session Protocol
+
+- **One Patch Per Session**: Apply only one major patch (e.g., 1102Q) per AI session.
+- **Regression Audit**: Every patch MUST be followed by a `/audit` command to check for downstream side-effects before declaring completion.
+- **Scope Discipline**: Confirm the exact file list before editing. NEVER expand scope to configs/docs unless explicitly instructed.
+
+## 🕹️ Director Commands ($)
+
+- **$PLAN_AUDIT**: Use `read_terminal` on the active Claude/Antigravity PID to ingest Sonnet's implementation plan. Perform a forensic logic audit before recommending approval to the Director.
+- **$MISSION**: Initialize a new project phase via a Mission Brief artifact.
+- **$AUDIT**: Trigger the `/audit` skill to scan the `src/` directory.
+
+## Agent Synchronization
+AI Agents (Anthropic, Codex, Antigravity, Cursor, Gemini) MUST follow the **[.agent/standards_manifesto.md](file:///.agent/standards_manifesto.md)** as the primary source of truth for architectural standards and safety protocols.

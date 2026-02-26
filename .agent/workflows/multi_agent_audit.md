@@ -8,12 +8,12 @@ This workflow coordinates multiple AI agents (Claude, Cursor, Gemini, Grok) to c
 
 ## 1. Preparation
 1. Ensure `UniversalORStrategyV12_002_Dev` is in a clean baseline state.
-2. Create/Initialize `C:\WSGTA\universal-or-strategy\CONSOLIDATED_AUDIT.md`.
+2. Create/Initialize `C:\WSGTA\universal-or-strategy\docs\audits\CONSOLIDATED_AUDIT.md`.
 
 ## 2. Round 1: Redundant Discovery (Independent Deep Scan)
 *All agents perform the same comprehensive 'Full Spectrum' scan to ensure maximum coverage.*
 
-1. **Prompt for ALL agents**: "Independent Audit Task: Perform a 360-degree deep-scan of the UniversalORStrategyV12 codebase. Look for: (1) Division-by-zero risk in sizing math, (2) MOMO Stop-Limit slippage risks, (3) Thread-safety in SIMA broadcasting, (4) State-persistence bugs, and (5) Logic clashing between modes. Propose specific hardening fixes. **DIRECTIVE: Write your findings directly into C:\WSGTA\universal-or-strategy\CONSOLIDATED_AUDIT.md under your designated section.** Do NOT read other AI findings yet."
+1. **Prompt for ALL agents**: "Independent Audit Task: Perform a 360-degree deep-scan of the UniversalORStrategyV12 codebase. Look for: (1) Division-by-zero risk in sizing math, (2) MOMO Stop-Limit slippage risks, (3) Thread-safety in SIMA broadcasting, (4) State-persistence bugs, and (5) Logic clashing between modes. Propose specific hardening fixes. **DIRECTIVE: Write your findings directly into C:\WSGTA\universal-or-strategy\docs\audits\CONSOLIDATED_AUDIT.md under your designated section.** Do NOT read other AI findings yet."
 2. **Execution**:
     - **Gemini (Lead)**: Analyze and write to `## ROUND_1: GEMINI`.
     - **Claude Code CLI**: Analyze and write to `## ROUND_1: CLAUDE`.

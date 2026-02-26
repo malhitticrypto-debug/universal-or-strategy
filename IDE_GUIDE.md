@@ -1,0 +1,50 @@
+# Director's Quick-Start: IDE Re-Alignment
+
+Because we moved the core logic into `src/`, your open windows and "pinned" files need to be reset. Follow these steps for each tool:
+
+## 1. Cursor & Antigravity (Visual Editors)
+1. **Kill the Zombies**: Your current open tabs are "ghosts." Right-click any tab and choose **"Close All"**.
+2. **The `Ctrl+P` Trick**: 
+   - Press `Ctrl + P` on your keyboard.
+   - Type `src/`
+   - Click the files you want to open.
+3. **Re-Pin**: Right-click the new tabs and select **"Pin"**.
+
+## 2. Claude Code (Desktop/CLI)
+1. **New Session**: Start a new chat session so Claude doesn't get confused by old paths.
+2. **Reference `src/`**: If you tell Claude to edit a file, always include the folder name (e.g., `src/UniversalORStrategyV12_002_Dev.cs`).
+3. **Auto-Discovery**: Claude is smart—the first time it "lists files," it will see the `src/` folder and adjust automatically.
+
+## 3. Codex (OpenRouter/Standalone)
+1. **Refresh Sidebar**: In the file explorer on the left, click the **Refresh** icon.
+2. **Folder Drill-Down**: Click the arrow `>` next to the `src` folder to see your strategy files.
+
+## 4. NinjaTrader 8 (Deployment)
+1. **Save in VS Code / Cursor**: Edit your files in the `src/` folder.
+2. **Run Sync**: Run `./deploy-sync.ps1` in your terminal to push changes to NinjaTrader.
+3. **Compile**: Press **F5** in NinjaTrader to compile.
+   - *Note: Auto-sync hooks have been removed to prevent file-lock conflicts.*
+
+## 🚀 5. Manual Agent Launch (Local Terminal First)
+When you want to run an agent in **this terminal** (not in the background), always use the clean path:
+
+### A. Navigate to Clean Path
+```powershell
+cd C:\WSGTA\universal-or-strategy
+```
+
+### B. Launch Codex 5.3
+```powershell
+& "C:\Users\Mohammed Khalid\.cursor\extensions\openai.chatgpt-0.4.74-universal\bin\windows-x86_64\codex.exe" --model "gpt-5.3-codex"
+```
+
+### C. Launch Claude Code
+```powershell
+claude
+```
+
+> [!IMPORTANT]
+> **Avoid OneDrive**: Never launch agents inside `OneDrive\Desktop` paths to prevent file sync conflicts.
+
+---
+*Status: Alpha Files Successfully Relocated to `src/`*
