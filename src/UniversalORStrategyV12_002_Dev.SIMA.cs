@@ -440,11 +440,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                             TicksSinceEntry = 0,
                             ExtremePriceSinceEntry = entryPrice,
                             CurrentTrailLevel = 0,
-                            // [BUILD 926 – Codex P1 Fix]: Authoritative type tag for PropagatePrice routing.
-                            // IsRMATrade=true on ALL followers (trailing behavior), so it cannot be used
-                            // as a type discriminator. TradeTypeTag is the reliable source of truth.
-                            TradeTypeTag = tradeType,
                         };
+                        // [BUILD 926 – Codex P1 Fix]: Set authoritative type tag post-init.
+                        // Assigned outside the initializer block — NinjaTrader's partial-class compiler
+                        // cannot resolve nested-class fields (defined in another partial file) inside
+                        // object-initializer expressions. Post-init assignment compiles correctly.
+                        fleetPos.TradeTypeTag = tradeType;
 
                         // V12.7: Submit only entry for Limit; market entries include stop + non-runner targets.
                         if (isMarketEntry)
