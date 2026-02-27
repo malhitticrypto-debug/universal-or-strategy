@@ -794,6 +794,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                             // Original single-account logic
                             MarketPosition direction = action == "LONG" ? MarketPosition.Long : MarketPosition.Short;
                             double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
+                            // [923B-FIX-C]: Guard against zero price — Close[0] returns 0 if the strategy
+                            // has just loaded and bars have not yet been initialized (pre-session or fresh attach).
+                            // Passing currentPrice=0 to ExecuteRMAEntryV2 would submit a Limit @ 0, which
+                            // Apex/Tradovate treats as a Market order → instant fill without price touching level.
+                            if (currentPrice <= 0)
+                            {
+                                Print("[IPC] ABORT RMA dispatch: currentPrice=0 — lastKnownPrice and Close[0] both invalid. Wait for first bar before sending RMA commands.");
+                                break;
+                            }
                             double stopDist  = CalculateATRStopDistance(RMAStopATRMultiplier);
                             int contracts    = CalculatePositionSize(stopDist);
                             ExecuteRMAEntryV2(currentPrice, direction, contracts);
