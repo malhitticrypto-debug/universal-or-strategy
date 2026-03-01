@@ -43,10 +43,49 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Validate stop price
                 double validatedStopPrice = ValidateStopPrice(pos.Direction, pos.InitialStopPrice);
 
+                // [BUILD 924 - Fix B] Route bracket submission to follower account when applicable.
+                bool isFollowerSubmit = pos.IsFollower && pos.ExecutingAccount != null;
+                OrderAction bracketExitAction = pos.Direction == MarketPosition.Long
+                    ? OrderAction.Sell : OrderAction.BuyToCover;
+
                 // Submit initial stop for all contracts
-                Order stopOrder = pos.Direction == MarketPosition.Long
-                    ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.StopMarket, pos.TotalContracts, 0, validatedStopPrice, "", "Stop_" + entryName)
-                    : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.StopMarket, pos.TotalContracts, 0, validatedStopPrice, "", "Stop_" + entryName);
+                Order stopOrder;
+                if (isFollowerSubmit)
+                {
+                    // [BUILD 924 - Fix B] Follower stop: use ExecutingAccount API (not SubmitOrderUnmanaged which is master-local)
+                    string stopSig = SymmetryTrim("Stop_" + entryName, 40);
+                    Order sOrd = pos.ExecutingAccount.CreateOrder(
+                        Instrument, bracketExitAction, OrderType.StopMarket, TimeInForce.Gtc,
+                        pos.TotalContracts, 0, validatedStopPrice, "", stopSig, null);
+                    // [BUILD 924 - Fix B / Director's Note] Null-guard after CreateOrder matches S-001 pattern.
+                    if (sOrd == null)
+                    {
+                        Print(string.Format("[BRACKET_FATAL] Follower stop CreateOrder returned null for {0}. Flattening.", entryName));
+                        FlattenPositionByName(entryName);
+                        return;
+                    }
+                    // Build 929 Fix2 [P1]: Wrap Submit in local try/catch.
+                    // If Submit() throws (broker disconnect, margin, reject), the outer catch only logs
+                    // and returns — leaving this follower with a filled position and NO stop loss.
+                    // We must flatten immediately to prevent a naked position.
+                    try
+                    {
+                        pos.ExecutingAccount.Submit(new[] { sOrd });
+                    }
+                    catch (Exception submitEx)
+                    {
+                        Print(string.Format("[BRACKET_FATAL] Follower stop Submit THREW for {0}: {1}. Emergency flattening.", entryName, submitEx.Message));
+                        EmergencyFlattenSingleFleetAccount(pos.ExecutingAccount);
+                        return;
+                    }
+                    stopOrder = sOrd;
+                }
+                else
+                {
+                    stopOrder = pos.Direction == MarketPosition.Long
+                        ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.StopMarket, pos.TotalContracts, 0, validatedStopPrice, "", "Stop_" + entryName)
+                        : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.StopMarket, pos.TotalContracts, 0, validatedStopPrice, "", "Stop_" + entryName);
+                }
 
                 // V12.Audit [S-001]: Null-guard stop submission result. If broker rejects or drops
                 // the stop, flatten immediately — never leave a position with a false "protected" state.
@@ -89,9 +128,27 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print(string.Format("[FORENSIC] T{0} {1}: qty={2} price={3:F2} submitting limit",
                         targetNum, entryName, targetQty, targetPrice));
 
-                    Order limitOrder = pos.Direction == MarketPosition.Long
-                        ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, targetQty, targetPrice, 0, "", "T" + targetNum + "_" + entryName)
-                        : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, targetQty, targetPrice, 0, "", "T" + targetNum + "_" + entryName);
+                    Order limitOrder;
+                    if (isFollowerSubmit)
+                    {
+                        // [BUILD 924 - Fix B] Follower target: use ExecutingAccount API
+                        string targetSig = SymmetryTrim("T" + targetNum + "_" + entryName, 40);
+                        Order tOrd = pos.ExecutingAccount.CreateOrder(
+                            Instrument, bracketExitAction, OrderType.Limit, TimeInForce.Gtc,
+                            targetQty, targetPrice, 0, "", targetSig, null);
+                        // [BUILD 924 - Fix B / Director's Note] Null-guard after CreateOrder matches S-015 pattern.
+                        if (tOrd != null)
+                            pos.ExecutingAccount.Submit(new[] { tOrd });
+                        else
+                            Print(string.Format("[TARGET_WARN] Follower target T{0} CreateOrder returned null for {1}.", targetNum, entryName));
+                        limitOrder = tOrd;
+                    }
+                    else
+                    {
+                        limitOrder = pos.Direction == MarketPosition.Long
+                            ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Limit, targetQty, targetPrice, 0, "", "T" + targetNum + "_" + entryName)
+                            : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Limit, targetQty, targetPrice, 0, "", "T" + targetNum + "_" + entryName);
+                    }
 
                     var targetDict = GetTargetOrdersDictionary(targetNum);
                     // V12.Audit [S-015]: Only store non-null target orders. A null result means
@@ -613,6 +670,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (activePositions.Count == 0 && entryOrders.Count == 0) return;
             if (string.IsNullOrEmpty(ChaseIfTouchPoints) || ChaseIfTouchPoints == "0") return;
+
+            // [BUILD 924 – Fix C] Suppress CIT during price-move propagation to prevent
+            // race-fire on freshly resubmitted follower limit orders before sync cycle completes.
+            if (_propagationActive)
+            {
+                Print("[CIT] Suppressed during price-move propagation (Build 924 Fix C)");
+                return;
+            }
 
             double citOffset = 0;
             if (!double.TryParse(ChaseIfTouchPoints, out citOffset)) return;

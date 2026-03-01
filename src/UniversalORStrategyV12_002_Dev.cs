@@ -1,4 +1,4 @@
-// V12.12 FLEET SYMMETRY & SAFETY HARDENING - Single-Instance Multi-Account Copy Trading Engine
+﻿// V12.12 FLEET SYMMETRY & SAFETY HARDENING - Single-Instance Multi-Account Copy Trading Engine
 // Based on UniversalORStrategyV10_3.cs (BUILD 1702)
 // SIMA Architecture: One strategy instance on Master account broadcasts to all Apex accounts
 //
@@ -41,6 +41,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class UniversalORStrategyV12_002_Dev : Strategy
     {
+        public const string BUILD_TAG = "930";  // V12.930: Account-Safety — delta rollback + underscore trade type fix
+
         #region Variables
 
         // OR tracking
@@ -233,6 +235,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string dailySummaryCsvPath;
         private DateTime lastDailySummaryCheck = DateTime.MinValue;
         private readonly object dailySummaryLock = new object();
+
+        // [BUILD 924 - Fix C] CIT suppression flag: set true during PropagateMasterPriceMove,
+        // cleared in finally block. Prevents CIT from market-firing freshly resubmitted follower
+        // limit entries before the propagation sync cycle completes.
+        private volatile bool _propagationActive = false;
 
         // CIT (Chase If Touch) â€” uses ChaseIfTouchPoints property (NinjaScriptProperty)
 
@@ -554,7 +561,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (State == State.SetDefaults)
             {
-                Description = "Universal OR Strategy V12.12 - Build 1102K";
+                Description = "Universal OR Strategy V12.12 - Build " + BUILD_TAG;
                 Name = "UniversalORStrategyV12_002";
                 Calculate = Calculate.OnPriceChange;  // CRITICAL FIX: Updates on every price tick for real-time trailing
                 EntriesPerDirection = 10;
@@ -781,6 +788,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else if (State == State.Realtime)
             {
+                Print("╔══════════════════════════════════════════════════════════════╗");
+                Print("║          🛡  BMad HARDENED DEPLOYMENT PROTOCOL ACTIVE        ║");
+                Print(string.Format("║          Build: {0,-10} |  Sync: ONE SOURCE OF TRUTH    ║", BUILD_TAG));
+                Print("╚══════════════════════════════════════════════════════════════╝");
+
                 // V12.2 HEADLESS SAFETY: Start core services even if ChartControl is null (for background execution)
                 // EMERGENCY SAFE MODE (V12.32): Disabling background services to allow platform login
                 StartIpcServer();

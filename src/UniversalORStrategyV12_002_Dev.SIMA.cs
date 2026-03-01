@@ -99,6 +99,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Interlocked.Exchange(ref _lastExpectedPositionSetTicks, DateTime.UtcNow.Ticks);
         }
 
+        // Build 930 [P1]: Delta rollback for cascade cancellations.
+        // Subtracts only the cancelled entry's quantity, clamped to >= 0.
+        // Preserves expected position for other active entries on the same account.
+        private void DeltaExpectedPositionLocked(string accountName, int delta)
+        {
+            if (string.IsNullOrEmpty(accountName) || expectedPositions == null) return;
+            lock (stateLock)
+            {
+                int current;
+                expectedPositions.TryGetValue(accountName, out current);
+                int updated = Math.Max(0, current + delta);
+                expectedPositions[accountName] = updated;
+                Print(string.Format("[ACCOUNT_SYNC] {0} expected delta: {1} + ({2}) = {3}", accountName, current, delta, updated));
+            }
+        }
+
         /// <summary>
         /// 1102Z-C [RR-2b]: Stamp _lastExpectedPositionSetTicks to open a fresh 5-second REAPER grace window.
         /// Call before any follower entry order mutation (Change or Cancel) during a price-move propagation.
@@ -369,7 +385,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                     stopPrice = Instrument.MasterInstrument.RoundToTickSize(stopPrice);
 
                     // V1102Q [PARITY-01]: Scale quantity for Micro accounts (e.g. ES->MES 10x parity)
-                    int followerQty = Math.Max(1, quantity * FleetParityMultiplier);
+                    // [923A-P2c-OVF]: checked{} prevents silent int overflow on parity multiply (cf. Callbacks.cs same pattern)
+                    int followerQty;
+                    try
+                    {
+                        followerQty = checked((int)Math.Max(1L, (long)quantity * FleetParityMultiplier));
+                    }
+                    catch (OverflowException)
+                    {
+                        Print(string.Format("[923A-OVF] SIMA parity overflow qty={0} x mult={1} — clamping to maxContracts ({2})", quantity, FleetParityMultiplier, maxContracts));
+                        followerQty = maxContracts;
+                    }
 
                     // V12.40 FLEET PARITY: Use same distribution as Master (applied to scaled quantity)
                     // FIX-B [Build 1102Z]: Pass dispatchTargetCount snapshot so all fleet accounts use the same
@@ -429,7 +455,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                             BracketSubmitted = isMarketEntry, // V12.7: Brackets deferred for Limit entries
                             TicksSinceEntry = 0,
                             ExtremePriceSinceEntry = entryPrice,
-                            CurrentTrailLevel = 0
+                            CurrentTrailLevel = 0,
                         };
 
                         // V12.7: Submit only entry for Limit; market entries include stop + non-runner targets.
@@ -947,6 +973,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
 
+            // [923B-FIX-A]: Zero-price guard — a Limit order at price=0 is treated as a Market order
+            // by Apex/Tradovate, causing an immediate fill without price ever touching the RMA level.
+            // Root cause: IPC path (UI.IPC.cs) can pass currentPrice=0 if lastKnownPrice<=0 AND
+            // Close[0] is not yet initialized (strategy just loaded, pre-session bars not formed).
+            if (price <= 0)
+            {
+                Print(string.Format("[RMA V2] ABORT: price={0:F2} is zero or negative. Refusing to submit Limit @ 0 — would fill as Market. Ensure lastKnownPrice is valid before dispatching.", price));
+                return;
+            }
+
             try
             {
                 // Calculate stop and 5 targets using RMA profile.
@@ -1066,9 +1102,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
 
+                    // [923B-FIX-B]: fleetKey declared outside try so catch can access it for dict rollback.
+                    string fleetKey = acct.Name + "_RMA_" + baseSignal;
                     try
                     {
-                        string fleetKey = acct.Name + "_RMA_" + baseSignal;
                         SymmetryGuardRegisterFollower(symmetryDispatchId, fleetKey);
                         string ocoId = fleetKey;
 
@@ -1085,16 +1122,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                             continue;
                         }
 
-                        // V12.Phase7 [C-02]: Reserve expectedPositions BEFORE Submit to eliminate Reaper race.
-                        int delta = (direction == MarketPosition.Long) ? qty : -qty;
-                        AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta);
-
-                        acct.Submit(new[] { fEntry });
-
-                        // Register in unified dictionaries so CIT + trailing works for this account
-                        entryOrders[fleetKey] = fEntry;
+                        // [923B-FIX-B]: Phantom-Fix FIX-1 backport — register tracking dicts BEFORE
+                        // updating expectedPositions. Mirrors the fix already applied to ExecuteSmartDispatchEntry
+                        // (SIMA.cs Phantom-Fix comment at ~line 554).
+                        //
+                        // OLD (broken) order: expectedPositions FIRST → Submit → entryOrders/activePositions LAST.
+                        // Race: REAPER background thread fires between steps 1 and 3, observes non-zero
+                        //       expectedPositions with no entry in entryOrders → hasWorkingEntry=false
+                        //       → phantom repair queued → second Limit order submitted at same price
+                        //       → original entry orphaned → double fill or naked position on price touch.
+                        //
+                        // FIXED order: build PositionInfo → register dicts atomically (stateLock) FIRST
+                        //              → expectedPositions SECOND → Submit LAST.
                         // V12.1101E: Full 5-target distribution mirrors Master exactly.
-                        // Build 1102X [T3]: Named local variable so role stamps can be applied after initializer.
                         PositionInfo fleetFollowerPos = new PositionInfo
                         {
                             SignalName = fleetKey,
@@ -1123,16 +1163,28 @@ namespace NinjaTrader.NinjaScript.Strategies
                             ExtremePriceSinceEntry = price,
                             CurrentTrailLevel = 0
                         };
-                        activePositions[fleetKey] = fleetFollowerPos;
+                        lock (stateLock)
+                        {
+                            activePositions[fleetKey] = fleetFollowerPos; // FIRST: dicts registered atomically
+                            entryOrders[fleetKey] = fEntry;               // REAPER hasWorkingEntry check reads these
+                        }
+
+                        int delta = (direction == MarketPosition.Long) ? qty : -qty;
+                        AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta); // SECOND: expectedPositions
+
+                        acct.Submit(new[] { fEntry }); // LAST — stateLock not held here
                         // stopOrders/target1..target5 are set by follower bracket submission on fill
 
                         fleetOk++;
                     }
                     catch (Exception ex)
                     {
-                        // V12.Phase7 [C-02]: Undo expectedPositions reservation if submission failed.
+                        // [923B-FIX-B]: Full rollback — dicts were registered before expectedPositions,
+                        // so both must be cleaned up on Submit failure (mirrors ExecuteSmartDispatchEntry catch).
                         int rollbackDelta = (direction == MarketPosition.Long) ? -qty : qty;
                         AddOrUpdateExpectedPositionLocked(ExpKey(acct.Name), rollbackDelta, v => Math.Max(0, v + rollbackDelta));
+                        activePositions.TryRemove(fleetKey, out _);
+                        entryOrders.TryRemove(fleetKey, out _);
                         Print($"[SIMA RMA V2] FAIL {acct.Name}: {ex.Message}");
                     }
                 }

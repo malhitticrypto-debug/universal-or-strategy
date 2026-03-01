@@ -88,6 +88,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         // V12.1101E [F-07]: Request stop cancellation without dropping dictionary state early.
         // We only remove references after broker-confirmed terminal states.
+        // [BUILD 925 - P1 Fix]: Route follower stop cancels through pos.ExecutingAccount.Cancel()
+        // instead of the master-local CancelOrder() API. CancelOrder() is a NinjaScript-managed
+        // call that only works for orders submitted via SubmitOrderUnmanaged(). Fleet follower
+        // stops are submitted via acct.Submit(), so they require the broker-level Account.Cancel()
+        // API — identical to the pattern already proven correct in CleanupPosition() [BUG-2a].
         private void RequestStopCancelLifecycleSafe(string entryName)
         {
             if (string.IsNullOrEmpty(entryName)) return;
@@ -98,7 +103,22 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (stopOrder.OrderState == OrderState.Working || stopOrder.OrderState == OrderState.Accepted
                 || stopOrder.OrderState == OrderState.ChangePending || stopOrder.OrderState == OrderState.ChangeSubmitted)
             {
-                CancelOrder(stopOrder);
+                // [BUILD 925 - P1 Fix]: Check if this is a fleet follower — use its account context.
+                bool isFollowerStop = activePositions.TryGetValue(entryName, out var posRef)
+                    && posRef != null && posRef.IsFollower && posRef.ExecutingAccount != null;
+
+                if (isFollowerStop)
+                {
+                    // Fleet follower stop: must use Account API — CancelOrder() targets master account only.
+                    Print(string.Format("[925-P1] Follower stop cancel routed via ExecutingAccount.Cancel() for {0} on {1}",
+                        entryName, posRef.ExecutingAccount.Name));
+                    posRef.ExecutingAccount.Cancel(new[] { stopOrder });
+                }
+                else
+                {
+                    // Master/local stop: use the standard NinjaScript managed cancel.
+                    CancelOrder(stopOrder);
+                }
                 return;
             }
 
@@ -600,6 +620,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (entryOrders.TryGetValue(entryName, out var entryOrder) && entryOrder == order && !pos.EntryFilled)
                         {
                             Print(string.Format("[GHOST_FIX] Order Entry_{0} terminated (CANCELLED). Nullifying reference. Full teardown.", entryName));
+
+                            // Build 929 Fix3 [P1]: cancel followers BEFORE wiping the dispatch map
+                            if (EnableSIMA && !pos.IsFollower)
+                                SymmetryGuardCascadeFollowerCleanup(entryName);
 
                             // Clean up local state
                             CleanupPosition(entryName);
@@ -1199,6 +1223,11 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (!EnableSIMA || masterOrder == null || masterOrder.Account != this.Account) return;
 
+            // [BUILD 924 – Fix C] Raise propagation flag before dispatch; finally block clears it.
+            _propagationActive = true;
+            try
+            {
+
             // --- Step 1: Identify master position and move type via object identity ---
             string masterEntryName = null;
             bool isEntryMove  = false;
@@ -1254,6 +1283,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (masterEntryName == null) return; // Not a tracked master order
 
             // --- Step 2: Resolve follower entry names via Symmetry dispatch context ---
+
+            // [BUILD 926 – Codex P1 Fix]: Derive master TradeType from boolean flags.
+            // Master boolean flags ARE accurate (master positions set IsTRENDTrade, IsRMATrade etc. correctly).
+            // Only FOLLOWER flags are contaminated (IsRMATrade=true on ALL followers for trailing behavior).
+            // Follower type discrimination uses SignalName parsing instead — see fallback scan below.
+            string masterTradeType = null;
+            if (activePositions.TryGetValue(masterEntryName, out var masterPosForType))
+            {
+                // [BUILD 928 – Codex P2 Fix]: IsRetestTrade MUST be checked before IsRMATrade.
+                // RETEST positions set both IsRetestTrade=true AND IsRMATrade=true (uses RMA trailing).
+                // Old order checked IsRMATrade first → RETEST master classified as "RMA" → fallback
+                // propagation targets RMA followers and silently skips RETEST followers.
+                if      (masterPosForType.IsTRENDTrade)  masterTradeType = "TREND";
+                else if (masterPosForType.IsRetestTrade) masterTradeType = "RETEST"; // ← before RMA
+                else if (masterPosForType.IsRMATrade)    masterTradeType = "RMA";
+                else if (masterPosForType.IsMOMOTrade)   masterTradeType = "MOMO";
+                else if (masterPosForType.IsFFMATrade)   masterTradeType = "FFMA";
+                else                                     masterTradeType = "OR";
+            }
+
             IEnumerable<string> followerEntryNames;
             if (symmetryMasterEntryToDispatch.TryGetValue(masterEntryName, out string dispatchId) &&
                 symmetryDispatchById.TryGetValue(dispatchId, out var ctx))
@@ -1264,11 +1313,73 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             else
             {
-                // Fallback: scan all active followers (no dispatch context available)
+                // [BUILD 926 – Codex P1 Fix]: Fallback type match now uses SignalName parsing.
+                //
+                // ROOT CAUSE: IsRMATrade=true is stamped on ALL fleet followers (ExecuteSmartDispatchEntry
+                // line 434) to enforce point-based trailing. Using IsRMATrade as a type discriminator
+                // caused OR followers to fail the !IsRMATrade predicate and be excluded from OR
+                // propagation, and incorrectly included in RMA propagation.
+                //
+                // FIX: Fleet entry names are stamped with the trade type at dispatch time:
+                //   Format: "Fleet_<AccountName>_<TRADETYPE>_<Index>"
+                //   Example: "Fleet_PA-APEX-422136-05_OR_0", "Fleet_APEX-09_RMA_1"
+                //
+                // [BUILD 927 – Codex P2 Fix]: Do NOT use Contains("_TYPE_") — if an account name
+                // itself contains a trade-type substring (e.g. _RMA_, _OR_), Contains() misclassifies
+                // the follower by matching the account name token instead of the TRADETYPE segment.
+                //
+                // SAFE APPROACH: Extract TRADETYPE by segment position.
+                // TRADETYPE is always the second-to-last underscore-delimited segment:
+                //   lastUnderscore      = before the numeric Index
+                //   secondLastUnderscore = before the TRADETYPE token
+                // Example: "Fleet_SimApexSim_02_OR_0"
+                //   lastUs  → before "0"    → remaining = "Fleet_SimApexSim_02_OR"
+                //   typeUs  → before "OR"   → extracted = "OR"  ✓
                 var fallback = new List<string>();
                 foreach (var kvp in activePositions)
-                    if (kvp.Value.IsFollower && kvp.Value.ExecutingAccount != null)
+                {
+                    if (!kvp.Value.IsFollower || kvp.Value.ExecutingAccount == null) continue;
+                    if (masterTradeType == null)
+                    {
                         fallback.Add(kvp.Key);
+                        continue;
+                    }
+
+                    // --- Segment-position extraction ---
+                    string sig = kvp.Value.SignalName ?? kvp.Key;
+                    string followerType = null;
+                    int lastUs = sig.LastIndexOf('_');
+                    if (lastUs > 0)
+                    {
+                        int typeUs = sig.LastIndexOf('_', lastUs - 1);
+                        if (typeUs >= 0)
+                        {
+                            string extracted = sig.Substring(typeUs + 1, lastUs - typeUs - 1);
+                            // Validate against known set — rejects garbage from unusual account names
+                            if (extracted == "OR"     || extracted == "RMA"  ||
+                                extracted == "TREND"  || extracted == "RETEST" ||
+                                extracted == "MOMO"   || extracted == "FFMA"  ||
+                                // Build 930 Fix P2: Suffix-marker support — FFMA_MNL, FFMA_MNL_MKT, OR_RETEST etc.
+                                extracted.StartsWith("FFMA_") || extracted.StartsWith("MOMO_") ||
+                                extracted.StartsWith("OR_")   || extracted.StartsWith("RMA_")  ||
+                                extracted.StartsWith("TREND_") || extracted.StartsWith("RETEST_"))
+                                followerType = extracted.Split('_')[0]; // normalize to base type
+                        }
+                    }
+
+                    // Fallback: segment parsing failed — use boolean flags (RMA/OR ambiguity defaults to RMA)
+                    if (followerType == null)
+                    {
+                        if      (kvp.Value.IsTRENDTrade)  followerType = "TREND";
+                        else if (kvp.Value.IsRetestTrade)  followerType = "RETEST";
+                        else if (kvp.Value.IsMOMOTrade)    followerType = "MOMO";
+                        else if (kvp.Value.IsFFMATrade)    followerType = "FFMA";
+                        else                               followerType = "RMA";
+                    }
+
+                    if (followerType == masterTradeType)
+                        fallback.Add(kvp.Key);
+                }
                 followerEntryNames = fallback;
             }
 
@@ -1291,6 +1402,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     PropagateMasterStopMove(fleetEntryName, pos, newStop);
                 else if (isTargetMove)
                     PropagateMasterTargetMove(fleetEntryName, pos, masterTargetNum, newLimit);
+            }
+            } // end try
+            finally
+            {
+                // [BUILD 924 – Fix C] Always clear propagation flag, even on exception.
+                _propagationActive = false;
             }
         }
 
@@ -1346,7 +1463,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Order replacement = pos.ExecutingAccount.CreateOrder(
                     Instrument, exitAction, OrderType.Limit, TimeInForce.Gtc,
                     qty, roundedLimit, 0,
-                    "MGT_" + DateTime.UtcNow.Ticks.ToString(),
+                    // [923A-P1b-GUID]: 8-char GUID fragment replaces Ticks — eliminates collision risk at high resubmit frequency
+                    "MGT_" + Guid.NewGuid().ToString("N").Substring(0, 8),
                     signalName, null);
 
                 pos.ExecutingAccount.Submit(new[] { replacement });
@@ -1383,9 +1501,20 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // [QTY-SYNC]: Scale master quantity for this follower.
             // Fallback to fEntry.Quantity if no quantity signal (pure price-change callback, or qty=0 noise).
-            int scaledQty = (newMasterQty > 0 && FleetParityMultiplier > 0)
-                ? (int)Math.Max(1L, (long)newMasterQty * FleetParityMultiplier)  // [922Z-OVF]: long cast prevents int overflow before clamp
-                : fEntry.Quantity;
+            // [923A-P2a-OVF]: checked{} forces explicit OverflowException vs silent int truncation on extreme parity ratios
+            // (e.g., 1 NQ → 10 MES with very high master qty). Clamps to maxContracts on overflow.
+            int scaledQty;
+            try
+            {
+                scaledQty = (newMasterQty > 0 && FleetParityMultiplier > 0)
+                    ? checked((int)Math.Max(1L, (long)newMasterQty * FleetParityMultiplier))  // [922Z-OVF+923A]: long cast + checked int
+                    : fEntry.Quantity;
+            }
+            catch (OverflowException)
+            {
+                Print(string.Format("[923A-OVF] Parity scalar overflow for {0} — clamping to maxContracts ({1})", fleetEntryName, maxContracts));
+                scaledQty = maxContracts;
+            }
 
             bool priceChanged    = Math.Abs(fEffectivePrice - roundedLimit) > tickSize / 2;
             bool quantityChanged = scaledQty != fEntry.Quantity;
@@ -1420,7 +1549,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Order newEntry = pos.ExecutingAccount.CreateOrder(
                     Instrument, entryAction, fEntry.OrderType, TimeInForce.Gtc,
                     scaledQty, limitPx, stopPx,
-                    "MGE_" + DateTime.UtcNow.Ticks.ToString(),
+                    // [923A-P1-GUID]: 8-char hex GUID fragment replaces Ticks — eliminates collision risk
+                    // at extreme resubmit frequency. ocoId only; signalName = fleetEntryName unchanged (GHOST-FIX-1).
+                    "MGE_" + Guid.NewGuid().ToString("N").Substring(0, 8),
                     signalName, null);
 
                 pos.ExecutingAccount.Submit(new[] { newEntry });

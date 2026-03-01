@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Linq;
 using NinjaTrader.Cbi;
 using NinjaTrader.NinjaScript;
 
@@ -642,6 +643,47 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     if (SymmetryGuardTryResolveFollower(fleetEntryName, pos, pending, nowUtc))
                         symmetryPendingFollowerFills.TryRemove(fleetEntryName, out _);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Build 929 Fix3 [P1]: PR #2 Image 3 — Capture follower list before cleanup.
+        /// Cancels all follower entry orders linked to this master BEFORE CleanupPosition
+        /// destroys the dispatch map. Without this, followers stay alive as zombie Limit orders.
+        /// </summary>
+        private void SymmetryGuardCascadeFollowerCleanup(string masterEntryName)
+        {
+            if (!symmetryMasterEntryToDispatch.TryGetValue(masterEntryName, out string dispatchId)) return;
+            if (!symmetryDispatchById.TryGetValue(dispatchId, out var ctx)) return;
+
+            string[] followers;
+            lock (ctx.Sync) { followers = ctx.FollowerEntries.ToArray(); }
+
+            Print(string.Format("[CASCADE] Master {0} cancelled — terminating {1} linked follower(s).", masterEntryName, followers.Length));
+
+            foreach (string followerName in followers)
+            {
+                if (!activePositions.TryGetValue(followerName, out var pos)) continue;
+                if (!entryOrders.TryGetValue(followerName, out var order)) continue;
+                if (order == null) continue;
+
+                if (order.OrderState == OrderState.Working  ||
+                    order.OrderState == OrderState.Submitted ||
+                    order.OrderState == OrderState.Accepted)
+                {
+                    Print(string.Format("[CASCADE] Cancelling follower entry: {0} (Acc: {1})", followerName, pos.ExecutingAccount != null ? pos.ExecutingAccount.Name : "Master"));
+                    if (pos.ExecutingAccount != null)
+                        pos.ExecutingAccount.Cancel(new[] { order });
+                    else
+                        CancelOrder(order);
+
+                    // Build 930 Fix P1: Per-entry delta rollback — do NOT hard-wipe to zero.
+                    // ExpKey is account+instrument aggregate; hard-zero destroys other active
+                    // entries on the same account, causing REAPER to incorrectly flatten them.
+                    // Instead subtract only this entry's quantity from the running total.
+                    string acctKey = pos.ExecutingAccount != null ? pos.ExecutingAccount.Name : Account.Name;
+                    DeltaExpectedPositionLocked(ExpKey(acctKey), -pos.TotalContracts);
                 }
             }
         }
