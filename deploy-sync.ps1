@@ -13,7 +13,7 @@ $NtIndicatorDir = Join-Path $NtCustomDir "Indicators"
 # File Mappings (Source in Repo -> Target in NT8)
 $Mappings = @(
     # Indicators
-    @{ src = "V12StandardPanel_V12_001_Dev.cs"; dst = Join-Path $NtIndicatorDir "V12StandardPanel_V12_001_Dev.cs" },
+    @{ src = "V12_001.cs"; dst = Join-Path $NtIndicatorDir "V12_001.cs" },
     
     # Strategy (Modularized V12_002 Series)
     @{ src = "V12_002.cs"; dst = Join-Path $NtStrategyDir "V12_002.cs" },
@@ -46,7 +46,8 @@ Write-Host "`n--- WSGTA DEPLOY SYNC: Hardening Environment ---" -ForegroundColor
 foreach ($map in $Mappings) {
     if ($map.src -match "Indicator") {
         $srcPath = Join-Path (Join-Path $RepoRoot "src") $map.src
-    } else {
+    }
+    else {
         $srcPath = Join-Path (Join-Path $RepoRoot "src") $map.src
     }
     
@@ -69,9 +70,10 @@ foreach ($map in $Mappings) {
         $isLink = $item.Attributes -match "ReparsePoint"
         
         if ($isLink) {
-             # Verify it points to the right place or just recreate it
-             Remove-Item $dstPath -Force
-        } else {
+            # Verify it points to the right place or just recreate it
+            Remove-Item $dstPath -Force
+        }
+        else {
             # Backup if it's a real file (to avoid losing work)
             $backup = $dstPath + ".bak_" + (Get-Date -Format "yyyyMMdd_HHmm")
             Write-Host "BACKUP: Archiving existing NT file -> $(Split-Path $backup -Leaf)" -ForegroundColor Yellow
