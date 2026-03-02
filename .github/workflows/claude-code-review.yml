@@ -1,9 +1,6 @@
 name: 'Claude Code Review'
 
 on:
-  push:
-    branches:
-      - '**'
   pull_request:
     types: [opened, synchronize, reopened]
   issue_comment:
