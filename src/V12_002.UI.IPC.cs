@@ -144,6 +144,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     System.Text.StringBuilder lineBuffer = new System.Text.StringBuilder();
                     byte[] buffer = new byte[4096];
+                    // Build 935 [IPC-B935-UTF8]: Stateful decoder per client — carries incomplete
+                    // multibyte sequences across TCP reads. StrictUtf8.GetString() was stateless
+                    // and would throw DecoderFallbackException on split-packet UTF-8, disconnecting
+                    // a valid client unnecessarily.
+                    Decoder utf8Decoder = Encoding.UTF8.GetDecoder();
+                    char[] charBuf = new char[4096];
 
                     while (isIpcRunning && client.Connected)
                     {
@@ -159,7 +165,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         string chunk;
                         try
                         {
-                            chunk = StrictUtf8.GetString(buffer, 0, bytesRead);
+                            int charCount = utf8Decoder.GetChars(buffer, 0, bytesRead, charBuf, 0, false);
+                            chunk = new string(charBuf, 0, charCount);
                         }
                         catch (DecoderFallbackException)
                         {
