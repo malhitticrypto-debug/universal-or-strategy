@@ -40,6 +40,27 @@ namespace NinjaTrader.NinjaScript.Strategies
         private ConcurrentDictionary<string, DateTime> _repairBlockedLastLogged
             = new ConcurrentDictionary<string, DateTime>();
 
+        private bool IsReaperFillGraceActive()
+        {
+            long stampTicks = Interlocked.Read(ref _lastExpectedPositionSetTicks);
+            return stampTicks > 0 && (DateTime.UtcNow.Ticks - stampTicks) < ReaperFillGraceTicks;
+        }
+
+        private bool TryGetRepairDistanceLimitPoints(out double limitPoints)
+        {
+            limitPoints = 0;
+            double atrLimit = CalculateATRStopDistance(RMAStopATRMultiplier);
+            if (atrLimit <= 0)
+                atrLimit = MinimumStop;
+
+            double fenceLimit = (RepairTickFence > 0 && tickSize > 0)
+                ? RepairTickFence * tickSize
+                : atrLimit;
+
+            limitPoints = Math.Min(Math.Abs(atrLimit), Math.Abs(fenceLimit));
+            return limitPoints > 0;
+        }
+
         /// <summary>
         /// V12 SIMA: Start the Reaper audit background thread
         /// </summary>
@@ -151,8 +172,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // Compare with expected
                     // Build 1102U [BUG-1]: Composite key + stateLock guard (reads were previously unguarded on background thread).
+                    string expectedKey = ExpKey(acct.Name);
                     int expectedQty = 0;
-                    lock (stateLock) { expectedPositions.TryGetValue(ExpKey(acct.Name), out expectedQty); }
+                    bool syncPending = false;
+                    lock (stateLock)
+                    {
+                        expectedPositions.TryGetValue(expectedKey, out expectedQty);
+                        syncPending = _dispatchSyncPendingExpKeys.Contains(expectedKey);
+                    }
+                    bool inFillGrace = IsReaperFillGraceActive();
 
                     // V12.9: Only log individual accounts when they have non-zero state (reduces spam)
                     if (shouldLog && (expectedQty != 0 || actualQty != 0))
@@ -182,6 +210,16 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                             // V12.Phase8.2: Follower is FLAT but expected position exists — candidate for auto-repair.
                             // V12.Phase8.3: Repair identity includes instrument to prevent cross-chart collisions
+                            if (syncPending || inFillGrace)
+                            {
+                                if (shouldLog)
+                                {
+                                    string reason = syncPending ? "dispatch sync pending" : "fill grace active";
+                                    Print($"[REAPER] {acct.Name}: repair deferred ({reason}) while expected={expectedQty}, actual=0.");
+                                }
+                                continue;
+                            }
+
                             string repairKey = acct.Name + "_" + Instrument.FullName;
                             bool alreadyInFlight;
                             lock (stateLock) { alreadyInFlight = _repairInFlight.Contains(repairKey); }
@@ -511,7 +549,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// V12.Phase8.2: Processes queued repair requests on the strategy thread.
         /// Re-issues the original entry order for a desynced follower account.
         /// Uses the stored EntryOrderType for symmetrical repairs.
-        /// RepairTickFence is enforced only for Market repairs (chasing price).
+        /// Build 935: Repairs are hard-gated by min(ATR bound, RepairTickFence) for all order types.
         /// </summary>
         private void ProcessReaperRepairQueue()
         {
@@ -561,10 +599,34 @@ namespace NinjaTrader.NinjaScript.Strategies
                         repairStopPrice = repairEntryPrice;
                     }
 
+                    // Build 935: hard risk gate for ALL repair order types.
+                    // Repairs must remain inside the tighter of ATR-derived distance and tick fence distance.
+                    double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
+                    if (currentPrice <= 0)
+                    {
+                        Print($"[REAPER] REPAIR BLOCKED: invalid currentPrice={currentPrice:F4} for {accountName}.");
+                        continue;
+                    }
+
+                    if (!TryGetRepairDistanceLimitPoints(out double repairLimitPoints))
+                    {
+                        Print($"[REAPER] REPAIR BLOCKED: unable to derive repair distance bound for {accountName}.");
+                        continue;
+                    }
+
+                    double hardBoundDiff = Math.Abs(currentPrice - repairEntryPrice);
+                    if (hardBoundDiff > repairLimitPoints)
+                    {
+                        Print($"[REAPER] REPAIR BLOCKED: {accountName} {repairOrderType} exceeds hard bound. " +
+                              $"Current={currentPrice:F2}, Entry={repairEntryPrice:F2}, Diff={hardBoundDiff:F4} > Limit={repairLimitPoints:F4}.");
+                        continue;
+                    }
+
                     // 2. Safety Fence: enforce only when repair submits a Market order.
                     if (repairOrderType == OrderType.Market)
                     {
-                        double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
+                        // Legacy market-fence check retained as a secondary guard.
+                        // currentPrice already validated above.
                         double priceDiff = Math.Abs(currentPrice - repairEntryPrice);
                         double fenceDistance = RepairTickFence * tickSize;
 
@@ -705,17 +767,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Compute emergency stop price: MaximumStop ticks from current close.
                     // Close[0] is safe here — ProcessReaperNakedStopQueue runs on strategy thread
                     // via TriggerCustomEvent.
+                    double emergencyStopDist = MaximumStop;
+                    double atrBound = CalculateATRStopDistance(RMAStopATRMultiplier);
+                    if (atrBound > 0)
+                        emergencyStopDist = Math.Min(emergencyStopDist, atrBound);
+                    if (emergencyStopDist <= 0)
+                        emergencyStopDist = Math.Max(tickSize, MinimumStop);
+
                     double stopPrice;
                     OrderAction closeAction;
 
                     if (item.Direction == MarketPosition.Long)
                     {
-                        stopPrice   = Instrument.MasterInstrument.RoundToTickSize(Close[0] - MaximumStop);
+                        stopPrice   = Instrument.MasterInstrument.RoundToTickSize(Close[0] - emergencyStopDist);
                         closeAction = OrderAction.Sell;
                     }
                     else
                     {
-                        stopPrice   = Instrument.MasterInstrument.RoundToTickSize(Close[0] + MaximumStop);
+                        stopPrice   = Instrument.MasterInstrument.RoundToTickSize(Close[0] + emergencyStopDist);
                         closeAction = OrderAction.BuyToCover;
                     }
 
@@ -730,8 +799,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // BUG-M2: Clear in-flight guard after successful submission
                     lock (stateLock) { _reaperNakedStopInFlight.Remove(item.AccountName); }
                     Print(string.Format(
-                        "[REAPER][EMERGENCY_STOP] Submitted StopMarket for {0}: {1} {2}ct @ {3:F2}",
-                        item.AccountName, closeAction, item.Qty, stopPrice));
+                        "[REAPER][EMERGENCY_STOP] Submitted StopMarket for {0}: {1} {2}ct @ {3:F2} (Dist={4:F2})",
+                        item.AccountName, closeAction, item.Qty, stopPrice, emergencyStopDist));
                 }
                 catch (Exception ex)
                 {

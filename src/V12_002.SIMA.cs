@@ -69,10 +69,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 int oldVal = 0;
                 expectedPositions.TryGetValue(accountName, out oldVal);
                 int newVal = oldVal + delta;
-                expectedPositions.AddOrUpdate(accountName, delta, (k, v) => v + delta);
+                expectedPositions[accountName] = newVal;
                 // [Phase 8.2 Part 3 - ACCOUNT_SYNC] Trace every mutation for desync audits.
                 Print(string.Format("[ACCOUNT_SYNC] {0} expected: {1} -> {2}", accountName, oldVal, newVal));
             }
+            if (delta != 0)
+                Interlocked.Exchange(ref _lastExpectedPositionSetTicks, DateTime.UtcNow.Ticks);
         }
 
         // V12.1101E [F-06]: Shared AddOrUpdate wrapper with stateLock serialization.
@@ -92,6 +94,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             lock (stateLock)
             {
                 expectedPositions[accountName] = value;
+                if (value == 0)
+                    _dispatchSyncPendingExpKeys.Remove(accountName);
             }
             // REAP-01: Stamp timestamp when a position is reserved so REAPER can apply
             // a grace window and avoid false "Critical Desync" during the broker-confirm lag.
@@ -113,6 +117,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                 expectedPositions[accountName] = updated;
                 Print(string.Format("[ACCOUNT_SYNC] {0} expected delta: {1} + ({2}) = {3}", accountName, current, delta, updated));
             }
+            if (delta != 0)
+                Interlocked.Exchange(ref _lastExpectedPositionSetTicks, DateTime.UtcNow.Ticks);
+        }
+
+        private void MarkDispatchSyncPending(string expectedKey)
+        {
+            if (string.IsNullOrEmpty(expectedKey)) return;
+            lock (stateLock) { _dispatchSyncPendingExpKeys.Add(expectedKey); }
+        }
+
+        private void ClearDispatchSyncPending(string expectedKey)
+        {
+            if (string.IsNullOrEmpty(expectedKey)) return;
+            lock (stateLock) { _dispatchSyncPendingExpKeys.Remove(expectedKey); }
+        }
+
+        private bool IsDispatchSyncPending(string expectedKey)
+        {
+            if (string.IsNullOrEmpty(expectedKey)) return false;
+            lock (stateLock) { return _dispatchSyncPendingExpKeys.Contains(expectedKey); }
         }
 
         /// <summary>
@@ -405,7 +429,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     string ocoId = tradeType + "_" + DateTime.Now.Ticks + "_" + i;
                     string fleetEntryName = "Fleet_" + acct.Name + "_" + tradeType + "_" + i;
-
+                    string expectedKey = ExpKey(acct.Name);
+                    int reservedDelta = 0;
+                    bool registeredForCleanup = false;
+                    bool syncPending = false;
                     try
                     {
                         SymmetryGuardRegisterFollower(symmetryDispatchId, fleetEntryName);
@@ -525,29 +552,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 nonRunnerLimitQty += targetQty;
                             }
 
-                            // V12.Phase7 [C-02]: Reserve expectedPositions BEFORE Submit to eliminate Reaper
-                            // race window. If Submit throws, undo the reservation in the catch block.
-                            int delta = (action == OrderAction.Buy) ? quantity : -quantity;
-                            AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta);
-
-                            // [Phase 7.2 LATENCY] Measure broker submit round-trip — stateLock is NOT held here.
-                            long tSubmitStart = sw.ElapsedTicks;
-                            acct.Submit(ordersToSubmit.ToArray());
-                            long tSubmitEnd = sw.ElapsedTicks;
-                            dispatchLog.AppendLine(string.Format("  RTT | {0,-28} | Market+{1}orders | {2,8:F3} ms",
-                                acct.Name, ordersToSubmit.Count,
-                                (tSubmitEnd - tSubmitStart) * 1000.0 / Stopwatch.Frequency));
-
-                            // V12.Audit [Q2-002]: Commit all tracking dicts atomically under stateLock to eliminate
-                            // the expectedPositions > 0 / activePositions empty desync window seen by Reaper.
-                            // AddExpectedPositionDeltaLocked (above) already holds stateLock internally;
-                            // this separate lock wraps only the post-Submit commit block.
+                            // Build 935: Register local dictionaries before reserve/submit so REAPER never
+                            // observes Expected!=0 without entry/stop/targets tracking state.
                             lock (stateLock)
                             {
                                 activePositions[fleetEntryName] = fleetPos;
                                 entryOrders[fleetEntryName] = entry;
                                 stopOrders[fleetEntryName] = stop;
-                                // Commit staged target orders to tracking dictionaries
                                 foreach (var st in stagedTargets)
                                 {
                                     var targetDict = GetTargetOrdersDictionary(st.Num);
@@ -555,6 +566,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                                         targetDict[fleetEntryName] = st.Order;
                                 }
                             }
+                            registeredForCleanup = true;
+                            MarkDispatchSyncPending(expectedKey);
+                            syncPending = true;
+
+                            // Build 935: Reserve follower-sized expected quantity only.
+                            reservedDelta = (action == OrderAction.Buy) ? followerQty : -followerQty;
+                            AddExpectedPositionDeltaLocked(expectedKey, reservedDelta);
+
+                            // [Phase 7.2 LATENCY] Measure broker submit round-trip — stateLock is NOT held here.
+                            long tSubmitStart = sw.ElapsedTicks;
+                            acct.Submit(ordersToSubmit.ToArray());
+                            long tSubmitEnd = sw.ElapsedTicks;
+                            ClearDispatchSyncPending(expectedKey);
+                            syncPending = false;
+                            dispatchLog.AppendLine(string.Format("  RTT | {0,-28} | Market+{1}orders | {2,8:F3} ms",
+                                acct.Name, ordersToSubmit.Count,
+                                (tSubmitEnd - tSubmitStart) * 1000.0 / Stopwatch.Frequency));
 
                             dispatchLog.AppendLine(string.Format("[SIMA STOP_AUDIT] OK {0}: StopQty={1} NonRunnerLimits={2} RunnerQty={3}",
                                 fleetEntryName, fleetPos.TotalContracts, nonRunnerLimitQty, runnerQty));
@@ -571,14 +599,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 activePositions[fleetEntryName] = fleetPos;
                                 entryOrders[fleetEntryName] = entry; // V12.3: Track entry for CIT chase
                             }
+                            registeredForCleanup = true;
+                            MarkDispatchSyncPending(expectedKey);
+                            syncPending = true;
 
-                            int delta = (action == OrderAction.Buy) ? quantity : -quantity;
-                            AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta);
+                            reservedDelta = (action == OrderAction.Buy) ? followerQty : -followerQty;
+                            AddExpectedPositionDeltaLocked(expectedKey, reservedDelta);
 
                             // [Phase 7.2 LATENCY] Measure broker submit round-trip — stateLock is NOT held here.
                             long tSubmitStart = sw.ElapsedTicks;
                             acct.Submit(new[] { entry });
                             long tSubmitEnd = sw.ElapsedTicks;
+                            ClearDispatchSyncPending(expectedKey);
+                            syncPending = false;
                             dispatchLog.AppendLine(string.Format("  RTT | {0,-28} | Limit        | {1,8:F3} ms",
                                 acct.Name,
                                 (tSubmitEnd - tSubmitStart) * 1000.0 / Stopwatch.Frequency));
@@ -588,28 +621,27 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     catch (Exception ex)
                     {
-                        // V12.Audit [ORPHAN-02]: Use direct stateLock set for rollback to prevent
-                        // concurrent update loss in ConcurrentDictionary functional update.
-                        // Under high concurrency (two parallel fleet dispatches), the losing thread's
-                        // functional-update rollback would be silently discarded; direct set under lock is safe.
-                        int rollbackDelta = (action == OrderAction.Buy) ? -quantity : quantity;
-                        lock (stateLock)
+                        if (syncPending)
                         {
-                            if (expectedPositions.TryGetValue(ExpKey(acct.Name), out int currentExpected))
-                            {
-                                expectedPositions[ExpKey(acct.Name)] = Math.Max(0, currentExpected + rollbackDelta);
-                            }
+                            ClearDispatchSyncPending(expectedKey);
+                            syncPending = false;
                         }
 
-                        // V12.Phase8 [F-01]: Full tracking-dict cleanup on Submit failure.
-                        activePositions.TryRemove(fleetEntryName, out _);
-                        entryOrders.TryRemove(fleetEntryName, out _);
-                        stopOrders.TryRemove(fleetEntryName, out _);
-                        for (int tNum = 1; tNum <= 5; tNum++)
+                        if (reservedDelta != 0)
+                            AddExpectedPositionDeltaLocked(expectedKey, -reservedDelta);
+
+                        if (registeredForCleanup)
                         {
-                            var targetDict = GetTargetOrdersDictionary(tNum);
-                            if (targetDict != null)
-                                targetDict.TryRemove(fleetEntryName, out _);
+                            // V12.Phase8 [F-01]: Full tracking-dict cleanup on Submit failure.
+                            activePositions.TryRemove(fleetEntryName, out _);
+                            entryOrders.TryRemove(fleetEntryName, out _);
+                            stopOrders.TryRemove(fleetEntryName, out _);
+                            for (int tNum = 1; tNum <= 5; tNum++)
+                            {
+                                var targetDict = GetTargetOrdersDictionary(tNum);
+                                if (targetDict != null)
+                                    targetDict.TryRemove(fleetEntryName, out _);
+                            }
                         }
 
                         dispatchLog.AppendLine($"[DISPATCH] ✗ FAILED on {acct.Name}: {ex.Message}");
@@ -838,6 +870,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         continue;
                     }
 
+                    int reservedDelta = 0;
                     try
                     {
                         // V12.1: Consistency Lock Check
@@ -858,8 +891,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             // V12.Phase7 [C-02/H-07]: Reserve expectedPositions BEFORE Submit to eliminate
                             // Reaper false-desync race. Rolled back in catch block on failure.
-                            int delta = (action == OrderAction.Buy || action == OrderAction.BuyToCover) ? quantity : -quantity;
-                            AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta);
+                            reservedDelta = (action == OrderAction.Buy || action == OrderAction.BuyToCover) ? quantity : -quantity;
+                            AddExpectedPositionDeltaLocked(ExpKey(acct.Name), reservedDelta);
                             acct.Submit(new[] { order });
                         }
 
@@ -869,9 +902,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         // V12.Phase7 [GAP-3]: Undo expectedPositions reservation if submission failed.
                         // Delta may or may not have been applied (depends on where exception occurred),
-                        // but rollback is safe — Math.Max(0, ...) prevents negative values.
-                        int rollbackDelta = (action == OrderAction.Buy || action == OrderAction.BuyToCover) ? -quantity : quantity;
-                        AddOrUpdateExpectedPositionLocked(ExpKey(acct.Name), 0, v => Math.Max(0, v + rollbackDelta));
+                        // so rollback is conditional on whether reserve completed.
+                        if (reservedDelta != 0)
+                            AddExpectedPositionDeltaLocked(ExpKey(acct.Name), -reservedDelta);
                         failCount++;
                         Print($"[SIMA] ✗ FAILED on {acct.Name}: {ex.Message}");
                     }
@@ -897,6 +930,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (acct.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
+                    int reservedDelta = 0;
                     try
                     {
                         // V12.1: Consistency Lock Check
@@ -931,8 +965,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         // V12.Phase7 [C-02/GAP-2]: Reserve expectedPositions BEFORE Submit to eliminate
                         // Reaper race window. Rolled back in catch block on failure.
-                        int delta = (action == OrderAction.Buy) ? quantity : -quantity;
-                        AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta);
+                        reservedDelta = (action == OrderAction.Buy) ? quantity : -quantity;
+                        AddExpectedPositionDeltaLocked(ExpKey(acct.Name), reservedDelta);
 
                         // 3. Submit as Atomic Group (Broker OCO)
                         acct.Submit(new[] { entry, stop, target });
@@ -941,8 +975,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     catch (Exception ex)
                     {
                         // V12.Phase7 [C-02/GAP-2]: Undo expectedPositions reservation if submission failed.
-                        int rollbackDelta = (action == OrderAction.Buy) ? -quantity : quantity;
-                        AddOrUpdateExpectedPositionLocked(ExpKey(acct.Name), rollbackDelta, v => Math.Max(0, v + rollbackDelta));
+                        if (reservedDelta != 0)
+                            AddExpectedPositionDeltaLocked(ExpKey(acct.Name), -reservedDelta);
                         Print($"[SIMA] ✗ BRACKET FAILED on {acct.Name}: {ex.Message}");
                     }
                 }
@@ -1104,6 +1138,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // [923B-FIX-B]: fleetKey declared outside try so catch can access it for dict rollback.
                     string fleetKey = acct.Name + "_RMA_" + baseSignal;
+                    string expectedKey = ExpKey(acct.Name);
+                    int reservedDelta = 0;
+                    bool syncPending = false;
                     try
                     {
                         SymmetryGuardRegisterFollower(symmetryDispatchId, fleetKey);
@@ -1169,20 +1206,31 @@ namespace NinjaTrader.NinjaScript.Strategies
                             entryOrders[fleetKey] = fEntry;               // REAPER hasWorkingEntry check reads these
                         }
 
-                        int delta = (direction == MarketPosition.Long) ? qty : -qty;
-                        AddExpectedPositionDeltaLocked(ExpKey(acct.Name), delta); // SECOND: expectedPositions
+                        MarkDispatchSyncPending(expectedKey);
+                        syncPending = true;
+
+                        reservedDelta = (direction == MarketPosition.Long) ? qty : -qty;
+                        AddExpectedPositionDeltaLocked(expectedKey, reservedDelta); // SECOND: expectedPositions
 
                         acct.Submit(new[] { fEntry }); // LAST — stateLock not held here
+                        ClearDispatchSyncPending(expectedKey);
+                        syncPending = false;
                         // stopOrders/target1..target5 are set by follower bracket submission on fill
 
                         fleetOk++;
                     }
                     catch (Exception ex)
                     {
+                        if (syncPending)
+                        {
+                            ClearDispatchSyncPending(expectedKey);
+                            syncPending = false;
+                        }
+
                         // [923B-FIX-B]: Full rollback — dicts were registered before expectedPositions,
                         // so both must be cleaned up on Submit failure (mirrors ExecuteSmartDispatchEntry catch).
-                        int rollbackDelta = (direction == MarketPosition.Long) ? -qty : qty;
-                        AddOrUpdateExpectedPositionLocked(ExpKey(acct.Name), rollbackDelta, v => Math.Max(0, v + rollbackDelta));
+                        if (reservedDelta != 0)
+                            AddExpectedPositionDeltaLocked(expectedKey, -reservedDelta);
                         activePositions.TryRemove(fleetKey, out _);
                         entryOrders.TryRemove(fleetKey, out _);
                         Print($"[SIMA RMA V2] FAIL {acct.Name}: {ex.Message}");

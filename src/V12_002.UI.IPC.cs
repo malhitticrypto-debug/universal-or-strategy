@@ -34,6 +34,26 @@ namespace NinjaTrader.NinjaScript.Strategies
     {
         #region IPC Integration (V9.1.8)
 
+        private static readonly UTF8Encoding StrictUtf8 = new UTF8Encoding(false, true);
+        private const int IpcMaxBufferedChars = 8192;
+        private const int IpcMaxCommandLength = 512;
+        private const int IpcMaxQueueDepth = 2000;
+        private const int IpcMaxCommandsPerDrain = 500;
+        private int ipcQueuedCommandCount = 0;
+        private int _ipcClientIdSeed = 0;
+
+        private static readonly HashSet<string> AllowedIpcActions =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "TRIM_25","TRIM_50","CONFIG","SET_TRAIL","SET_CIT","LOCK_50",
+                "BE","BE_CUSTOM","BE_PLUS_2","BE_PLUS_1","FLATTEN_ONLY","FLATTEN",
+                "CANCEL_ALL","RESET_MEMORY","LONG","SHORT","OR_LONG","OR_SHORT",
+                "SET_SIMA","DIAG_FLEET","SET_RMA_MODE","SYNC_MODE","SET_TARGETS",
+                "MKT_SYNC","SYNC_ALL","SET_MODE","SET_LEADER_ACCOUNT","REQUEST_FLEET_STATE",
+                "SET_MANUAL_PRICE","TREND_MANUAL_LIMIT","RETEST_MANUAL_LIMIT",
+                "FFMA_MANUAL_LIMIT","FFMA_MANUAL_MARKET","FFMA_DISARM","GET_LAYOUT"
+            };
+
         private void StartIpcServer()
         {
             if (isIpcRunning) return;
@@ -44,16 +64,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 isIpcRunning = true;
                 ipcCommandQueue = new ConcurrentQueue<string>();
+                Interlocked.Exchange(ref ipcQueuedCommandCount, 0);
 
                 // V12.2: Multi-Client Support
-                connectedClients = new ConcurrentBag<TcpClient>();
+                connectedClients = new ConcurrentDictionary<int, TcpClient>();
 
                 ipcThread = new Thread(ListenForRemote);
                 ipcThread.IsBackground = true;
                 ipcThread.Name = "V10_IPC_Server";
                 ipcThread.Start();
 
-                Print(string.Format("IPC SERVER SUCCESS: Listening on Port {0} (Multi-Client)", IpcPort));
+                Print(string.Format("IPC SERVER SUCCESS: Listening on 127.0.0.1:{0} (Multi-Client)", IpcPort));
             }
             catch (Exception ex)
             {
@@ -65,7 +86,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             try
             {
-                ipcListener = new TcpListener(IPAddress.Any, IpcPort);
+                ipcListener = new TcpListener(IPAddress.Loopback, IpcPort);
                 ipcListener.Start();
 
                 while (isIpcRunning)
@@ -78,8 +99,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // Accept new client
                     TcpClient client = ipcListener.AcceptTcpClient();
-                    connectedClients.Add(client);
-                    Print("V12 IPC: New Client Connected");
+                    int clientId = Interlocked.Increment(ref _ipcClientIdSeed);
+                    connectedClients[clientId] = client;
+                    Print($"V12 IPC: New Client Connected [id={clientId}]");
 
                     // V12.13-D: Send REQUEST_FLEET_STATE directly to the newly connected client
                     // (Previously called SendToExternalApp which connected back to port 5001 = self, causing infinite flood loop)
@@ -97,7 +119,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     // Handle client in a separate task
-                    Task.Run(() => HandleClient(client));
+                    Task.Run(() => HandleClient(clientId, client));
                 }
             }
             catch (Exception)
@@ -114,7 +136,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
         }
 
-        private void HandleClient(TcpClient client)
+        private void HandleClient(int clientId, TcpClient client)
         {
             try
             {
@@ -134,8 +156,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                         int bytesRead = stream.Read(buffer, 0, buffer.Length);
                         if (bytesRead == 0) break; // Disconnected
 
-                        string chunk = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                        string chunk;
+                        try
+                        {
+                            chunk = StrictUtf8.GetString(buffer, 0, bytesRead);
+                        }
+                        catch (DecoderFallbackException)
+                        {
+                            Print($"V12 IPC: Invalid UTF-8 payload from client {clientId}; disconnecting.");
+                            break;
+                        }
                         lineBuffer.Append(chunk);
+
+                        if (lineBuffer.Length > IpcMaxBufferedChars)
+                        {
+                            Print($"V12 IPC: Client {clientId} exceeded max buffered payload ({IpcMaxBufferedChars}); disconnecting.");
+                            break;
+                        }
 
                         string accumulated = lineBuffer.ToString();
                         int lastNewline = accumulated.LastIndexOf('\n');
@@ -146,6 +183,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (lastNewline + 1 < accumulated.Length)
                         {
                             lineBuffer.Append(accumulated.Substring(lastNewline + 1));
+                            if (lineBuffer.Length > IpcMaxBufferedChars)
+                            {
+                                Print($"V12 IPC: Client {clientId} residue exceeded max buffered payload ({IpcMaxBufferedChars}); disconnecting.");
+                                break;
+                            }
                         }
 
                         string[] commands = completeLines.Split(new[] { '\n' }, StringSplitOptions.RemoveEmptyEntries);
@@ -180,8 +222,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                             }
 
                             // Enqueue for processing
-                            ipcCommandQueue.Enqueue(message);
-                            Print(string.Format("V12.1 IPC ENQUEUE: {0}", message));
+                            if (!TryEnqueueIpcCommand(message, out string enqueueReason))
+                            {
+                                Print(string.Format("V12 IPC REJECT [client={0}] {1}: {2}", clientId, message, enqueueReason));
+                                continue;
+                            }
+                            Print(string.Format("V12.1 IPC ENQUEUE [client={0}] {1}", clientId, message));
 
                             // Trigger processing
                             try
@@ -199,10 +245,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             finally
             {
-                // Remove client from bag (rebuild bag exclusion) - ConcurrentBag doesn't have Remove,
-                // effectively we just let it connect/disconnect. The SendResponse will handle dead clients.
-                Print("V12 IPC: Client Disconnected");
-                client.Close();
+                if (connectedClients != null)
+                    connectedClients.TryRemove(clientId, out _);
+                Print($"V12 IPC: Client Disconnected [id={clientId}]");
+                try { client.Close(); } catch { }
             }
         }
 
@@ -220,6 +266,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     ipcThread.Join(500);
                 }
+
+                if (connectedClients != null)
+                {
+                    foreach (var kvp in connectedClients.ToArray())
+                    {
+                        try { kvp.Value.Close(); } catch { }
+                    }
+                    connectedClients.Clear();
+                }
+                Interlocked.Exchange(ref ipcQueuedCommandCount, 0);
             }
             catch { }
         }
@@ -274,6 +330,79 @@ namespace NinjaTrader.NinjaScript.Strategies
             return true;
         }
 
+        private bool TryEnqueueIpcCommand(string message, out string reason)
+        {
+            reason = null;
+            if (message != null)
+                message = message.Trim();
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                reason = "empty command";
+                return false;
+            }
+
+            if (message.Length > IpcMaxCommandLength)
+            {
+                reason = $"command exceeds {IpcMaxCommandLength} chars";
+                return false;
+            }
+
+            int queueDepth = Interlocked.Increment(ref ipcQueuedCommandCount);
+            if (queueDepth > IpcMaxQueueDepth)
+            {
+                Interlocked.Decrement(ref ipcQueuedCommandCount);
+                reason = $"queue depth exceeded ({IpcMaxQueueDepth})";
+                return false;
+            }
+
+            ipcCommandQueue.Enqueue(message);
+            return true;
+        }
+
+        private bool IsAllowedIpcAction(string action)
+        {
+            if (string.IsNullOrWhiteSpace(action))
+                return false;
+
+            if (AllowedIpcActions.Contains(action))
+                return true;
+
+            return action.StartsWith("MOVE_TARGET", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("CLOSE_T", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("GET_FLEET", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("SET_MAX_RISK", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("TOGGLE_ACCOUNT", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("SET_ANCHOR", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("MODE_", StringComparison.OrdinalIgnoreCase) ||
+                   action.StartsWith("EXEC_", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private List<Account> GetFleetAccountsSnapshot()
+        {
+            return Account.All
+                .Where(a => a != null && a.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0)
+                .OrderBy(a => a.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private Dictionary<string, string> BuildFleetAliasMap(List<Account> accounts)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (accounts == null) return map;
+            for (int i = 0; i < accounts.Count; i++)
+                map[accounts[i].Name] = "F" + (i + 1).ToString("D2");
+            return map;
+        }
+
+        private string GetIpcFleetIdentity(string accountName, Dictionary<string, string> aliasMap)
+        {
+            if (IpcExposeSensitiveFleetIdentity || string.IsNullOrEmpty(accountName))
+                return accountName;
+            if (aliasMap != null && aliasMap.TryGetValue(accountName, out string alias))
+                return alias;
+            return "F00";
+        }
+
         private void HandleExternalSignal(object sender, SignalBroadcaster.ExternalCommandSignal e)
         {
             // V10.3: Only non-winners (secondary charts) need to handle the broadcast
@@ -281,7 +410,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (ipcCommandQueue != null && !isIpcRunning)
             {
                 Print(string.Format("V10.3 DEBUG: {0} received broadcast: {1}", Instrument.MasterInstrument.Name, e.Command));
-                ipcCommandQueue.Enqueue(e.Command);
+                if (!TryEnqueueIpcCommand(e.Command, out string enqueueReason))
+                {
+                    Print(string.Format("V10.3 IPC REJECT broadcast '{0}': {1}", e.Command, enqueueReason));
+                    return;
+                }
 
                 // Force instant processing for secondary charts (so they don't wait for a tick)
                 try { TriggerCustomEvent(o => ProcessIpcCommands(), null); } catch { }
@@ -292,12 +425,32 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (ipcCommandQueue == null || ipcCommandQueue.IsEmpty) return;
 
-            while (ipcCommandQueue.TryDequeue(out string command))
+            int drainedCount = 0;
+            while (drainedCount < IpcMaxCommandsPerDrain && ipcCommandQueue.TryDequeue(out string command))
             {
+                if (Interlocked.Decrement(ref ipcQueuedCommandCount) < 0)
+                    Interlocked.Exchange(ref ipcQueuedCommandCount, 0);
+                drainedCount++;
                 try
                 {
+                    if (string.IsNullOrWhiteSpace(command) || command.Length > IpcMaxCommandLength)
+                    {
+                        Print($"V12 IPC REJECT: malformed/oversize command '{command}'");
+                        continue;
+                    }
+
                     string[] parts = command.Split('|');
-                    string action = parts[0];
+                    if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
+                    {
+                        Print($"V12 IPC REJECT: empty action in '{command}'");
+                        continue;
+                    }
+                    string action = parts[0].Trim().ToUpperInvariant();
+                    if (!IsAllowedIpcAction(action))
+                    {
+                        Print($"V12 IPC REJECT: action '{action}' is not allowed");
+                        continue;
+                    }
                     string targetSymbol = parts.Length > 1 ? parts[1] : "Global";
 
                     // V12.9: Global commands bypass symbol filter entirely — these are account/fleet-level, not instrument-level
@@ -917,15 +1070,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else if (action.StartsWith("GET_FLEET"))
                     {
-                        // Broadcast account names to the Remote App for UI mapping
+                        var fleetAccounts = GetFleetAccountsSnapshot();
+                        var aliasMap = BuildFleetAliasMap(fleetAccounts);
                         StringBuilder sb = new StringBuilder("CONFIG|FLEET");
-                        foreach (var acct in Account.All)
-                        {
-                            if (acct.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                sb.Append($"|{acct.Name}");
-                            }
-                        }
+                        sb.Append("|COUNT:").Append(fleetAccounts.Count);
+                        foreach (var acct in fleetAccounts)
+                            sb.Append("|").Append(GetIpcFleetIdentity(acct.Name, aliasMap));
                         SendResponseToRemote(sb.ToString());
                         Print("[SIMA] GET_FLEET → Responded with account list");
                     }
@@ -1107,19 +1257,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                         StringBuilder fsb = new StringBuilder("FLEET_STATE|");
                         fsb.Append(Instrument.FullName).Append("|");
                         fsb.Append(Position.MarketPosition).Append("|");
-                        
+
+                        var fleetAccounts = GetFleetAccountsSnapshot();
+                        var aliasMap = BuildFleetAliasMap(fleetAccounts);
                         List<string> acctStates = new List<string>();
-                        foreach (Account acct in Account.All)
+                        foreach (Account acct in fleetAccounts)
                         {
-                            if (acct.Name.IndexOf(AccountPrefix, StringComparison.OrdinalIgnoreCase) >= 0)
-                            {
-                                var bPos = acct.Positions.FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
-                                int act = (bPos != null && bPos.MarketPosition != MarketPosition.Flat) 
-                                    ? (bPos.MarketPosition == MarketPosition.Long ? (int)bPos.Quantity : -(int)bPos.Quantity) : 0;
-                                int exp = 0;
-                                if (expectedPositions != null) expectedPositions.TryGetValue(ExpKey(acct.Name), out exp);
-                                acctStates.Add($"{acct.Name}:{act}:{exp}");
-                            }
+                            var bPos = acct.Positions.FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
+                            int act = (bPos != null && bPos.MarketPosition != MarketPosition.Flat)
+                                ? (bPos.MarketPosition == MarketPosition.Long ? (int)bPos.Quantity : -(int)bPos.Quantity) : 0;
+                            int exp = 0;
+                            if (expectedPositions != null) expectedPositions.TryGetValue(ExpKey(acct.Name), out exp);
+                            acctStates.Add($"{GetIpcFleetIdentity(acct.Name, aliasMap)}:{act}:{exp}");
                         }
                         fsb.Append(string.Join(";", acctStates));
                         SendResponseToRemote(fsb.ToString());
@@ -1228,6 +1377,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Print("Error ProcessIpcCommands: " + ex.Message);
                 }
             }
+
+            if (!ipcCommandQueue.IsEmpty)
+            {
+                try { TriggerCustomEvent(o => ProcessIpcCommands(), null); } catch { }
+            }
         }
 
         private void SendResponseToRemote(string response)
@@ -1236,13 +1390,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Diagnostic: Log what we are sending and to how many clients
             if (response.Contains("SYNC_TARGET_STATE"))
-                 Print($"V14 IPC: Broadcasting {response} to {connectedClients.Count} clients");
+                 Print($"V14 IPC: Broadcasting SYNC_TARGET_STATE to {connectedClients.Count} clients");
 
             byte[] responseBytes = Encoding.UTF8.GetBytes(response + "\n");
-            List<TcpClient> disconnectedClients = new List<TcpClient>();
+            List<int> disconnectedClientIds = new List<int>();
 
-            foreach (var client in connectedClients)
+            foreach (var kvp in connectedClients.ToArray())
             {
+                int clientId = kvp.Key;
+                TcpClient client = kvp.Value;
                 try
                 {
                     if (client.Connected && client.GetStream().CanWrite)
@@ -1252,13 +1408,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     else
                     {
-                        Print("V14 IPC: Client disconnected or stream not writable.");
+                        disconnectedClientIds.Add(clientId);
                     }
                 }
                 catch (Exception ex)
                 {
                     Print($"V14 IPC: Send Error - {ex.Message}");
-                    // Client likely disconnected, will be handled by reading loop or next cleanup
+                    disconnectedClientIds.Add(clientId);
+                }
+            }
+
+            foreach (int clientId in disconnectedClientIds)
+            {
+                if (connectedClients.TryRemove(clientId, out var staleClient))
+                {
+                    try { staleClient.Close(); } catch { }
                 }
             }
         }

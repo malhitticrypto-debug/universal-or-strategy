@@ -415,10 +415,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 string rejAcctName = (kvp.Value.IsFollower && kvp.Value.ExecutingAccount != null)
                                     ? kvp.Value.ExecutingAccount.Name
                                     : Account.Name;
+                                int rollbackDelta = (kvp.Value.Direction == MarketPosition.Long)
+                                    ? -kvp.Value.TotalContracts
+                                    : kvp.Value.TotalContracts;
                                 Print(string.Format("[ZOMBIE-FIX] Entry REJECTED: {0}. Tearing down memory for acct={1}.", orderName, rejAcctName));
                                 CleanupPosition(kvp.Key);
-                                SetExpectedPositionLocked(ExpKey(rejAcctName), 0);
-                                Print(string.Format("[ZOMBIE-FIX] expectedPositions zeroed for {0} after rejection.", ExpKey(rejAcctName)));
+                                DeltaExpectedPositionLocked(ExpKey(rejAcctName), rollbackDelta);
+                                ClearDispatchSyncPending(ExpKey(rejAcctName));
+                                Print(string.Format("[ZOMBIE-FIX] expectedPositions delta-applied for {0} after rejection ({1:+#;-#;0}).", ExpKey(rejAcctName), rollbackDelta));
                                 break;
                             }
                         }
@@ -633,8 +637,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                             string cancelAcctName = (pos.IsFollower && pos.ExecutingAccount != null)
                                 ? pos.ExecutingAccount.Name
                                 : Account.Name;
-                            SetExpectedPositionLocked(ExpKey(cancelAcctName), 0);
-                            Print(string.Format("[1102U] Ghost Memory cleared for {0} after entry cancel.", ExpKey(cancelAcctName)));
+                            int rollbackDelta = (pos.Direction == MarketPosition.Long) ? -pos.TotalContracts : pos.TotalContracts;
+                            DeltaExpectedPositionLocked(ExpKey(cancelAcctName), rollbackDelta);
+                            ClearDispatchSyncPending(ExpKey(cancelAcctName));
+                            Print(string.Format("[1102U] Ghost Memory adjusted for {0} after entry cancel ({1:+#;-#;0}).", ExpKey(cancelAcctName), rollbackDelta));
 
                             handledByExplicitCleanup = true;
                             break;
@@ -830,8 +836,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                                         // does not see Expected(1) > Actual(0) and trigger an infinite repair loop.
                                         if (cascadePos.ExecutingAccount != null)
                                         {
-                                            SetExpectedPositionLocked(ExpKey(cascadeAcctName), 0);
-                                            Print(string.Format("[1102U] Ghost Memory cleared for {0} after SIMA cascade cancel.", ExpKey(cascadeAcctName)));
+                                            int rollbackDelta = (cascadePos.Direction == MarketPosition.Long)
+                                                ? -cascadePos.TotalContracts
+                                                : cascadePos.TotalContracts;
+                                            DeltaExpectedPositionLocked(ExpKey(cascadeAcctName), rollbackDelta);
+                                            ClearDispatchSyncPending(ExpKey(cascadeAcctName));
+                                            Print(string.Format("[1102U] Ghost Memory adjusted for {0} after SIMA cascade cancel ({1:+#;-#;0}).", ExpKey(cascadeAcctName), rollbackDelta));
                                             // [GF-01 SWEEP]: Remove any DESYNC label drawn before the cascade fired (race edge case).
                                             try { RemoveDrawObject("SIMA_DESYNC_" + cascadeAcctName); } catch { }
                                         }
@@ -878,6 +888,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (!string.IsNullOrEmpty(flatAcctName))
                     {
                         string flatExpKey = ExpKey(flatAcctName);
+                        bool hasSyncPending = IsDispatchSyncPending(flatExpKey);
                         bool hasPendingEntry = false;
                         foreach (var kvp in entryOrders.ToArray())
                         {
@@ -908,9 +919,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                             }
                         }
 
-                        if (hasPendingEntry || hasActivePositionForAcct)
+                        if (hasPendingEntry || hasActivePositionForAcct || hasSyncPending)
                         {
-                            Print($"[OnPositionUpdate] H-14 SKIP: {flatExpKey} broker=Flat but {(hasPendingEntry ? "pending entry in flight" : "activePositions metadata present")} — not resetting expectedPositions");
+                            string skipReason = hasPendingEntry
+                                ? "pending entry in flight"
+                                : (hasActivePositionForAcct ? "activePositions metadata present" : "dispatch sync pending");
+                            Print($"[OnPositionUpdate] H-14 SKIP: {flatExpKey} broker=Flat but {skipReason} — not resetting expectedPositions");
                         }
                         else
                         {
