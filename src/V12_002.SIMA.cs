@@ -693,7 +693,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Step 2: H-13 stale expectedPositions reconciliation.
             try
             {
-                var brokerPos = acct.Positions.FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
+                // [939-P0]: Snapshot Positions to prevent broker-thread mutation during iteration.
+                var brokerPos = acct.Positions.ToArray().FirstOrDefault(p => p.Instrument.FullName == Instrument.FullName);
                 bool brokerFlat = (brokerPos == null || brokerPos.MarketPosition == MarketPosition.Flat);
                 int expected;
                 lock (stateLock) { expectedPositions.TryGetValue(ExpKey(acct.Name), out expected); }
@@ -885,7 +886,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 try
                 {
-                    foreach (Position pos in acct.Positions)
+                    // [939-P0]: Snapshot Positions to prevent broker-thread mutation during iteration.
+                    foreach (Position pos in acct.Positions.ToArray())
                     {
                         if (pos != null && pos.Instrument != null
                             && pos.Instrument.FullName == Instrument.FullName

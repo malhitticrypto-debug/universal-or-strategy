@@ -790,10 +790,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // V12.12: Compliance tracking for single-account mode
+                // [939-P0]: Marshal Account.Get() off broker thread via TriggerCustomEvent.
                 if (EnableComplianceHub && !EnableSIMA)
                 {
                     TrackTradeEntry(Account, execution);
-                    UpdateAccountMetricsFromAccount(Account);
+                    TriggerCustomEvent(o => UpdateAccountMetricsFromAccount(Account), null);
                     LogApexPerformance();
                 }
 

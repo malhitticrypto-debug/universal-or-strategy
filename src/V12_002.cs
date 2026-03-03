@@ -41,7 +41,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class V12_002 : Strategy
     {
-        public const string BUILD_TAG = "938";  // V12.938: Follower bracket lifecycle audit -- orphan-exit guard + EF trace
+        public const string BUILD_TAG = "939";  // V12.939: P0 thread-safety hardening -- Account.Get marshal + Positions.ToArray + CI repair
 
         #region Variables
 
