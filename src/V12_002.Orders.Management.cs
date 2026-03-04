@@ -722,25 +722,31 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 try
                 {
+                    double tickSize      = Instrument.MasterInstrument.TickSize;
+                    double nudgeDistance = citOffset * tickSize;
+                    double newLimitPrice = (order.OrderAction == OrderAction.Buy)
+                        ? Instrument.MasterInstrument.RoundToTickSize(limitPrice + nudgeDistance)
+                        : Instrument.MasterInstrument.RoundToTickSize(limitPrice - nudgeDistance);
+
                     if (isFollower)
                     {
-                        // Fleet follower: cancel limit, resubmit as market via account API
+                        // Fleet follower: cancel limit, resubmit as nudged limit via account API
                         Account followerAcct = pos.ExecutingAccount;
-                        Print($"[CIT] FLEET chase: {key} on {followerAcct.Name} | Limit {limitPrice:F2} -> MKT @ {currentPrice:F2}");
+                        Print($"[CIT] FLEET nudge: {key} on {followerAcct.Name} | {limitPrice:F2} -> {newLimitPrice:F2} ({citOffset} ticks toward mkt)");
 
                         followerAcct.Cancel(new[] { order });
 
-                        Order mktOrder = followerAcct.CreateOrder(Instrument, order.OrderAction, OrderType.Market,
-                            TimeInForce.Gtc, order.Quantity, 0, 0, "", "CIT_" + key, null);
-                        followerAcct.Submit(new[] { mktOrder });
+                        Order nudgedOrder = followerAcct.CreateOrder(Instrument, order.OrderAction, OrderType.Limit,
+                            TimeInForce.Gtc, order.Quantity, newLimitPrice, 0, "", "CIT_" + key, null);
+                        followerAcct.Submit(new[] { nudgedOrder });
 
-                        entryOrders[key] = mktOrder; // update reference
+                        entryOrders[key] = nudgedOrder;
                     }
                     else
                     {
-                        // Local account: ChangeOrder converts limit to market
-                        Print($"[CIT] LOCAL chase: {key} | Limit {limitPrice:F2} -> MKT @ {currentPrice:F2}");
-                        ChangeOrder(order, order.Quantity, 0, 0);
+                        // Local account: ChangeOrder moves limit N ticks toward market
+                        Print($"[CIT] LOCAL nudge: {key} | {limitPrice:F2} -> {newLimitPrice:F2} ({citOffset} ticks toward mkt)");
+                        ChangeOrder(order, order.Quantity, newLimitPrice, 0);
                     }
                 }
                 catch (Exception ex)
