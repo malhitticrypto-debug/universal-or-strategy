@@ -672,9 +672,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         /// <summary>
         /// V12 SIMA: Chase If Touch - iterates the unified entryOrders dictionary which contains
-        /// BOTH local and fleet follower limit orders. When price touches a working limit,
-        /// the order is converted to market so it fills immediately.
-        /// Local orders: ChangeOrder(). Follower orders: cancel + resubmit via ExecutingAccount.
+        /// BOTH local and fleet follower limit orders. When price touches a working limit entry
+        /// that was not filled, the limit is nudged N ticks toward market (citOffset * TickSize)
+        /// exactly once per order lifetime. Local orders: ChangeOrder() to new limit price.
+        /// Follower orders: cancel + resubmit as OrderType.Limit at new price via ExecutingAccount.
+        /// Re-nudging is prevented by _citNudgedKeys one-shot guard, cleared on fill or cancel.
         /// </summary>
         private void ManageCIT()
         {
@@ -699,13 +701,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Order order = kvp.Value;
                 if (order == null || order.OrderState != OrderState.Working) continue;
                 if (order.OrderType != OrderType.Limit) continue; // only chase limit entries
+                if (_citNudgedKeys.ContainsKey(key)) continue;    // [BUILD 949] one-shot: already nudged
 
-                double currentPrice = (order.OrderAction == OrderAction.Buy) ? High[0] : Low[0];
+                // [BUILD 948 CIT FIX] Correct directional bar-price logic:
+                // - LONG entry (Buy): price must DROP DOWN to the limit -> compare Low[0] <= limitPrice
+                // - SHORT entry (Sell): price must RISE UP to the limit -> compare High[0] >= limitPrice
+                // Previous bug: Short used Low[0] <= limitPrice which is ALWAYS true when clicking
+                // far above the current market, causing instant market conversion on every click.
+                double currentPrice = (order.OrderAction == OrderAction.Buy) ? Low[0] : High[0];
                 double limitPrice = order.LimitPrice;
 
                 bool triggerChase = (order.OrderAction == OrderAction.Buy)
-                    ? (currentPrice >= limitPrice)
-                    : (currentPrice <= limitPrice);
+                    ? (currentPrice <= limitPrice)   // Long: bar low touched or pierced the limit
+                    : (currentPrice >= limitPrice);  // Short: bar high touched or pierced the limit
+
 
                 if (!triggerChase) continue;
 
@@ -716,26 +725,38 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 try
                 {
+                    double tickSize      = Instrument.MasterInstrument.TickSize;
+                    double nudgeDistance = citOffset * tickSize;
+                    double newLimitPrice = (order.OrderAction == OrderAction.Buy)
+                        ? Instrument.MasterInstrument.RoundToTickSize(limitPrice + nudgeDistance)
+                        : Instrument.MasterInstrument.RoundToTickSize(limitPrice - nudgeDistance);
+
                     if (isFollower)
                     {
-                        // Fleet follower: cancel limit, resubmit as market via account API
+                        // Fleet follower: cancel limit, resubmit as nudged limit via account API
                         Account followerAcct = pos.ExecutingAccount;
-                        Print($"[CIT] FLEET chase: {key} on {followerAcct.Name} | Limit {limitPrice:F2} -> MKT @ {currentPrice:F2}");
+                        Print($"[CIT] FLEET nudge: {key} on {followerAcct.Name} | {limitPrice:F2} -> {newLimitPrice:F2} ({citOffset} ticks toward mkt)");
 
                         followerAcct.Cancel(new[] { order });
 
-                        Order mktOrder = followerAcct.CreateOrder(Instrument, order.OrderAction, OrderType.Market,
-                            TimeInForce.Gtc, order.Quantity, 0, 0, "", "CIT_" + key, null);
-                        followerAcct.Submit(new[] { mktOrder });
+                        Order nudgedOrder = followerAcct.CreateOrder(Instrument, order.OrderAction, OrderType.Limit,
+                            TimeInForce.Gtc, order.Quantity, newLimitPrice, 0, "", "CIT_" + key, null);
+                        if (nudgedOrder == null)
+                        {
+                            Print($"[CIT] ERROR: CreateOrder returned null for {key} on {followerAcct.Name} -- nudge aborted");
+                            continue;
+                        }
+                        followerAcct.Submit(new[] { nudgedOrder });
 
-                        entryOrders[key] = mktOrder; // update reference
+                        entryOrders[key] = nudgedOrder;
                     }
                     else
                     {
-                        // Local account: ChangeOrder converts limit to market
-                        Print($"[CIT] LOCAL chase: {key} | Limit {limitPrice:F2} -> MKT @ {currentPrice:F2}");
-                        ChangeOrder(order, order.Quantity, 0, 0);
+                        // Local account: ChangeOrder moves limit N ticks toward market
+                        Print($"[CIT] LOCAL nudge: {key} | {limitPrice:F2} -> {newLimitPrice:F2} ({citOffset} ticks toward mkt)");
+                        ChangeOrder(order, order.Quantity, newLimitPrice, 0);
                     }
+                    _citNudgedKeys.TryAdd(key, true); // [BUILD 949] one-shot: mark as nudged
                 }
                 catch (Exception ex)
                 {
@@ -1112,7 +1133,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (eOrder != null)
                 {
                     if (IsOrderTerminal(eOrder.OrderState))
+                    {
                         entryOrders.TryRemove(entryName, out _);
+                        _citNudgedKeys.TryRemove(entryName, out _);
+                    }
                     else
                     {
                         if (isFollowerForCleanup)
@@ -1123,7 +1147,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
                 else
+                {
                     entryOrders.TryRemove(entryName, out _);
+                    _citNudgedKeys.TryRemove(entryName, out _);
+                }
             }
 
             if (pendingStopReplacements.TryRemove(entryName, out _))
