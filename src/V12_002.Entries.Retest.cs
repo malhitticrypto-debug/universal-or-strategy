@@ -171,7 +171,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 };
                 ApplyTargetLadderGuard(pos);
 
-                activePositions[entryName] = pos;
+                lock (stateLock) { activePositions[entryName] = pos; }
 
                 // Build 1102Y-V3 [MS-07]: Register Master expected BEFORE Limit entry.
                 int masterDeltaRetest = (direction == MarketPosition.Long) ? contracts : -contracts;
@@ -185,12 +185,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (entryOrder == null)
                 {
                     AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaRetest);
-                    activePositions.TryRemove(entryName, out _); // [Build 956]: Clean pre-registered state on null submit.
+                    lock (stateLock) { activePositions.TryRemove(entryName, out _); } // [Build 956]: Clean pre-registered state on null submit.
                     Print("[ERROR][1102Y-V3] RETEST SubmitOrderUnmanaged NULL for " + entryName + " -- rolled back.");
                     return; // [Build 954]: Do not latch session or dispatch SIMA for a failed order.
                 }
 
-                entryOrders[entryName] = entryOrder;
+                lock (stateLock) { entryOrders[entryName] = entryOrder; }
                 retestFiredThisSession = true;  // V12.1101E [B-2]: Arm latch -- no further RETEST entries this session
 
                 Print(string.Format("RETEST ENTRY ORDER: {0} {1}@{2:F2} | ATR: {3:F2}", signalName, contracts, entryPrice, currentATR));
@@ -313,7 +313,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 };
                 ApplyTargetLadderGuard(pos);
 
-                activePositions[entryName] = pos;
+                lock (stateLock) { activePositions[entryName] = pos; }
 
                 // Build 1102Y-V3 [MS-08]: Register Master expected BEFORE Limit entry.
                 int masterDeltaRetestMnl = (direction == MarketPosition.Long) ? contracts : -contracts;
@@ -327,11 +327,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (entryOrder == null)
                 {
                     AddExpectedPositionDeltaLocked(ExpKey(Account.Name), -masterDeltaRetestMnl);
-                    activePositions.TryRemove(entryName, out _); // [Build 956]: Clean pre-registered state on null submit.
+                    lock (stateLock) { activePositions.TryRemove(entryName, out _); } // [Build 956]: Clean pre-registered state on null submit.
                     Print("[ERROR][1102Y-V3] RETEST_MANUAL SubmitOrderUnmanaged NULL for " + entryName + " -- rolled back.");
                     return; // [Build 956]: Do not assign null entryOrder or dispatch SIMA for a failed order.
                 }
-                entryOrders[entryName] = entryOrder;
+                lock (stateLock) { entryOrders[entryName] = entryOrder; }
 
                 Print(string.Format("V12.27 RETEST_MANUAL: {0} {1}@{2:F2} LIMIT | Stop: {3:F2} | RMA Targets",
                     direction, contracts, entryPrice, stopPrice));
