@@ -3003,8 +3003,8 @@ namespace NinjaTrader.NinjaScript.Indicators
             lock (tcpLock)
             {
                 isConnected = false;
-                try { tcpStream?.Close(); } catch { }
-                try { tcpClient?.Close(); } catch { }
+                tcpStream?.Close();
+                tcpClient?.Close();
                 tcpStream = null;
                 tcpClient = null;
             }
