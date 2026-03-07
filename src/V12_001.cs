@@ -164,8 +164,6 @@ namespace NinjaTrader.NinjaScript.Indicators
         private NetworkStream tcpStream;
         private readonly object tcpLock = new object();
         private Thread receiveThread;
-        private volatile bool isConnected = false;
-        private volatile bool isShuttingDown = false;
         private System.Threading.Timer reconnectTimer;
         private ConcurrentQueue<string> responseQueue = new ConcurrentQueue<string>();
         // [Build 934]: Throttle IPC retry log spam -- print on 1st failure then once per 60 s
@@ -2998,11 +2996,9 @@ namespace NinjaTrader.NinjaScript.Indicators
 
         private void DisconnectFromStrategy()
         {
-            isShuttingDown = true;
             reconnectTimer?.Dispose();
             lock (tcpLock)
             {
-                isConnected = false;
                 tcpStream?.Close();
                 tcpClient?.Close();
                 tcpStream = null;
@@ -3034,7 +3030,6 @@ namespace NinjaTrader.NinjaScript.Indicators
                 catch (Exception ex)
                 {
                     Print($"V12 STD: Send error - {ex.Message}");
-                    isConnected = false;
                 }
             });
         }

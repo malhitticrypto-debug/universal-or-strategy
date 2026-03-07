@@ -32,7 +32,7 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
           # Use Aider in headless mode to execute the audit using GPT-4o
-          aider --model gpt-4o --no-auto-commits --yes-always --message "Execute audit mission: .agent/brain/codex_pr25_audit.md. Read the workflows and write the final P1/P2/P3 severity report safely to audit_output.md without modifying any source files."
+          aider --model gpt-4o --no-auto-commits --yes-always --message "Execute audit mission: .agent/brain/codex_pr25_audit.md. Read the workflows and write the final P1/P2/P3 severity report safely to audit_output.md without modifying any source files." > audit_output.md
 
       - name: Post Audit Results to PR
         env:
