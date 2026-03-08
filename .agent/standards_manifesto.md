@@ -44,6 +44,11 @@ This document provides the immutable technical standards for all AI agents (Anth
 ## 6. Clean-Slate Repo Hygiene (The "Hygiene Rule")
 
 - **Zero-Delta Mandate**: Every new Mission (initialized via `$MISSION`) MUST start with a 0-delta `main` branch. If "Big Numbers" (large uncommitted/unmerged diffs > 100 lines) exist, the agent MUST recommend a cleanup/merge before starting new work.
+- **Autonomous Pull Request Handover (The Fresh PR Rule)**: When submitting code for bot audit or human review, agents MUST NEVER push to an existing open Pull Request (e.g., updating a dirty branch). Instead, agents MUST:
+  1. Checkout a completely new semantic branch (e.g., `build/955-audit-remediation`).
+  2. Push the new branch and open a BRAND NEW Pull Request targeting `main`.
+  3. Close any superseded or legacy PRs via the GitHub CLI, explicitly leaving a comment referencing the new clean PR.
+     _Why? Incrementally updating existing PRs can cause automated audit bots (Codex, Greptile, DeepSource) to miss context. A fresh PR triggers a 100% clean, full-file audit sweep._
 - **Atomic Missions**: Every bug fix or feature MUST be its own branch and MUST be merged into `main` immediately upon verification (e.g. F5 compile in NT8). No "stacking" unrelated fixes in long-lived branches.
 - **Binary & Log Purge**: Never commit `.exe`, `.log`, `.bak`, or legacy backup folders to source control. They should be stashed, deleted, or added to `.gitignore`.
 - **Dashboard Cleanup**: Before ending a session, the agent MUST ensure all work is either Committed or the user has been guided to Merge. The goal is a +0/-0 dashboard between missions.
@@ -155,6 +160,15 @@ OnLineInfo ... status=open <- live untracked GTC order at broker
 ```
 
 **Full discovery steps:** See `.agent/workflows/live-bug-triage.md` Section 0.
+
+## 12. Claude Agent Operation Protocol (Usage Insights)
+
+**Based on historical friction data, all agents MUST adhere to these execution constraints:**
+
+- **The "Do Not Interrupt" Protocol:** Agents operating in standard execution mode should complete their logical batches and commit _autonomously_. Do not pause mid-task to ask for user check-ins unless explicitly blocked by a missing file or a hard compilation failure.
+- **.NET 4.8 Hardening Hook:** Target framework is .NET 4.8. Do NOT use C# features unavailable in .NET 4.8 (e.g., range operators `[..]`, `Index`/`Range` types, default interface implementations). Always use `CultureInfo.InvariantCulture` for numeric parsing. This must be checked before every commit.
+- **The "Missing Brief" Failsafe:** Before any phase starts, the Agent MUST verify that the referenced `implementation_plan.md` or `$MISSION` artifact exists on disk. If it does not, the Agent MUST halt and ask the user for the brief, rather than attempting to guess or reverse-engineer the plan via codebase searches.
+- **Autonomy Rule (Default to Action):** Agents are empowered and EXPECTED to execute the full end-to-end lifecycle of a task autonomously. This includes branch creation, surgical implementation, local verification (compile/ASCII), git committing, pushing, and opening/updating PRs. Do not wait for manual approval to move from "Code Change" to "Git Push" if local verification (`deploy-sync.ps1`) passes.
 
 ---
 

@@ -41,7 +41,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class V12_002 : Strategy
     {
-        public const string BUILD_TAG = "950";  // V12.950: OCO Cascade Fix (bracket restore on V8.30 timeout path)
+        public const string BUILD_TAG = "956";  // V12.956: DeepSource remediation -- RETEST_MANUAL null cleanup + IPC dead code removal (ReceiveLoop/ScheduleReconnect)
 
         #region Variables
 

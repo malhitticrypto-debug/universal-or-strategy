@@ -785,7 +785,19 @@ namespace NinjaTrader.NinjaScript.Indicators
                 selectedTargetCount = activeCount;
 
                 Button modeBtn = GetModeButton(activeMode);
-                if (modeBtn != null) HighlightModeButton(modeBtn);
+                if (modeBtn != null)
+                {
+                    HighlightModeButton(modeBtn);
+                }
+                else
+                {
+                    // [Build 954]: Saved mode is deprecated/unrecognized -- normalize both vars to RMA baseline.
+                    Print("[WARN][954] Unrecognized saved mode '" + activeMode + "' -- falling back to RMA.");
+                    activeMode = "RMA";
+                    selectedConfigMode = "RMA";
+                    modeBtn = GetModeButton("RMA");
+                    if (modeBtn != null) HighlightModeButton(modeBtn);
+                }
 
                 // Apply active mode+count settings to UI
                 ApplySettings(fullConfig.GetSettings(activeMode, activeCount));
