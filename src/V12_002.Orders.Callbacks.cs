@@ -558,13 +558,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                         return;
                     }
 
-                    // Snapshot latest spec values, transition to Submitting, schedule on strategy thread
-                    int    qty      = fsm.PendingQty;
-                    double price    = fsm.PendingPrice;
-                    string acctNameCapture = fsm.AccountName;
-                    string sigName  = fsm.SignalName;
-                    FollowerReplaceSpec fsmCapture = fsm;
-                    fsm.State = FollowerReplaceState.Submitting;
+                    // A1-3: Snapshot qty/price and transition state atomically under stateLock to close TOCTOU window.
+                    // PropagateFollowerEntryReplace can update PendingQty/PendingPrice inside lock(stateLock)
+                    // while OnAccountOrderUpdate (background thread) reads them here. Without the lock,
+                    // the snapshot and state transition can observe torn state. (Build 960 audit fix)
+                    int    qty;
+                    double price;
+                    string acctNameCapture;
+                    string sigName;
+                    FollowerReplaceSpec fsmCapture;
+                    lock (stateLock)
+                    {
+                        qty             = fsm.PendingQty;
+                        price           = fsm.PendingPrice;
+                        acctNameCapture = fsm.AccountName;
+                        sigName         = fsm.SignalName;
+                        fsmCapture      = fsm;
+                        fsm.State       = FollowerReplaceState.Submitting;
+                    }
 
                     try
                     {

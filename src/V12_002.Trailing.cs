@@ -979,6 +979,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (pos.IsFollower && pos.ExecutingAccount != null)
                     {
                         // [1102Z-F]: Fleet follower path -- cancel old limit, resubmit at new price
+                        // A1-2: Stamp REAPER grace window before cancel to suppress false desync during replace gap (Build 960 audit fix)
+                        StampReaperMoveGrace();
                         pos.ExecutingAccount.Cancel(new[] { targetOrder });
 
                         OrderAction exitAct = pos.Direction == MarketPosition.Long

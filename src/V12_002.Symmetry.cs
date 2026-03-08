@@ -552,6 +552,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 oldTarget.OrderState == OrderState.Submitted ||
                 oldTarget.OrderState == OrderState.ChangePending)
             {
+                // A1-2: Stamp REAPER grace window before cancel to suppress false desync during replace gap (Build 960 audit fix)
+                StampReaperMoveGrace();
                 pos.ExecutingAccount.Cancel(new[] { oldTarget });
             }
 
@@ -574,7 +576,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 null);
 
             pos.ExecutingAccount.Submit(new[] { replacement });
-            dict[fleetEntryName] = replacement;
+            lock (stateLock) { dict[fleetEntryName] = replacement; }
         }
 
         private void SymmetryGuardSkipFollower(
