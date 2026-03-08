@@ -1,0 +1,96 @@
+name: Gemini PR Auditor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  gemini-audit:
+    name: Gemini 3.1 Pro (High) Auto-Auditor
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract PR diff
+        id: diff
+        run: |
+          git diff origin/${{ github.event.pull_request.base.ref }}...HEAD > pr.diff
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.GCP_CREDENTIALS }}"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Vertex AI SDK
+        run: npm install @google-cloud/vertexai
+
+      - name: Run Vertex AI Audit and Post Comment
+        uses: actions/github-script@v7
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_REGION: us-central1
+        with:
+          script: |
+            const fs = require('fs');
+            const { VertexAI } = require('@google-cloud/vertexai');
+
+            const diffContent = fs.readFileSync('pr.diff', 'utf8');
+            let geminiMdContent = '';
+            try {
+              geminiMdContent = fs.readFileSync('GEMINI.md', 'utf8');
+            } catch (e) {
+              console.log('GEMINI.md not found in the root directory, proceeding without it.');
+            }
+
+            const prompt = `You are the Gemini CLI (Antigravity Auto-Auditor) acting as a PR reviewer.
+            Your task is to analyze the following PR diff strictly against our project's GEMINI.md standards (Zero-Trust IPC, FSM mutations, etc.).
+
+            Here are the GEMINI.md standards:
+            ${geminiMdContent}
+
+            Here is the pull request diff:
+            ${diffContent}
+
+            Provide a systematic review of the changes:
+            1. Evaluate strict adherence to the standards (e.g., FSM replace pattern vs cancel+submit, lock guards, headless UI rules).
+            2. Point out any violations of the standard with specific file and line context.
+            3. If the code is perfectly aligned, state that it passes the Zero-Regression Bot Audit.
+
+            Be thorough, precise, and uncompromising on the rules.`;
+
+            const vertex_ai = new VertexAI({project: process.env.GCP_PROJECT_ID, location: process.env.GCP_REGION});
+            // Gemini 3.1 Pro Preview via Vertex AI
+            const generativeModel = vertex_ai.preview.getGenerativeModel({
+              model: 'gemini-3.1-pro-preview-customtools',
+            });
+
+            let reviewText = '';
+            try {
+              const resp = await generativeModel.generateContent({
+                contents: [{role: 'user', parts: [{text: prompt}]}],
+              });
+              reviewText = resp.response.candidates[0].content.parts[0].text;
+            } catch (error) {
+              console.error("Error calling Vertex AI API:", error);
+              reviewText = "⚠️ **Vertex AI Audit Failed to Execute**: " + error.message;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: "### 🤖 Antigravity Auto-Auditor (Gemini 3.1 Pro via Vertex AI)\n\n" + reviewText
+            });
