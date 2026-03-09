@@ -41,7 +41,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class V12_002 : Strategy
     {
-        public const string BUILD_TAG = "960";  // V12.960: Resolve PR #32 audit findings -- ghost-state teardown fixes, locked cleanup symmetry, protocol alignment
+        public const string BUILD_TAG = "961";  // V12.961: Transition to Inline Actor (Serializing Executor) architecture
 
         #region Variables
 
