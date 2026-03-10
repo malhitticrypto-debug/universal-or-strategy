@@ -791,24 +791,26 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 // Toggle: if armed, disarm; if disarmed, arm
-                // V12.963: Mutations to PositionInfo fields must run inside Enqueue (actor thread).
                 foreach (var kvp in posSnapshot)
                 {
-                    var capturedKey = kvp.Key;
-                    var capturedAnyArmed = anyArmed;
-                    Enqueue(ctx => {
-                        if (!ctx.activePositions.ContainsKey(capturedKey)) return;
-                        PositionInfo pos = ctx.activePositions[capturedKey];
-                        if (pos.EntryFilled && !pos.ManualBreakevenTriggered)
+                    if (!activePositions.ContainsKey(kvp.Key)) continue;
+                    PositionInfo pos = kvp.Value;
+                    if (pos.EntryFilled && !pos.ManualBreakevenTriggered)
+                    {
+                        if (anyArmed)
                         {
-                            pos.ManualBreakevenArmed = !capturedAnyArmed;
-                            if (capturedAnyArmed)
-                                ctx.Print(string.Format("BREAKEVEN DISARMED: {0}", capturedKey));
-                            else
-                                ctx.Print(string.Format("BREAKEVEN ARMED: {0} - Will trigger at Entry + {1} tick(s)",
-                                    capturedKey, ctx.BreakEvenOffsetTicks));
+                            // Disarm
+                            pos.ManualBreakevenArmed = false;
+                            Print(string.Format("BREAKEVEN DISARMED: {0}", kvp.Key));
                         }
-                    });
+                        else
+                        {
+                            // Arm
+                            pos.ManualBreakevenArmed = true;
+                            Print(string.Format("BREAKEVEN ARMED: {0} - Will trigger at Entry + {1} tick(s)",
+                                kvp.Key, BreakEvenOffsetTicks));
+                        }
+                    }
                 }
             }
             catch (Exception ex)

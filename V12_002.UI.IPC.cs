@@ -1064,7 +1064,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // [1102Z-F]: IPC LOCK_50 -- Lock 50% of unrealized profit on all active positions.
                 // Delegates to ExecuteRunnerAction which already handles all account routing.
                 Print("[IPC LOCK_50] Received -- routing to ExecuteRunnerAction(lock50)");
-                Enqueue(ctx => ctx.ExecuteRunnerAction("lock50"));
+                ExecuteRunnerAction("lock50");
                 return true;
             }
             if (action == "FLATTEN_ONLY")
@@ -1310,7 +1310,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                     double stopDist  = CalculateATRStopDistance(RMAStopATRMultiplier);
                     int contracts    = CalculatePositionSize(stopDist);
-                    Enqueue(ctx => ctx.ExecuteRMAEntryV2(currentPrice, direction, contracts));
+                    ExecuteRMAEntryV2(currentPrice, direction, contracts);
                 }
                 return true;
             }
@@ -1325,7 +1325,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print("[SYNC] ToS Handshake Received -> Executing OR_LONG");
                         double orStopDist = CalculateORStopDistance();
                         int orContracts   = CalculatePositionSize(orStopDist);
-                        Enqueue(ctx => ctx.ExecuteLong(orContracts));
+                        ExecuteLong(orContracts);
                         isLongArmed = false;
                     }
                     else
@@ -1337,7 +1337,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double orStopDist = CalculateORStopDistance();
                     int orContracts   = CalculatePositionSize(orStopDist);
-                    Enqueue(ctx => ctx.ExecuteLong(orContracts));
+                    ExecuteLong(orContracts);
                     Print("V10.3: OR_LONG executed via IPC");
                 }
                 return true;
@@ -1352,7 +1352,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print("[SYNC] ToS Handshake Received -> Executing OR_SHORT");
                         double orStopDist = CalculateORStopDistance();
                         int orContracts   = CalculatePositionSize(orStopDist);
-                        Enqueue(ctx => ctx.ExecuteShort(orContracts));
+                        ExecuteShort(orContracts);
                         isShortArmed = false;
                     }
                     else
@@ -1364,7 +1364,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double orStopDist = CalculateORStopDistance();
                     int orContracts   = CalculatePositionSize(orStopDist);
-                    Enqueue(ctx => ctx.ExecuteShort(orContracts));
+                    ExecuteShort(orContracts);
                     Print("V10.3: OR_SHORT executed via IPC");
                 }
                 return true;
@@ -1382,7 +1382,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print(string.Format("V12.27 IPC: TREND_MANUAL_LIMIT {0} @ {1:F2}", dir, price));
                         double trendDist   = CalculateTRENDStopDistance();
                         int trendContracts = CalculatePositionSize(trendDist);
-                        Enqueue(ctx => ctx.ExecuteTRENDManualEntry(price, mp, trendContracts));
+                        ExecuteTRENDManualEntry(price, mp, trendContracts);
                     }
                     else
                     {
@@ -1403,7 +1403,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print(string.Format("V12.27 IPC: RETEST_MANUAL_LIMIT {0} @ {1:F2}", dir, price));
                         double retestDist   = CalculateRetestStopDistance();
                         int retestContracts = CalculatePositionSize(retestDist);
-                        Enqueue(ctx => ctx.ExecuteRetestManualEntry(price, mp, retestContracts));
+                        ExecuteRetestManualEntry(price, mp, retestContracts);
                     }
                     else
                     {
@@ -1425,7 +1425,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         double ffmaStopDist = CalculateATRStopDistance(RMAStopATRMultiplier);
                         if (ffmaStopDist <= 0) ffmaStopDist = MinimumStop;
                         int contracts = CalculatePositionSize(ffmaStopDist);
-                        Enqueue(ctx => ctx.ExecuteFFMALimitEntry(price, mp, contracts));
+                        ExecuteFFMALimitEntry(price, mp, contracts);
                     }
                     else
                     {
@@ -1445,7 +1445,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 double ffmaStopDist = Math.Min(Math.Abs(currentPrice - stopPrice), MaximumStop);
                 if (ffmaStopDist < tickSize * 2) ffmaStopDist = tickSize * 2;
                 int contracts = CalculatePositionSize(ffmaStopDist);
-                Enqueue(ctx => ctx.ExecuteFFMAManualMarketEntry(contracts));
+                ExecuteFFMAManualMarketEntry(contracts);
                 return true;
             }
             // V10.3: Target-Specific Close Commands
@@ -1812,20 +1812,19 @@ namespace NinjaTrader.NinjaScript.Strategies
              {
                  double trendDist   = CalculateTRENDStopDistance();
                  int trendContracts = CalculatePositionSize(trendDist);
-                 Enqueue(ctx => ctx.ExecuteTRENDEntry(trendContracts));
+                 ExecuteTRENDEntry(trendContracts);
              }
              else if (action == "EXEC_RETEST" || action == "EXEC_RETEST_PLUS" || action == "EXEC_RETEST_MINUS")
              {
                  double retestDist   = CalculateRetestStopDistance();
                  int retestContracts = CalculatePositionSize(retestDist);
-                 Enqueue(ctx => ctx.ExecuteRetestEntry(retestContracts));
+                 ExecuteRetestEntry(retestContracts);
              }
              else if (action == "EXEC_MOMO")
             {
                 double momoStopDist = Math.Min(MOMOStopPoints, MaximumStop);
                 int momoContracts   = CalculatePositionSize(momoStopDist);
-                double capturedMomoPrice = lastKnownPrice;
-                Enqueue(ctx => ctx.ExecuteMOMOEntry(capturedMomoPrice, momoContracts));
+                ExecuteMOMOEntry(lastKnownPrice, momoContracts);
             }
              else if (action == "MODE_M")
              {
@@ -1838,7 +1837,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                  double ffmaStopDist = Math.Min(Math.Abs(currentPrice - stopPrice), MaximumStop);
                  if (ffmaStopDist < tickSize * 2) ffmaStopDist = tickSize * 2;
                  int ffmaContracts = CalculatePositionSize(ffmaStopDist);
-                 Enqueue(ctx => ctx.ExecuteFFMAEntry(direction, ffmaContracts));
+                 ExecuteFFMAEntry(direction, ffmaContracts);
              }
 
              Print(string.Format("IPC Mode Toggle: {0} | RMA={1} MOMO={2} TrendRMA={3} RetestRMA={4} FFMA={5}",

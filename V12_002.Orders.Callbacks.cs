@@ -834,15 +834,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnPositionUpdate(Position position, double averagePrice, int quantity, MarketPosition marketPosition)
         {
-            Enqueue(ctx => {
-                try
-                {
-                    if (marketPosition == MarketPosition.Flat)
-                        ctx.HandleFlatPositionUpdate(position);
-                    ctx.BroadcastSyncTargetState();
-                }
-                catch (Exception ex) { ctx.Print("ERROR OnPositionUpdate: " + ex.Message); }
-            });
+            try
+            {
+                if (marketPosition == MarketPosition.Flat)
+                    HandleFlatPositionUpdate(position);
+
+                BroadcastSyncTargetState();
+            }
+            catch (Exception ex)
+            {
+                Print("ERROR OnPositionUpdate: " + ex.Message);
+            }
         }
 
         // Build 935 [CB-B935-001]: Flat-position cleanup extracted from OnPositionUpdate.

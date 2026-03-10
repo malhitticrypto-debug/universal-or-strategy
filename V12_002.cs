@@ -192,7 +192,6 @@ namespace NinjaTrader.NinjaScript.Strategies
         private TcpListener ipcListener;
         private Thread ipcThread;
         private volatile bool isIpcRunning;
-
         // V12.962 INLINE ACTOR (Serializing Executor) -- replaces stateLock
         // All state mutations run inside Enqueue closures; _drainToken ensures serial execution.
         // Zero locks: no monitor is ever held across a broker call (CancelOrder/SubmitOrder).
