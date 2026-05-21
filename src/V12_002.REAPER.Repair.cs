@@ -1,7 +1,7 @@
 // V12 REAPER Repair Engine -- Re-issues missed entry orders for desynced follower accounts
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using NinjaTrader.Cbi;
@@ -24,11 +24,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             while (_reaperRepairQueue.TryDequeue(out accountName))
                 ExecuteReaperRepair(accountName);
         }
+
         /// <summary>
         /// Phase7-T1: Validates repair eligibility - flatten state, PositionInfo lookup, orphan self-heal.
         /// Returns false if repair should abort.
         /// </summary>
-        private bool ValidateRepairEligibility(string accountName, out PositionInfo repairPos, out string repairEntryName)
+        private bool ValidateRepairEligibility(
+            string accountName,
+            out PositionInfo repairPos,
+            out string repairEntryName
+        )
         {
             repairPos = null;
             repairEntryName = null;
@@ -40,45 +45,27 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return false;
             }
 
-            // 1. Find the stored PositionInfo for this account in activePositions
-            foreach (var kvp in activePositions.ToArray())
+            // NEW: Delegate orphan check to OrphanSafety module
+            if (
+                !ValidateRepairEligibility_OrphanCheck(accountName, activePositions, out repairPos, out repairEntryName)
+            )
             {
-                PositionInfo pi = kvp.Value;
-                if (pi.IsFollower && pi.ExecutingAccount != null
-                    && pi.ExecutingAccount.Name == accountName)
-                {
-                    repairPos = pi;
-                    repairEntryName = kvp.Key;
-                    break;
-                }
+                return false; // Orphan detected, self-heal triggered if threshold reached
             }
 
-            if (repairPos == null)
-            {
-                int orphanCount = _reaperOrphanRepairCount.AddOrUpdate(accountName, 1, (k, v) => v + 1);
-                Print(string.Format("[REAPER REPAIR] x No PositionInfo found for {0} -- cannot repair. (orphan attempt {1}/3)",
-                    accountName, orphanCount));
-
-                if (orphanCount >= 3)
-                {
-                    Print(string.Format("[REAPER] SELF-HEAL: {0} has no PositionInfo after 3 attempts. Force-zeroing expectedPositions to unblock repair loop.",
-                        accountName));
-                    // SetExpectedPositionLocked(..., 0) already removes from _dispatchSyncPendingExpKeys internally.
-                    SetExpectedPositionLocked(ExpKey(accountName), 0);
-                    _reaperOrphanRepairCount.TryRemove(accountName, out _);
-                }
-                return false;
-            }
-
-            // Clear orphan counter on successful PositionInfo resolution
-            _reaperOrphanRepairCount.TryRemove(accountName, out _);
+            ClearOrphanRepairCount(accountName); // NEW: Accessor method (success path)
             return true;
         }
 
         /// <summary>
         /// Phase7-T1: Calculates repair order prices based on OrderType.
         /// </summary>
-        private void CalculateRepairOrderPrices(OrderType orderType, double entryPrice, out double limitPrice, out double stopPrice)
+        private void CalculateRepairOrderPrices(
+            OrderType orderType,
+            double entryPrice,
+            out double limitPrice,
+            out double stopPrice
+        )
         {
             limitPrice = 0;
             stopPrice = 0;
@@ -102,7 +89,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Phase7-T1: Validates repair risk bounds - ATR-derived hard bound + legacy Market order tick fence.
         /// Returns false if repair exceeds risk limits.
         /// </summary>
-        private bool ValidateRepairRiskBounds(string accountName, OrderType orderType, double entryPrice, double currentPrice)
+        private bool ValidateRepairRiskBounds(
+            string accountName,
+            OrderType orderType,
+            double entryPrice,
+            double currentPrice
+        )
         {
             if (currentPrice <= 0)
             {
@@ -119,8 +111,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             double hardBoundDiff = Math.Abs(currentPrice - entryPrice);
             if (hardBoundDiff > repairLimitPoints)
             {
-                Print($"[REAPER] REPAIR BLOCKED: {accountName} {orderType} exceeds hard bound. " +
-                      $"Current={currentPrice:F2}, Entry={entryPrice:F2}, Diff={hardBoundDiff:F4} > Limit={repairLimitPoints:F4}.");
+                Print(
+                    $"[REAPER] REPAIR BLOCKED: {accountName} {orderType} exceeds hard bound. "
+                        + $"Current={currentPrice:F2}, Entry={entryPrice:F2}, Diff={hardBoundDiff:F4} > Limit={repairLimitPoints:F4}."
+                );
                 return false;
             }
 
@@ -133,10 +127,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 if (priceDiff > fenceDistance)
                 {
-                    Print($"[REAPER] REPAIR BLOCKED: Price fence exceeded for {accountName}. " +
-                          $"Current={currentPrice:F2}, Entry={entryPrice:F2}, " +
-                          $"Diff={priceDiff:F4} > Fence={fenceDistance:F4} ({RepairTickFence} ticks). " +
-                          $"Adjust RepairTickFence if you want to force entry.");
+                    Print(
+                        $"[REAPER] REPAIR BLOCKED: Price fence exceeded for {accountName}. "
+                            + $"Current={currentPrice:F2}, Entry={entryPrice:F2}, "
+                            + $"Diff={priceDiff:F4} > Fence={fenceDistance:F4} ({RepairTickFence} ticks). "
+                            + $"Adjust RepairTickFence if you want to force entry."
+                    );
                     return false;
                 }
             }
@@ -148,8 +144,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Phase7-T1: Submits repair order with authorization validation.
         /// Checks FSM state, dispatch reservation, metadata guard, then creates and submits order.
         /// </summary>
-        private void SubmitRepairOrderWithAuthorization(string accountName, PositionInfo repairPos, string repairEntryName, 
-            OrderType orderType, double limitPrice, double stopPrice)
+        private void SubmitRepairOrderWithAuthorization(
+            string accountName,
+            PositionInfo repairPos,
+            string repairEntryName,
+            OrderType orderType,
+            double limitPrice,
+            double stopPrice
+        )
         {
             // 3. Resolve account object
             Account targetAcct = repairPos.ExecutingAccount;
@@ -161,8 +163,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // 4. In-flight was already set on the background thread before TriggerCustomEvent (A3-2)
             // 5. Re-issue entry order using the SIMA acct.CreateOrder + acct.Submit pattern
-            OrderAction action = repairPos.Direction == MarketPosition.Long
-                ? OrderAction.Buy : OrderAction.SellShort;
+            OrderAction action = repairPos.Direction == MarketPosition.Long ? OrderAction.Buy : OrderAction.SellShort;
             int quantity = repairPos.TotalContracts;
             string repairSignal = repairEntryName;
 
@@ -176,7 +177,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 stopPrice,
                 "",
                 repairSignal,
-                null);
+                null
+            );
 
             if (repairEntry == null)
             {
@@ -187,10 +189,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool hasActiveFsm = _followerBrackets.Values.Any(f =>
                 f != null
                 && f.AccountName == accountName
-                && (f.State == FollowerBracketState.Active
+                && (
+                    f.State == FollowerBracketState.Active
                     || f.State == FollowerBracketState.Accepted
                     || f.State == FollowerBracketState.Submitted
-                    || f.State == FollowerBracketState.Replacing));
+                    || f.State == FollowerBracketState.Replacing
+                )
+            );
 
             if (!hasActiveFsm)
             {
@@ -200,16 +205,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // abort repair -- no authorization source.
                 bool dispatchPending = _dispatchSyncPendingExpKeys.ContainsKey(ExpKey(accountName));
                 bool hasActivePositionEntry = activePositions.Values.Any(p =>
-                    p.IsFollower && p.ExecutingAccount != null && p.ExecutingAccount.Name == accountName);
+                    p.IsFollower && p.ExecutingAccount != null && p.ExecutingAccount.Name == accountName
+                );
                 if (!dispatchPending && !hasActivePositionEntry)
                 {
-                    Print(string.Format("[FSM-RACE GUARD ABORT] {0}: no FSM, no dispatch reservation, no position -- aborted", accountName));
+                    Print(
+                        string.Format(
+                            "[FSM-RACE GUARD ABORT] {0}: no FSM, no dispatch reservation, no position -- aborted",
+                            accountName
+                        )
+                    );
                     return;
                 }
-                Print(string.Format("[FSM-RACE GUARD] {0}: no FSM -- dispatch/position fallback authorized", accountName));
+                Print(
+                    string.Format("[FSM-RACE GUARD] {0}: no FSM -- dispatch/position fallback authorized", accountName)
+                );
             }
 
-            if (!MetadataGuardRepairAuthorized(accountName, "ExecuteReaperRepair")) return;
+            if (!MetadataGuardRepairAuthorized(accountName, "ExecuteReaperRepair"))
+                return;
 
             repairPos.BracketSubmitted = false;
             // B966: background timer -- Enqueue not applicable (would drain on wrong thread).
@@ -218,12 +232,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             targetAcct.Submit(new[] { repairEntry });
 
-            Print($"[REAPER REPAIR] [OK] Repair order submitted for {accountName} under key={repairEntryName}: " +
-                  $"{action} {quantity} {orderType} " +
-                  $"{(orderType == OrderType.Market ? "@ Market" : "@ " + repairPos.EntryPrice.ToString("F2"))} " +
-                  $"(original entry={repairPos.EntryPrice:F2})");
+            Print(
+                $"[REAPER REPAIR] [OK] Repair order submitted for {accountName} under key={repairEntryName}: "
+                    + $"{action} {quantity} {orderType} "
+                    + $"{(orderType == OrderType.Market ? "@ Market" : "@ " + repairPos.EntryPrice.ToString("F2"))} "
+                    + $"(original entry={repairPos.EntryPrice:F2})"
+            );
         }
-
 
         // Build 935 [REAPER-B935-005]: Single-repair body extracted from ProcessReaperRepairQueue.
         // Threading: runs on strategy thread (via TriggerCustomEvent). All stateLock usages unchanged.
@@ -240,13 +255,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                 OrderType repairOrderType = repairPos.EntryOrderType;
                 double repairEntryPrice = Instrument.MasterInstrument.RoundToTickSize(repairPos.EntryPrice);
 
-                CalculateRepairOrderPrices(repairOrderType, repairEntryPrice, out double repairLimitPrice, out double repairStopPrice);
+                CalculateRepairOrderPrices(
+                    repairOrderType,
+                    repairEntryPrice,
+                    out double repairLimitPrice,
+                    out double repairStopPrice
+                );
 
                 double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
                 if (!ValidateRepairRiskBounds(accountName, repairOrderType, repairEntryPrice, currentPrice))
                     return;
 
-                SubmitRepairOrderWithAuthorization(accountName, repairPos, repairEntryName, repairOrderType, repairLimitPrice, repairStopPrice);
+                SubmitRepairOrderWithAuthorization(
+                    accountName,
+                    repairPos,
+                    repairEntryName,
+                    repairOrderType,
+                    repairLimitPrice,
+                    repairStopPrice
+                );
 
                 // Clear DESYNC chart label (inlined - below 15 LOC minimum)
                 try

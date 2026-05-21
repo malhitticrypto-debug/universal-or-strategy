@@ -50,17 +50,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private readonly ConcurrentDictionary<string, long> _accountFillGraceTicks =
             new ConcurrentDictionary<string, long>();
 
-        /// <summary>Build 946: Track consecutive failed repair attempts per account where PositionInfo is missing.</summary>
-        private readonly ConcurrentDictionary<string, int> _reaperOrphanRepairCount =
-            new ConcurrentDictionary<string, int>();
-
-        /// <summary>
-        /// Tracks when an orphaned FSM position (broker flat but activePositions entry exists) was first detected.
-        /// Used to implement a 10-second grace period before logging diagnostic warnings.
-        /// Key = entry name; Value = UTC time of first detection.
-        /// </summary>
-        private readonly ConcurrentDictionary<string, DateTime> _orphanedPositionFirstSeen =
-            new ConcurrentDictionary<string, DateTime>();
+        // Build 1111.007-reaper-t2: Orphan safety state moved to V12_002.REAPER.OrphanSafety.cs
 
         // Stamps per-account fill grace. Call from SetExpectedPositionLocked when applying a non-zero delta.
         private void StampAccountFillGrace(string expKey)
@@ -110,6 +100,24 @@ namespace NinjaTrader.NinjaScript.Strategies
         internal void ClearNakedStopInFlight(string expectedKey)
         {
             _reaperNakedStopInFlight.TryRemove(expectedKey, out _);
+        }
+
+        // Build 1111.007-reaper-t2: Accessor methods for OrphanSafety module
+
+        /// <summary>
+        /// Clears orphan FSM grace timestamp (called when position becomes live or activePositions is clean).
+        /// </summary>
+        internal void ClearOrphanFSMGrace(string entryName)
+        {
+            _orphanedPositionFirstSeen.TryRemove(entryName, out _);
+        }
+
+        /// <summary>
+        /// Clears orphan repair counter (called on successful PositionInfo resolution).
+        /// </summary>
+        internal void ClearOrphanRepairCount(string accountName)
+        {
+            _reaperOrphanRepairCount.TryRemove(accountName, out _);
         }
 
         /// <summary>

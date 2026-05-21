@@ -44,7 +44,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class V12_002 : Strategy
     {
-        public const string BUILD_TAG = "1111.007-reaper-t1"; // REAPER-EXTRACT Ticket 01: Naked Position Module
+        public const string BUILD_TAG = "1111.007-reaper-t2"; // REAPER-EXTRACT Ticket 02: Orphan Safety Module
 
         public class UILiveTargetSnapshot
         {
