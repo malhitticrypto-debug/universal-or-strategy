@@ -329,7 +329,20 @@ namespace NinjaTrader.NinjaScript.Strategies
             MarketPosition direction, RMABracketPrices prices, string symmetryDispatchId)
         {
             string localKey = baseSignal;
-            Order entryOrder = SubmitOrderUnmanaged(0, entryAction, OrderType.Limit, qty, price, 0, "", localKey);
+            Order entryOrder = null;
+            
+            try
+            {
+                entryOrder = SubmitOrderUnmanaged(0, entryAction, OrderType.Limit, qty, price, 0, "", localKey);
+            }
+            catch (Exception ex)
+            {
+                // H01: Roll back symmetry dispatch registration on order submission exception
+                SymmetryGuardRollbackDispatch(symmetryDispatchId);
+                Print(string.Format("[SIMA RMA V2] ORDER SUBMISSION EXCEPTION: {0} - Dispatch rolled back", ex.Message));
+                throw;
+            }
+            
             if (entryOrder != null)
             {
                 SymmetryGuardRegisterMasterEntry(symmetryDispatchId, localKey);
@@ -570,16 +583,32 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 1. LOCAL ACCOUNT: SubmitOrderUnmanaged (chart-visible)
                 // =======================================================
                 // Helper 3: Submit local account entry (ATOMIC: INV-4.3)
-                SubmitLocalRMAEntry(baseSignal, entryAction, contracts, price, direction, prices, symmetryDispatchId);
+                bool localSubmitted;
+                try
+                {
+                    localSubmitted = SubmitLocalRMAEntry(baseSignal, entryAction, contracts, price, direction, prices, symmetryDispatchId);
+                }
+                catch (Exception localEx)
+                {
+                    // V12.H01: Rollback symmetry dispatch on local entry failure to prevent orphaned followers
+                    // Specific handling for local submission exceptions (margin, tick size, etc.)
+                    SymmetryGuardRollbackDispatch(symmetryDispatchId);
+                    Print(string.Format("[SIMA RMA V2] LOCAL ENTRY FAILED: {0} - Dispatch rolled back", localEx.Message));
+                    return;
+                }
+
+                // P1-FIX (Iteration 3): Check boolean result - abort if local entry returned false (null order)
+                if (!localSubmitted)
+                {
+                    SymmetryGuardRollbackDispatch(symmetryDispatchId);
+                    Print("[SIMA RMA V2] LOCAL ENTRY NULL - Dispatch rolled back to prevent orphaned followers");
+                    return;
+                }
 
                 // =======================================================
                 // 2. SIMA FLEET: Iterate Account.All for followers
                 // =======================================================
-                if (!EnableSIMA)
-                {
-                    Print("[SIMA RMA V2] [ERR] EnableSIMA is FALSE - Fleet dispatch SKIPPED. Enable SIMA in strategy parameters or send SET_SIMA|ON via IPC.");
-                    return;
-                }
+                // P2-FIX (Iteration 4): Dead code removed - EnableSIMA check is unreachable after early returns
 
                 int fleetOk = 0;
                 int fleetSkip = 0;
