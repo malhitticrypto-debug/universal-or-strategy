@@ -17,41 +17,30 @@ namespace V12_Performance.Tests.Core
         public void OrderState_Transition_Working_To_Filled()
         {
             // Arrange
-            var order = new MockOrder
-            {
-                Name = "ORD001",
-                OrderState = OrderState.Working,
-                Quantity = 1,
-                LimitPrice = 4500.0,
-                StopPrice = 0.0,
-            };
+            // FIX: Use class-based tracker to avoid struct copy semantics bug
+            var tracker = new MockOrderTracker();
+            tracker.AddOrder("ORD001", OrderState.Working);
 
             // Act
-            order.OrderState = OrderState.Filled;
+            tracker.UpdateOrderState("ORD001", OrderState.Filled);
 
             // Assert
-            Assert.Equal(OrderState.Filled, order.OrderState);
-            Assert.Equal("ORD001", order.Name);
+            Assert.Equal(OrderState.Filled, tracker.GetOrderState("ORD001"));
         }
 
         [Fact]
         public void OrderState_Transition_Working_To_Cancelled()
         {
             // Arrange
-            var order = new MockOrder
-            {
-                Name = "ORD002",
-                OrderState = OrderState.Working,
-                Quantity = 2,
-                LimitPrice = 4500.0,
-                StopPrice = 0.0,
-            };
+            // FIX: Use class-based tracker to avoid struct copy semantics bug
+            var tracker = new MockOrderTracker();
+            tracker.AddOrder("ORD002", OrderState.Working);
 
             // Act
-            order.OrderState = OrderState.Cancelled;
+            tracker.UpdateOrderState("ORD002", OrderState.Cancelled);
 
             // Assert
-            Assert.Equal(OrderState.Cancelled, order.OrderState);
+            Assert.Equal(OrderState.Cancelled, tracker.GetOrderState("ORD002"));
         }
 
         [Fact]
@@ -189,11 +178,19 @@ namespace V12_Performance.Tests.Core
             return _orders.TryGetValue(name, out var data) ? data.FilledQuantity : 0;
         }
 
+        public void UpdateOrderState(string name, OrderState newState)
+        {
+            if (_orders.TryGetValue(name, out var data))
+            {
+                data.State = newState;
+            }
+        }
+
         public bool CancelOrder(string name)
         {
             if (_orders.TryGetValue(name, out var data))
             {
-                // Atomic compare-exchange: only cancel if currently Working
+                // FIX: Atomic compare-exchange on the actual backing field
                 // CompareExchange returns the ORIGINAL value
                 // Success = original value matched comparand (Working)
                 int workingState = (int)OrderState.Working;

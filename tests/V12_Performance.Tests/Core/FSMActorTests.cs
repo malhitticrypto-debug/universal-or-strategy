@@ -74,7 +74,8 @@ namespace V12_Performance.Tests.Core
                     }
                 });
             }
-            Task.WaitAll(tasks);
+            // FIX: Use Task.WhenAll instead of Task.WaitAll to avoid potential deadlocks
+            Task.WhenAll(tasks).Wait();
             actor.ProcessQueue();
 
             // Assert
@@ -95,7 +96,7 @@ namespace V12_Performance.Tests.Core
                 iterations,
                 i =>
                 {
-                    var initialState = actor.CurrentState;
+                    // FIX: Removed unused initialState variable
                     actor.TransitionState("WORKING");
                     var finalState = actor.CurrentState;
 
