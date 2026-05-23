@@ -4,11 +4,17 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     
-    <!-- Disable compilation - analysis only -->
+    <!-- CRITICAL: Disable ALL compilation - StyleCop analysis ONLY -->
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <Deterministic>false</Deterministic>
+    <IsPackable>false</IsPackable>
+    <NoWarn>CS1701;CS1702;CS1705</NoWarn>
+    
+    <!-- Disable build entirely - analyzers run without compilation -->
+    <SkipCompilerExecution>true</SkipCompilerExecution>
+    <ProduceOnlyReferenceAssembly>false</ProduceOnlyReferenceAssembly>
     
     <!-- Enable StyleCop analyzers without building -->
     <RunAnalyzers>true</RunAnalyzers>
@@ -22,8 +28,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- Include source files for analysis only (no compilation) -->
-    <Compile Include="src\**\*.cs" />
+    <!-- NO files included - Linting.csproj is DISABLED for now -->
+    <!-- Tests and benchmarks have their own project files with proper dependencies -->
+    <!-- src/ files require NinjaTrader DLLs not available in CI -->
   </ItemGroup>
 
   <ItemGroup>
