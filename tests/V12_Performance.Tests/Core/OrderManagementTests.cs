@@ -27,12 +27,11 @@ namespace V12_Performance.Tests.Core
             };
 
             // Act
-            var newOrder = order;
-            newOrder.OrderState = OrderState.Filled;
+            order.OrderState = OrderState.Filled;
 
             // Assert
-            Assert.Equal(OrderState.Filled, newOrder.OrderState);
-            Assert.Equal("ORD001", newOrder.Name);
+            Assert.Equal(OrderState.Filled, order.OrderState);
+            Assert.Equal("ORD001", order.Name);
         }
 
         [Fact]
@@ -49,11 +48,10 @@ namespace V12_Performance.Tests.Core
             };
 
             // Act
-            var newOrder = order;
-            newOrder.OrderState = OrderState.Cancelled;
+            order.OrderState = OrderState.Cancelled;
 
             // Assert
-            Assert.Equal(OrderState.Cancelled, newOrder.OrderState);
+            Assert.Equal(OrderState.Cancelled, order.OrderState);
         }
 
         [Fact]
@@ -196,19 +194,13 @@ namespace V12_Performance.Tests.Core
             if (_orders.TryGetValue(name, out var data))
             {
                 // Atomic compare-exchange: only cancel if currently Working
-                int workingState = (int)OrderState.Working;
-                int cancelledState = (int)OrderState.Cancelled;
-                int currentState = (int)data.State;
-
                 // CompareExchange returns the ORIGINAL value
                 // Success = original value matched comparand (Working)
-                int original = Interlocked.CompareExchange(ref currentState, cancelledState, workingState);
+                int workingState = (int)OrderState.Working;
+                int cancelledState = (int)OrderState.Cancelled;
+                int original = Interlocked.CompareExchange(ref data.StateInt, cancelledState, workingState);
 
-                if (original == workingState)
-                {
-                    data.State = OrderState.Cancelled;
-                    return true;
-                }
+                return original == workingState;
             }
             return false;
         }
@@ -235,12 +227,19 @@ namespace V12_Performance.Tests.Core
 
     /// <summary>
     /// Order data structure for lock-free tracking.
+    /// Uses int field for atomic CAS operations on State.
     /// </summary>
     public class OrderData
     {
-        public OrderState State;
+        public int StateInt;
         public int FilledQuantity;
         public double LimitPrice;
+
+        public OrderState State
+        {
+            get => (OrderState)StateInt;
+            set => StateInt = (int)value;
+        }
     }
 }
 
