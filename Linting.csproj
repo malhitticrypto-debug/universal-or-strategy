@@ -4,19 +4,13 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     
-    <!-- CRITICAL: Disable ALL compilation - StyleCop analysis ONLY -->
+    <!-- EPIC-6 WORKAROUND: Produce empty assembly to satisfy build pipeline -->
+    <!-- Tests/benchmarks require external dependencies not available in CI -->
+    <OutputType>Library</OutputType>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
-    <Deterministic>false</Deterministic>
-    <IsPackable>false</IsPackable>
-    <NoWarn>CS1701;CS1702;CS1705</NoWarn>
     
-    <!-- Disable build entirely - analyzers run without compilation -->
-    <SkipCompilerExecution>true</SkipCompilerExecution>
-    <ProduceOnlyReferenceAssembly>false</ProduceOnlyReferenceAssembly>
-    
-    <!-- Enable StyleCop analyzers without building -->
+    <!-- Enable StyleCop analyzers -->
     <RunAnalyzers>true</RunAnalyzers>
     <RunAnalyzersDuringBuild>true</RunAnalyzersDuringBuild>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
@@ -28,9 +22,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- NO files included - Linting.csproj is DISABLED for now -->
-    <!-- Tests and benchmarks have their own project files with proper dependencies -->
-    <!-- src/ files require NinjaTrader DLLs not available in CI -->
+    <!-- EPIC-6: No files included - produces empty assembly -->
+    <!-- Future: Add linting back when CI has proper dependency resolution -->
   </ItemGroup>
 
   <ItemGroup>
