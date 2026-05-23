@@ -449,6 +449,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             _executionIdRing = new ExecutionIdRing(512, 1024);
             _executionIdFallbackRing = new ExecutionIdRing(512, 1024);
 
+            // [EPIC-5-PERF T04] Initialize order array pool for zero-allocation SIMA propagation
+            _orderArrayPool = new OrderArrayPool();
+
             // V12.1: Initialize Compliance Hub -- create log directory early (idempotent).
             // Build 935 [Fix-2/3]: Symbol-specific log paths and LogicAudit moved to DataLoaded.
             string logsDirInit = System.IO.Path.Combine(
@@ -465,7 +468,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void OnStateChangeDataLoaded()
         {
             // CRITICAL: Initialization sequence MUST be preserved exactly.
-            // Order: InstrumentConfig -> TargetConfig -> Indicators -> SessionLogging -> Services
+            // Order: InstrumentConfig -> TargetConfig -> Indicators -> SessionLogging -> Services -> SnapshotPool
             _dataLoadedComplete = false;
 
             string symbol = Instrument.MasterInstrument.Name;
@@ -474,6 +477,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             Init_Indicators();
             Init_SessionLogging(symbol);
             Init_Services(symbol);
+
+            // [EPIC-5-PERF T03] Pre-warm UI snapshot pool for zero-allocation publishing
+            PreWarmSnapshotPool();
 
             _dataLoadedComplete = true;
         }
@@ -902,26 +908,38 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         protected override void OnMarketData(MarketDataEventArgs marketDataUpdate)
         {
-            RefreshActorOwnerThread();
+            // [EPIC-5-PERF] Latency instrumentation
+            var probe = LatencyProbe.Start();
 
-            // Only process on primary instrument
-            if (marketDataUpdate.MarketDataType == MarketDataType.Last)
+            try
             {
-                if (!EnsureStartupReady(nameof(OnMarketData)))
-                    return;
-                TouchStrategyHeartbeat();
+                RefreshActorOwnerThread();
 
-                // Update last known price for real-time tracking
-                lastKnownPrice = marketDataUpdate.Price;
+                // Only process on primary instrument
+                if (marketDataUpdate.MarketDataType == MarketDataType.Last)
+                {
+                    if (!EnsureStartupReady(nameof(OnMarketData)))
+                        return;
+                    TouchStrategyHeartbeat();
 
-                // B984-F12: Rate-gate UI snapshot -- publish only every 5 ticks to reduce dispatcher pressure.
-                _uiSnapshotTickCounter = (_uiSnapshotTickCounter + 1) % 5;
-                if (_uiSnapshotTickCounter == 0)
-                    PublishUiSnapshot();
+                    // Update last known price for real-time tracking
+                    lastKnownPrice = marketDataUpdate.Price;
 
-                // Process IPC commands immediately on every tick
-                // This ensures Remote App buttons work even outside session time
-                ProcessIpcCommands();
+                    // B984-F12: Rate-gate UI snapshot -- publish only every 5 ticks to reduce dispatcher pressure.
+                    _uiSnapshotTickCounter = (_uiSnapshotTickCounter + 1) % 5;
+                    if (_uiSnapshotTickCounter == 0)
+                        PublishUiSnapshot();
+
+                    // Process IPC commands immediately on every tick
+                    // This ensures Remote App buttons work even outside session time
+                    ProcessIpcCommands();
+                }
+            }
+            finally
+            {
+                // [EPIC-5-PERF] Record latency
+                probe = probe.Stop();
+                _histOnMarketData.Record(probe);
             }
         }
 

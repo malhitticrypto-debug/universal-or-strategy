@@ -44,7 +44,7 @@ namespace NinjaTrader.NinjaScript.Strategies
 {
     public partial class V12_002 : Strategy
     {
-        public const string BUILD_TAG = "1111.009-epic4-ipc-hardening"; // EPIC-4 Ticket 03: IPC Hardening Layer
+        public const string BUILD_TAG = "1111.010-epic5-perf"; // EPIC-5 Ticket 04: Order Array Pooling
 
         public class UILiveTargetSnapshot
         {
@@ -247,6 +247,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         // ONLY because 22 out-of-scope partial files still reference it; scheduled for removal
         // in the next migration phase. Legacy CSV-header lock removed (DNA audit violation cleared).
         private readonly object stateLock = new object();
+
+        // [EPIC-5-PERF T04] Order array pool for zero-allocation SIMA propagation
+        private OrderArrayPool _orderArrayPool;
 
         // ADR-019: One-shot guard replacing the legacy CSV-header lock around file creation.
         // 0 = not yet ensured, 1 = header ensured (or file pre-existed). Reset to 0 on I/O failure
@@ -802,6 +805,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         // [BUILD 949] CIT one-shot guard: tracks keys that have already been nudged.
         // Prevents re-nudging on subsequent bars after the first limit move.
         private readonly ConcurrentDictionary<string, bool> _citNudgedKeys = new ConcurrentDictionary<string, bool>();
+
+        // [EPIC-5-PERF] Latency histograms for hot path instrumentation
+        private readonly LatencyHistogram _histOnBarUpdate = new LatencyHistogram("OnBarUpdate");
+        private readonly LatencyHistogram _histOnMarketData = new LatencyHistogram("OnMarketData");
+        private readonly LatencyHistogram _histProcessOnOrderUpdate = new LatencyHistogram("ProcessOnOrderUpdate");
+        private readonly LatencyHistogram _histHandleEntryOrderFilled = new LatencyHistogram("HandleEntryOrderFilled");
+        private readonly LatencyHistogram _histMonitorRmaProximity = new LatencyHistogram("MonitorRmaProximity");
+        private readonly LatencyHistogram _histPublishUiSnapshot = new LatencyHistogram("PublishUiSnapshot");
 
         // Build 950: Target snapshot for OCO cascade detection during stop replacement.
         private class TargetSnapshot
