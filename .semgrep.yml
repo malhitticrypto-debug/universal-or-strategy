@@ -1,0 +1,388 @@
+# Semgrep Configuration for V12 Universal OR Strategy
+# Aligned with V12 DNA Principles and Jane Street HFT Standards
+#
+# This configuration defines custom rules for V12 DNA compliance:
+# - Lock-free kernel (no lock() statements)
+# - ASCII-only strings (no Unicode/emoji)
+# - Complexity limits (CYC ≤15 per Jane Street)
+# - Atomic operation correctness
+# - Zero-allocation hot paths
+#
+# Semgrep Products Enabled:
+# - Code (SAST): Custom V12 DNA rules + C# best practices
+# - Secrets: Credential leak detection
+# - Supply Chain: Vulnerable dependency detection
+
+rules:
+  # ==========================================================================
+  # V12 DNA CRITICAL RULES (P0 - BLOCKING)
+  # ==========================================================================
+  
+  - id: v12-ban-lock-statement
+    patterns:
+      - pattern: lock($X) { ... }
+    message: |
+      CRITICAL: lock() is BANNED in V12 DNA. Use Interlocked operations or Actor model.
+      Legacy lock(stateLock) violates the Lock-Free Kernel mandate.
+      
+      Fix: Replace with Interlocked.CompareExchange or FSM/Actor Enqueue pattern.
+      See: docs/architecture.md for Actor pattern examples.
+    languages: [csharp]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-667: Improper Locking"
+      confidence: HIGH
+      v12_dna: lock-free-kernel
+      priority: P0
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+      
+  - id: v12-atomic-on-local-variable
+    patterns:
+      - pattern: |
+          var $LOCAL = ...;
+          ...
+          Interlocked.CompareExchange(ref $LOCAL, ...)
+      - pattern: |
+          var $LOCAL = ...;
+          ...
+          Interlocked.Exchange(ref $LOCAL, ...)
+    message: |
+      CRITICAL: Interlocked operation on local variable is non-atomic.
+      Must operate on shared state (class field) for thread safety.
+      
+      Fix: Move variable to class scope or use different synchronization.
+    languages: [csharp]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-362: Concurrent Execution using Shared Resource with Improper Synchronization"
+      confidence: HIGH
+      v12_dna: atomic-unification
+      priority: P0
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+
+  - id: v12-unicode-in-string-literals
+    patterns:
+      - pattern-regex: '["''].*[^\x00-\x7F].*["'']'
+    message: |
+      CRITICAL: Unicode/emoji detected in string literal. V12 DNA mandates ASCII-only.
+      
+      Common substitutions:
+      - (!) instead of ⚠️
+      - -- instead of —
+      - -> instead of →
+      - Use straight quotes "" not curly ""
+      
+      Fix: Replace all non-ASCII characters with ASCII equivalents.
+    languages: [csharp]
+    severity: ERROR
+    metadata:
+      category: maintainability
+      confidence: HIGH
+      v12_dna: ascii-only-compliance
+      priority: P0
+      likelihood: MEDIUM
+      impact: MEDIUM
+      subcategory:
+        - audit
+
+  - id: v12-task-waitall-blocking
+    patterns:
+      - pattern: Task.WaitAll(...)
+      - pattern: Task.Wait()
+      - pattern: $TASK.Result
+    message: |
+      CRITICAL: Blocking async operations can cause deadlocks in NinjaTrader.
+      
+      Fix: Use await Task.WhenAll() or await $TASK instead.
+    languages: [csharp]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-833: Deadlock"
+      confidence: HIGH
+      v12_dna: deterministic-latency
+      priority: P0
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+
+  # ==========================================================================
+  # V12 DNA HIGH PRIORITY RULES (P1 - MUST FIX)
+  # ==========================================================================
+
+  - id: v12-struct-copy-mutation
+    patterns:
+      - pattern: |
+          var $COPY = $STRUCT;
+          ...
+          $COPY.$FIELD = ...;
+    message: |
+      HIGH: Mutating struct copy instead of original. Use ref parameters.
+      Struct copy semantics can cause state transition bugs.
+      
+      Fix: Pass struct by ref or use class instead of struct.
+    languages: [csharp]
+    severity: WARNING
+    metadata:
+      category: correctness
+      confidence: HIGH
+      v12_dna: correctness-by-construction
+      priority: P1
+      likelihood: MEDIUM
+      impact: HIGH
+      subcategory:
+        - vuln
+
+  - id: v12-linq-in-hot-path
+    patterns:
+      - pattern-inside: |
+          void OnBarUpdate(...) { ... }
+      - pattern-either:
+          - pattern: $X.Where(...)
+          - pattern: $X.Select(...)
+          - pattern: $X.Any(...)
+          - pattern: $X.First(...)
+          - pattern: $X.ToList()
+          - pattern: $X.ToArray()
+    message: |
+      HIGH: LINQ in OnBarUpdate hot path causes allocations.
+      
+      Fix: Use for loops or pre-allocated arrays for zero-allocation guarantee.
+      See: V12_002.Orders.Management.cs for zero-allocation patterns.
+    languages: [csharp]
+    severity: WARNING
+    metadata:
+      category: performance
+      confidence: HIGH
+      v12_dna: zero-allocation
+      priority: P1
+      likelihood: HIGH
+      impact: MEDIUM
+      subcategory:
+        - audit
+
+  - id: v12-missing-v12-prefix
+    patterns:
+      - pattern: |
+          public class $CLASS : NinjaTrader.NinjaScript.Strategies.Strategy { ... }
+      - pattern-not: |
+          public class V12_001$_ : NinjaTrader.NinjaScript.Strategies.Strategy { ... }
+      - pattern-not: |
+          public class V12_002$_ : NinjaTrader.NinjaScript.Strategies.Strategy { ... }
+    message: |
+      HIGH: Strategy class must use V12_001 (Panel) or V12_002 (Strategy) prefix.
+      
+      Fix: Rename class to V12_002.$NAME for strategies or V12_001.$NAME for panels.
+    languages: [csharp]
+    severity: WARNING
+    metadata:
+      category: maintainability
+      confidence: HIGH
+      v12_dna: naming-convention
+      priority: P1
+      likelihood: LOW
+      impact: MEDIUM
+      subcategory:
+        - audit
+
+  - id: v12-threadstatic-without-initialization
+    patterns:
+      - pattern: |
+          [ThreadStatic]
+          private static $TYPE $FIELD;
+    message: |
+      HIGH: ThreadStatic field without lazy initialization can cause null reference.
+      
+      Fix: Add null-coalescing initialization: $FIELD ??= new $TYPE();
+      See: V12_002.Orders.ArrayPool.cs for ThreadStatic patterns.
+    languages: [csharp]
+    severity: WARNING
+    metadata:
+      category: correctness
+      confidence: HIGH
+      v12_dna: thread-safety
+      priority: P1
+      likelihood: MEDIUM
+      impact: HIGH
+      subcategory:
+        - vuln
+
+  # ==========================================================================
+  # V12 DNA MEDIUM PRIORITY RULES (P2 - SHOULD FIX)
+  # ==========================================================================
+
+  - id: v12-public-mutable-fields
+    patterns:
+      - pattern: public $TYPE $FIELD;
+      - pattern-not-inside: |
+          struct $_ { ... }
+      - pattern-not: public const $TYPE $FIELD = ...;
+      - pattern-not: public readonly $TYPE $FIELD = ...;
+    message: |
+      MEDIUM: Public mutable field should be encapsulated as property.
+      
+      Fix: Convert to property with getter/setter for validation.
+    languages: [csharp]
+    severity: INFO
+    metadata:
+      category: maintainability
+      confidence: MEDIUM
+      v12_dna: encapsulation
+      priority: P2
+      likelihood: LOW
+      impact: LOW
+      subcategory:
+        - audit
+
+  - id: v12-string-concat-in-loop
+    patterns:
+      - pattern-inside: |
+          for (...) { ... }
+      - pattern: $STR = $STR + ...;
+    message: |
+      MEDIUM: String concatenation in loop causes allocations.
+      
+      Fix: Use StringBuilder or string interpolation outside loop.
+    languages: [csharp]
+    severity: INFO
+    metadata:
+      category: performance
+      confidence: HIGH
+      v12_dna: zero-allocation
+      priority: P2
+      likelihood: MEDIUM
+      impact: LOW
+      subcategory:
+        - audit
+
+  - id: v12-exception-for-control-flow
+    patterns:
+      - pattern-inside: |
+          try { ... } catch ($EX) { return ...; }
+    message: |
+      MEDIUM: Using exceptions for control flow is expensive.
+      
+      Fix: Use return codes, Result<T>, or TryParse patterns.
+    languages: [csharp]
+    severity: INFO
+    metadata:
+      category: performance
+      confidence: MEDIUM
+      priority: P2
+      likelihood: LOW
+      impact: LOW
+      subcategory:
+        - audit
+
+  # ==========================================================================
+  # SECURITY RULES
+  # ==========================================================================
+
+  - id: v12-hardcoded-credentials
+    patterns:
+      - pattern-either:
+          - pattern: |
+              string $VAR = "password=...";
+          - pattern: |
+              string $VAR = "apikey=...";
+          - pattern: |
+              string $VAR = "secret=...";
+          - pattern: |
+              string $VAR = "token=...";
+    message: |
+      CRITICAL: Hardcoded credentials detected.
+      
+      Fix: Use environment variables or secure vault (Azure Key Vault, AWS Secrets Manager).
+    languages: [csharp]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-798: Use of Hard-coded Credentials"
+      confidence: HIGH
+      priority: P0
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+
+  - id: v12-sql-injection-risk
+    patterns:
+      - pattern: |
+          $CMD.CommandText = $USER_INPUT + ...;
+      - pattern: |
+          $CMD.CommandText = string.Format(..., $USER_INPUT, ...);
+    message: |
+      CRITICAL: Potential SQL injection vulnerability.
+      
+      Fix: Use parameterized queries with SqlParameter.
+    languages: [csharp]
+    severity: ERROR
+    metadata:
+      category: security
+      cwe: "CWE-89: SQL Injection"
+      confidence: HIGH
+      priority: P0
+      likelihood: HIGH
+      impact: HIGH
+      subcategory:
+        - vuln
+
+  # ==========================================================================
+  # NINJATRADER-SPECIFIC RULES
+  # ==========================================================================
+
+  - id: v12-print-in-hot-path
+    patterns:
+      - pattern-inside: |
+          void OnBarUpdate(...) { ... }
+      - pattern: Print(...);
+    message: |
+      MEDIUM: Print() in OnBarUpdate hot path causes I/O overhead.
+      
+      Fix: Use conditional logging or remove debug prints before production.
+    languages: [csharp]
+    severity: INFO
+    metadata:
+      category: performance
+      confidence: HIGH
+      v12_dna: deterministic-latency
+      priority: P2
+      likelihood: MEDIUM
+      impact: LOW
+      subcategory:
+        - audit
+
+  - id: v12-currentbar-without-barsrequired-check
+    patterns:
+      - pattern-inside: |
+          void OnBarUpdate(...) { ... }
+      - pattern: CurrentBar
+      - pattern-not-inside: |
+          if (CurrentBar < BarsRequiredToTrade) return;
+          ...
+    message: |
+      HIGH: CurrentBar access without BarsRequiredToTrade check can cause index errors.
+      
+      Fix: Add guard: if (CurrentBar < BarsRequiredToTrade) return;
+    languages: [csharp]
+    severity: WARNING
+    metadata:
+      category: correctness
+      confidence: MEDIUM
+      v12_dna: defensive-programming
+      priority: P1
+      likelihood: MEDIUM
+      impact: MEDIUM
+      subcategory:
+        - vuln
+
+# Made with Bob

@@ -1,0 +1,49 @@
+# CodeRabbit Configuration for V12 Universal OR Strategy
+# Aligned with V12 DNA: Jane Street principles, lock-free patterns, ASCII-only
+# Last Updated: 2026-05-23
+# Documentation: https://docs.coderabbit.ai/guides/configure-coderabbit
+
+language: en-US
+
+early_access: true
+
+reviews:
+  profile: assertive
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - main
+      - develop
+  
+  path_filters:
+    - "!docs/**"
+    - "!scripts/**"
+    - "!.github/**"
+    - "!conductor/**"
+    - "!Traycerrefactor/**"
+
+chat:
+  auto_reply: true
+
+# V12 DNA Review Instructions (applied via CodeRabbit dashboard)
+# 
+# CRITICAL REQUIREMENTS:
+# 1. V12 NAMING: All files/classes must have V12_001 (Panel) or V12_002 (Strategy) prefix
+# 2. LOCK-FREE: Flag any lock() usage as CRITICAL - require Interlocked or Actor model
+# 3. COMPLEXITY: Flag functions with cyclomatic complexity >15 (Jane Street threshold)
+# 4. ATOMIC OPS: Verify Interlocked.CompareExchange operates on shared state, not local copies
+# 5. ASCII-ONLY: No emoji, curly quotes, em-dashes, Unicode arrows in string literals
+# 6. STRUCT BUGS: Check for struct copy mutations (should use ref parameters)
+# 7. ZERO-ALLOC: Flag LINQ in hot paths (OnBarUpdate, OnOrderUpdate, OnExecutionUpdate)
+# 8. BENCHMARKS: Void benchmarks risk JIT elimination - require return values
+# 9. CIRCUIT BREAKERS: Verify all Interlocked.Decrement paths check reset condition
+# 10. CORRECTNESS: Prefer type system enforcement over runtime checks
+
+# Made with Bob

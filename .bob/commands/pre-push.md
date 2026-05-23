@@ -1,3 +1,7 @@
+---
+description: Comprehensive local validation - run ALL quality checks before pushing to GitHub.
+---
+
 # /pre-push - Comprehensive Local Validation
 
 **Purpose**: Run ALL quality checks locally BEFORE pushing to GitHub to avoid waiting for CI/bot failures.
@@ -22,47 +26,54 @@ powershell -File .\scripts\pre_push_validation.ps1 -SkipBuild -SkipTests
 - **Blocks**: Unicode, emoji, curly quotes
 - **Why**: NinjaTrader compiler crashes on non-ASCII
 
-### 2. **Build Compilation**
+### 2. **Semgrep V12 DNA Scan** (NEW)
+- Pattern-based detection of V12 DNA violations
+- **Catches**: `lock()` usage, CAS on locals, blocking async, LINQ in hot paths
+- **Fast**: ~10s scan of `src/` only
+- **Blocks**: P0 findings (ERROR severity)
+- **Skip**: Use `-SkipSemgrep` for non-code changes
+
+### 3. **Build Compilation**
 - Compiles `Linting.csproj` with Roslyn analyzers
 - **Catches**: Syntax errors, type errors, analyzer warnings
 - **Skip**: Use `-SkipBuild` if you just ran a build
 
-### 3. **Unit Tests**
+### 4. **Unit Tests**
 - Runs all tests in `Testing.csproj`
 - **Catches**: Logic regressions, broken contracts
 - **Skip**: Use `-SkipTests` for non-code changes
 
-### 4. **Roslyn Linting**
+### 5. **Roslyn Linting**
 - Runs `scripts/lint.ps1` (StyleCop, Roslynator, etc.)
 - **Catches**: Style violations, code smells
 - **Skip**: Use `-SkipLint` for docs-only changes
 
-### 5. **CSharpier Formatting**
+### 6. **CSharpier Formatting**
 - Checks code formatting without modifying files
 - **Catches**: Inconsistent indentation, line length
 - **Auto-fix**: Run `dotnet csharpier .` to format
 
-### 6. **Security Scans**
+### 7. **Security Scans**
 - **Gitleaks**: Detects hardcoded secrets, API keys
 - **Snyk**: Scans for dependency vulnerabilities
 - **Catches**: Credential leaks, CVEs
 
-### 7. **Markdown Links**
+### 8. **Markdown Links**
 - Validates all markdown links via `scripts/verify_links.ps1`
 - **Catches**: Broken internal/external links
 - **Why**: Prevents documentation rot
 
-### 8. **PR Hygiene**
+### 9. **PR Hygiene**
 - Runs `scripts/verify_pr_hygiene.ps1` if on a branch
 - **Catches**: Oversized diffs (>10k chars), missing origin/main
 - **Why**: Keeps PRs reviewable
 
-### 9. **Complexity Audit** (Optional - Slow)
+### 10. **Complexity Audit** (Optional - Slow)
 - Runs `scripts/complexity_audit.py`
 - **Catches**: High cyclomatic complexity (>15)
 - **Skip**: Use `-Fast` to skip
 
-### 10. **Dead Code Scan** (Optional - Slow)
+### 11. **Dead Code Scan** (Optional - Slow)
 - Runs `scripts/dead_code_scan.py`
 - **Informational**: Doesn't block push
 - **Skip**: Use `-Fast` to skip
@@ -110,22 +121,32 @@ CHECK: 1. ASCII-Only Compliance
 [PASS] ASCII Gate: All source files are ASCII-clean
 
 ========================================
-CHECK: 2. Build Compilation
+CHECK: 2. Semgrep V12 DNA Scan
+========================================
+[PASS] Semgrep: No P0 violations detected
+  ✓ No lock() statements
+  ✓ ASCII-only strings
+  ✓ Atomic operations on shared state
+  ✓ No blocking async calls
+  ✓ No LINQ in hot paths
+
+========================================
+CHECK: 3. Build Compilation
 ========================================
 [PASS] Build: Linting.csproj compiled successfully
 
 ========================================
-CHECK: 3. Unit Tests
+CHECK: 4. Unit Tests
 ========================================
 [PASS] Unit Tests: All tests passed
 
-... (8 more checks)
+... (7 more checks)
 
 ========================================
 PRE-PUSH VALIDATION SUMMARY
 ========================================
 
-Results: 10/10 checks passed
+Results: 11/11 checks passed
 
 [READY] All checks passed - safe to push!
 ```
@@ -134,10 +155,10 @@ Results: 10/10 checks passed
 
 If any check fails:
 ```
-Results: 8/10 checks passed
+Results: 9/11 checks passed
 
 Failed Checks:
-  - ASCII Gate: Non-ASCII found in 2 files
+  - Semgrep: 3 P0 violations (lock() usage, Unicode strings)
   - Unit Tests: Test failures detected
 
 [BLOCKED] Fix the above issues before pushing to GitHub
@@ -147,9 +168,11 @@ Failed Checks:
 
 ## Performance
 
-- **Fast Mode**: ~30 seconds (skips complexity/dead code)
+- **Fast Mode**: ~40 seconds (skips complexity/dead code, includes Semgrep)
 - **Full Mode**: ~2 minutes (includes all checks)
 - **Parallel**: Checks run sequentially for clear output
+
+**Semgrep Impact**: +10s (worth it for P0 violation detection)
 
 ## Comparison to CI
 
@@ -157,15 +180,17 @@ Failed Checks:
 |-------|------------------|-----------|------------|
 | Build | ✅ Instant | ⏱️ 1-2 min | 1-2 min |
 | Tests | ✅ Instant | ⏱️ 1-2 min | 1-2 min |
+| Semgrep | ✅ 10s | ⏱️ 30-60s | 20-50s |
 | Lint | ✅ Instant | ⏱️ 30-60s | 30-60s |
 | Security | ✅ Instant | ⏱️ 1-2 min | 1-2 min |
 | **Total** | **~2 min** | **~5-10 min** | **3-8 min** |
 
-**Plus**: No waiting for bot checks (CodeRabbit, Kilo, Cubic, etc.)
+**Plus**: No waiting for bot checks (CodeRabbit, Semgrep, Kilo, Cubic, etc.)
 
 ## Bob Findings Integration
 
 The script checks for:
+- **Semgrep**: V12 DNA pattern violations (NEW)
 - **Bob CLI findings**: Via Roslyn analyzers in build step
 - **CodeRabbit**: Markdown formatting, link validation
 - **Greptile**: Dead code scan, complexity audit
@@ -205,7 +230,16 @@ Install Python 3.12+ from python.org
 ## V12 DNA Compliance
 
 This script enforces:
-- ✅ ASCII-only (Section 7)
-- ✅ Lock-free patterns (via tests)
+- ✅ ASCII-only (Section 1 + Semgrep)
+- ✅ Lock-free patterns (Semgrep + tests)
+- ✅ Atomic correctness (Semgrep)
+- ✅ Zero-allocation hot paths (Semgrep)
 - ✅ Surgical changes (via PR hygiene)
 - ✅ Zero-trust validation (all checks mandatory)
+
+## Semgrep Details
+
+For detailed Semgrep configuration and usage, see:
+- **Setup Guide**: `docs/setup/SEMGREP_SETUP.md`
+- **Configuration**: `.semgrep.yml`
+- **Scan Script**: `scripts/run_semgrep.ps1`
