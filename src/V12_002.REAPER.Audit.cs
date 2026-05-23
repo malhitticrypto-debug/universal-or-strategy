@@ -54,6 +54,65 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 lastReaperLog = DateTime.UtcNow;
             }
+
+            AuditIpcCommandQueue(shouldLog);
+            AuditIpcHardeningMetrics(shouldLog);
+        }
+
+        private void AuditIpcCommandQueue(bool shouldLog)
+        {
+            int queueDepth = GetPhotonDispatchRingDepth();
+            int threshold = 1600; // 80% of 2000 capacity
+
+            if (queueDepth >= threshold)
+            {
+                string msg = string.Format(
+                    "[REAPER][IPC] Queue depth critical: {0}/{1} (threshold: {2})",
+                    queueDepth,
+                    2000,
+                    threshold
+                );
+                Print(msg);
+
+                // TODO: Trigger backpressure NACK (Epic 4 Ticket 03)
+            }
+            else if (shouldLog && queueDepth > 0)
+            {
+                Print(string.Format("[REAPER][IPC] Queue depth: {0}", queueDepth));
+            }
+        }
+
+        /// <summary>
+        /// EPIC-4 Ticket 03: Monitor IPC hardening metrics (rate limiter, circuit breakers).
+        /// CYC: 4
+        /// </summary>
+        private void AuditIpcHardeningMetrics(bool shouldLog)
+        {
+            // Rate limiter status
+            int nackCount = Volatile.Read(ref _ipcBackpressureNackCount);
+            if (nackCount > 0 && shouldLog)
+            {
+                Print(string.Format("[REAPER][IPC] Backpressure NACKs: {0}", nackCount));
+            }
+
+            // Circuit breaker status - malformed payloads
+            if (_ipcMalformedCircuitBreaker.IsOpen)
+            {
+                Print("[REAPER][IPC] Circuit breaker OPEN - malformed payload threshold exceeded");
+
+                // Attempt reset if timeout elapsed
+                if (_ipcMalformedCircuitBreaker.TryReset())
+                {
+                    Print("[REAPER][IPC] Circuit breaker RESET");
+                }
+            }
+
+            // Allowlist bypass attempts
+            if (_ipcAllowlistBypassDetector.IsOpen)
+            {
+                Print("[REAPER][IPC] SECURITY ALERT: Allowlist bypass attempts detected");
+                // TODO: Trigger client disconnect (Phase 5)
+            }
         }
 
         // Build 935 [REAPER-B935-003]: Per-account audit logic extracted from AuditApexPositions.

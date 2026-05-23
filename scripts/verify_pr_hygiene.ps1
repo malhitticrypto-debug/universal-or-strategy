@@ -11,14 +11,16 @@ Write-Host "--- V12 PR HYGIENE GATE ---" -ForegroundColor Cyan
 # Ensure main is fetched
 git fetch origin $BaseBranch --quiet
 
-$mergeBase = git merge-base HEAD $BaseBranch
+$mergeBase = git merge-base HEAD origin/$BaseBranch
 $mainTip = git rev-parse origin/$BaseBranch
 
 if ($mergeBase -ne $mainTip) {
     # If the merge base isn't the tip of main, check if main is a direct ancestor
     $isAncestor = git merge-base --is-ancestor $BaseBranch HEAD
     if (!$isAncestor) {
-        Write-Host "FAIL: Branch is NOT based on the latest main. Please rebase or use a fresh branch." -ForegroundColor Red
+        Write-Host "FAIL: Branch is NOT based on the latest main." -ForegroundColor Red
+        Write-Host "ACTION: Please rebase onto main using:" -ForegroundColor Yellow
+        Write-Host "  git fetch origin main && git rebase origin/main" -ForegroundColor White
         exit 1
     }
 }
