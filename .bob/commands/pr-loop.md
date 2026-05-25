@@ -30,6 +30,33 @@ You are the V12 Perfection Orchestrator. You MUST NOT STOP until PHS is 100/100.
 
 ## THE PERFECTION CYCLE
 
+### Step -1: PR Existence Check (NEW - MANDATORY)
+
+**Switch to: Advanced mode**
+
+Hand off:
+```
+TASK: Check if PR Already Exists
+PR: $1
+PROTOCOL:
+  1. Run: gh pr view $1 --json headRefName --jq '.headRefName'
+  2. If PR exists (exit code 0):
+     - Checkout the existing branch: git checkout <branch_name>
+     - Emit: [PR-EXISTS] Checked out branch <branch_name>
+     - Skip Step 0, proceed to Step 1 (Pre-Flight Hygiene)
+  3. If PR doesn't exist (exit code 1):
+     - Emit: [PR-NEW] PR does not exist yet
+     - Proceed to Step 0 (create new branch)
+```
+
+**Gate:**
+- If PR exists: Skip Step 0, proceed to Step 1
+- If PR doesn't exist: Proceed to Step 0
+
+**Rationale:** Prevents branch confusion when resuming work on existing PRs. Ensures fixes are pushed to the correct branch.
+
+---
+
 ### Step 0: Pre-Flight Hygiene (MANDATORY)
 
 **Switch to: Advanced mode**
@@ -38,10 +65,15 @@ Hand off:
 ```
 TASK: Verify PR Hygiene
 PROTOCOL:
-  1. Run `git fetch origin main && git rebase origin/main`.
-  2. Run `powershell -File .\scripts\verify_pr_hygiene.ps1`.
-  3. If FAIL: HALT and report the violation (e.g. "Diff > 10k" or "Branch is dirty").
-  4. If PASS: Advance to Step 1.
+  IF PR is new (from Step -1):
+    1. Create branch: git checkout -b <branch_name>
+    2. Run `git fetch origin main && git rebase origin/main`.
+    3. Run `powershell -File .\scripts\verify_pr_hygiene.ps1`.
+  IF PR already exists (from Step -1):
+    1. Run `git fetch origin main && git rebase origin/main`.
+    2. Run `powershell -File .\scripts\verify_pr_hygiene.ps1`.
+  4. If FAIL: HALT and report the violation (e.g. "Diff > 10k" or "Branch is dirty").
+  5. If PASS: Advance to Step 1.
 ```
 
 ---

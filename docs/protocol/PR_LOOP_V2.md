@@ -14,11 +14,46 @@ The V2 PR Loop adds **mandatory Bot Forensics extraction** before any fix attemp
 
 ## The Improved Cycle
 
+### Step -1: PR Existence Check (NEW - MANDATORY)
+**Mode:** Advanced
+**Action:** Verify if PR already exists before creating new branch
+
+```powershell
+# Check if PR exists and get its branch name
+$prExists = gh pr view <PR_NUMBER> 2>&1
+if ($LASTEXITCODE -eq 0) {
+    # PR exists - checkout its branch
+    $branchName = gh pr view <PR_NUMBER> --json headRefName --jq '.headRefName'
+    git checkout $branchName
+    Write-Host "[PR-LOOP] Checked out existing PR branch: $branchName"
+} else {
+    # PR doesn't exist - proceed to Step 0 (create new branch)
+    Write-Host "[PR-LOOP] PR does not exist. Proceeding to create new branch..."
+}
+```
+
+**Gate:**
+- If PR exists: Skip Step 0, proceed to Step 1 (Pre-Flight Hygiene on existing branch)
+- If PR doesn't exist: Proceed to Step 0 (create new branch)
+
+**Rationale:** Prevents branch confusion when resuming work on existing PRs. Agents were creating new branches instead of checking out existing PR branches, causing pushes to wrong branches and bot checks never triggering.
+
+---
+
 ### Step 0: Pre-Flight Hygiene (MANDATORY)
 **Mode:** Advanced
 **Action:** Verify branch is clean and rebased, run Semgrep scan
 
+**If PR already exists (from Step -1):**
 ```powershell
+git fetch origin main && git rebase origin/main
+powershell -File .\scripts\verify_pr_hygiene.ps1
+powershell -File .\scripts\run_semgrep.ps1 -Severity ERROR
+```
+
+**If creating new PR:**
+```powershell
+git checkout -b <BRANCH_NAME>
 git fetch origin main && git rebase origin/main
 powershell -File .\scripts\verify_pr_hygiene.ps1
 powershell -File .\scripts\run_semgrep.ps1 -Severity ERROR
