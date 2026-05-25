@@ -482,7 +482,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Position brokerPos = null;
                 for (int _pi = 0; _pi < _posSnapshot.Length; _pi++)
                 {
-                    if (_posSnapshot[_pi] != null && _posSnapshot[_pi].Instrument.FullName == Instrument.FullName)
+                    if (
+                        _posSnapshot[_pi] != null
+                        && _posSnapshot[_pi].Instrument != null
+                        && _posSnapshot[_pi].Instrument.FullName == Instrument.FullName
+                    )
                     {
                         brokerPos = _posSnapshot[_pi];
                         break;
