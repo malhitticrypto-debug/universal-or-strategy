@@ -490,11 +490,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 bool brokerFlat = (brokerPos == null || brokerPos.MarketPosition == MarketPosition.Flat);
 
-                // T-W1-Perf: direct foreach over ConcurrentDictionary -- no .Values snapshot, no closure alloc.
+                // T-W1-Perf + EPIC-5-T06: Snapshot + for-loop eliminates 2 enumerator allocations.
                 bool hasActiveFsmForAcct = false;
-                foreach (var _fkvp in _followerBrackets)
+                var _fsmSnapshot = _followerBrackets.ToArray();
+                for (int _fi = 0; _fi < _fsmSnapshot.Length; _fi++)
                 {
-                    var f = _fkvp.Value;
+                    var f = _fsmSnapshot[_fi].Value;
                     if (
                         f != null
                         && f.AccountName == acct.Name
@@ -511,9 +512,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
                 bool hasActivePositionForAcct = false;
-                foreach (var _pkvp in activePositions)
+                var _positionsSnapshot = activePositions.ToArray();
+                for (int _posi = 0; _posi < _positionsSnapshot.Length; _posi++)
                 {
-                    var p = _pkvp.Value;
+                    var p = _positionsSnapshot[_posi].Value;
                     if (p != null && p.IsFollower && p.ExecutingAccount != null && p.ExecutingAccount.Name == acct.Name)
                     {
                         hasActivePositionForAcct = true;
