@@ -490,12 +490,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 bool brokerFlat = (brokerPos == null || brokerPos.MarketPosition == MarketPosition.Flat);
 
-                // T-W1-Perf + EPIC-5-T06: Snapshot + for-loop eliminates 2 enumerator allocations.
+                // H-13: Check for active FSM entries for this account
                 bool hasActiveFsmForAcct = false;
-                var _fsmSnapshot = _followerBrackets.ToArray();
-                for (int _fi = 0; _fi < _fsmSnapshot.Length; _fi++)
+                foreach (var _fkvp in _followerBrackets)
                 {
-                    var f = _fsmSnapshot[_fi].Value;
+                    var f = _fkvp.Value;
                     if (
                         f != null
                         && f.AccountName == acct.Name
@@ -512,10 +511,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
                 bool hasActivePositionForAcct = false;
-                var _positionsSnapshot = activePositions.ToArray();
-                for (int _posi = 0; _posi < _positionsSnapshot.Length; _posi++)
+                foreach (var _pkvp in activePositions)
                 {
-                    var p = _positionsSnapshot[_posi].Value;
+                    var p = _pkvp.Value;
                     if (p != null && p.IsFollower && p.ExecutingAccount != null && p.ExecutingAccount.Name == acct.Name)
                     {
                         hasActivePositionForAcct = true;
