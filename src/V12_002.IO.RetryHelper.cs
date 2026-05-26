@@ -155,9 +155,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                         || hResult == unchecked((int)0x80070050);
                 }
 
-                // UnauthorizedAccessException: Temporary permission issues (e.g., antivirus scan)
-                if (ex is UnauthorizedAccessException)
+                // UnauthorizedAccessException: Only retry if it's likely transient (e.g., antivirus scan)
+                // Do NOT retry if it's a permanent permission issue (e.g., file is read-only, no write access)
+                // Heuristic: If the exception message contains "read-only" or "access denied", it's likely permanent
+                if (ex is UnauthorizedAccessException uaEx)
                 {
+                    string msg = uaEx.Message?.ToLowerInvariant() ?? string.Empty;
+                    // Don't retry if it's clearly a permanent permission issue
+                    if (msg.Contains("read-only") || msg.Contains("access is denied"))
+                    {
+                        return false;
+                    }
+                    // Otherwise, assume it's transient (e.g., antivirus scan)
                     return true;
                 }
 

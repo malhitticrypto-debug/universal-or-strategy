@@ -49,7 +49,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string canonical = Path.GetFullPath(path);
 
                     // Security check: Ensure path stays within NinjaTrader 8 directory
-                    if (!canonical.StartsWith(_baseDir, StringComparison.OrdinalIgnoreCase))
+                    // Use Path.GetFullPath to normalize both paths, then check if canonical is truly under _baseDir
+                    // This prevents bypass via paths like "C:\NinjaTrader 8.1" which would pass StartsWith
+                    if (
+                        !canonical.StartsWith(_baseDir, StringComparison.OrdinalIgnoreCase)
+                        || (
+                            canonical.Length > _baseDir.Length
+                            && canonical[_baseDir.Length] != Path.DirectorySeparatorChar
+                            && canonical[_baseDir.Length] != Path.AltDirectorySeparatorChar
+                        )
+                    )
                     {
                         throw new SecurityException(
                             string.Format(
