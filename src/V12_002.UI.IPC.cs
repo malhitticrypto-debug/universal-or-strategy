@@ -324,7 +324,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     TriggerCustomEvent(o => ProcessIpcCommands(), null);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    // V12.EPIC-7-QUALITY-006: Log IPC command processing trigger failures
+                    Interlocked.Increment(ref _ipcCleanupFailures);
+                    Print($"[IPC_CLEANUP] Command processing trigger failed: {ex.Message}");
+                    // Continue - non-fatal, commands remain queued for next cycle
+                }
             }
         }
 

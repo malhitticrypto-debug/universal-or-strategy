@@ -1,13 +1,15 @@
 // Build 971: UI.IPC.Commands.Misc -- TryHandleConfigCommand, TryHandleComplianceCommand, HandleFleetCommand, SendResponseToRemote, FlattenSpecificTarget, ToggleStrategyMode
 // V12 UI.IPC Module (Extracted)
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
 using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,16 +19,14 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using NinjaTrader.Cbi;
+using NinjaTrader.Data;
 using NinjaTrader.Gui;
 using NinjaTrader.Gui.Chart;
 using NinjaTrader.Gui.Tools;
-using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.DrawingTools;
 using NinjaTrader.NinjaScript.Indicators;
 using NinjaTrader.NinjaScript.Strategies;
-using System.Net;
-using System.Net.Sockets;
 
 namespace NinjaTrader.NinjaScript.Strategies
 {
@@ -45,13 +45,23 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (action == "GET_LAYOUT")
             {
                 string mode = GetCurrentConfigMode();
-                Print(string.Format("V12 GET_LAYOUT: Mode={0} Count={1} T1={2}({3}) T2={4}({5}) T3={6}({7}) T4={8}({9}) T5={10}({11})",
-                    mode, activeTargetCount,
-                    Target1Value, T1Type,
-                    Target2Value, T2Type,
-                    Target3Value, T3Type,
-                    Target4Value, T4Type,
-                    Target5Value, T5Type));
+                Print(
+                    string.Format(
+                        "V12 GET_LAYOUT: Mode={0} Count={1} T1={2}({3}) T2={4}({5}) T3={6}({7}) T4={8}({9}) T5={10}({11})",
+                        mode,
+                        activeTargetCount,
+                        Target1Value,
+                        T1Type,
+                        Target2Value,
+                        T2Type,
+                        Target3Value,
+                        T3Type,
+                        Target4Value,
+                        T4Type,
+                        Target5Value,
+                        T5Type
+                    )
+                );
                 return true;
             }
             return false;
@@ -72,10 +82,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// </summary>
         private void HandleFleetCommand(string action, string[] parts)
         {
-            if (HandleFleet_GetFleet(action)) return;
-            if (HandleFleet_SetSima(action, parts)) return;
-            if (HandleFleet_DiagFleet(action)) return;
-            if (HandleFleet_SetLeader(action, parts)) return;
+            if (HandleFleet_GetFleet(action))
+                return;
+            if (HandleFleet_SetSima(action, parts))
+                return;
+            if (HandleFleet_DiagFleet(action))
+                return;
+            if (HandleFleet_SetLeader(action, parts))
+                return;
             HandleFleet_RequestFleetState(action);
         }
 
@@ -131,7 +145,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     total++;
                     bool isActive = false;
                     activeFleetAccounts.TryGetValue(acct.Name, out isActive);
-                    if (isActive) active++;
+                    if (isActive)
+                        active++;
                     Print($"[DIAG]   {acct.Name} -> {(isActive ? "? ACTIVE" : "[X] INACTIVE")}");
                 }
             }
@@ -190,11 +205,12 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void SendResponseToRemote(string response)
         {
-            if (connectedClients == null) return;
+            if (connectedClients == null)
+                return;
 
             // Diagnostic: Log what we are sending and to how many clients
             if (response.Contains("SYNC_TARGET_STATE"))
-                 Print($"V14 IPC: Broadcasting SYNC_TARGET_STATE to {connectedClients.Count} clients");
+                Print($"V14 IPC: Broadcasting SYNC_TARGET_STATE to {connectedClients.Count} clients");
 
             byte[] responseBytes = Encoding.UTF8.GetBytes(response + "\n");
             List<int> disconnectedClientIds = new List<int>();
@@ -226,7 +242,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 if (connectedClients.TryRemove(clientId, out var staleClient))
                 {
-                    try { staleClient.Client.Close(); } catch { }
+                    // V12.EPIC-7-QUALITY-006: Explicit stale client cleanup
+                    try
+                    {
+                        staleClient.Client.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.Increment(ref _ipcCleanupFailures);
+                        Print($"[IPC_CLEANUP] Stale client close failed [id={clientId}]: {ex.Message}");
+                        // Continue cleanup - non-fatal
+                    }
                 }
             }
         }
@@ -245,13 +271,23 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 foreach (var kvp in activePositions.ToArray())
                 {
-                    if (!activePositions.ContainsKey(kvp.Key)) continue;
+                    if (!activePositions.ContainsKey(kvp.Key))
+                        continue;
                     PositionInfo pos = kvp.Value;
                     string entryName = kvp.Key;
 
-                    if (!pos.EntryFilled || pos.RemainingContracts <= 0) continue;
+                    if (!pos.EntryFilled || pos.RemainingContracts <= 0)
+                        continue;
 
-                    if (!FlattenSpecificTarget_ResolveTarget(targetNumber, pos, out int qtyToClose, out ConcurrentDictionary<string, Order> targetDict, out string targetName))
+                    if (
+                        !FlattenSpecificTarget_ResolveTarget(
+                            targetNumber,
+                            pos,
+                            out int qtyToClose,
+                            out ConcurrentDictionary<string, Order> targetDict,
+                            out string targetName
+                        )
+                    )
                         return;
 
                     if (qtyToClose <= 0)
@@ -281,7 +317,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             PositionInfo pos,
             out int qtyToClose,
             out ConcurrentDictionary<string, Order> targetDict,
-            out string targetName)
+            out string targetName
+        )
         {
             qtyToClose = 0;
             targetDict = null;
@@ -289,11 +326,31 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             switch (targetNumber)
             {
-                case 1: qtyToClose = pos.T1Contracts; targetDict = target1Orders; targetName = "T1"; return true;
-                case 2: qtyToClose = pos.T2Contracts; targetDict = target2Orders; targetName = "T2"; return true;
-                case 3: qtyToClose = pos.T3Contracts; targetDict = target3Orders; targetName = "T3"; return true;
-                case 4: qtyToClose = pos.T4Contracts; targetDict = target4Orders; targetName = "T4"; return true;
-                case 5: qtyToClose = pos.T5Contracts; targetDict = target5Orders; targetName = "T5"; return true;
+                case 1:
+                    qtyToClose = pos.T1Contracts;
+                    targetDict = target1Orders;
+                    targetName = "T1";
+                    return true;
+                case 2:
+                    qtyToClose = pos.T2Contracts;
+                    targetDict = target2Orders;
+                    targetName = "T2";
+                    return true;
+                case 3:
+                    qtyToClose = pos.T3Contracts;
+                    targetDict = target3Orders;
+                    targetName = "T3";
+                    return true;
+                case 4:
+                    qtyToClose = pos.T4Contracts;
+                    targetDict = target4Orders;
+                    targetName = "T4";
+                    return true;
+                case 5:
+                    qtyToClose = pos.T5Contracts;
+                    targetDict = target5Orders;
+                    targetName = "T5";
+                    return true;
                 default:
                     Print(string.Format("V10.3: Invalid target number {0}", targetNumber));
                     return false;
@@ -304,14 +361,20 @@ namespace NinjaTrader.NinjaScript.Strategies
             string entryName,
             PositionInfo pos,
             string targetName,
-            ConcurrentDictionary<string, Order> targetDict)
+            ConcurrentDictionary<string, Order> targetDict
+        )
         {
             // Cancel existing limit order if working
             if (targetDict != null && targetDict.TryGetValue(entryName, out Order targetOrder))
             {
-                if (targetOrder != null && (targetOrder.OrderState == OrderState.Working ||
-                    targetOrder.OrderState == OrderState.Accepted ||
-                    targetOrder.OrderState == OrderState.Submitted))
+                if (
+                    targetOrder != null
+                    && (
+                        targetOrder.OrderState == OrderState.Working
+                        || targetOrder.OrderState == OrderState.Accepted
+                        || targetOrder.OrderState == OrderState.Submitted
+                    )
+                )
                 {
                     CancelOrderSafe(targetOrder, pos);
                     Print(string.Format("V10.3: Cancelled {0} limit order for {1}", targetName, entryName));
@@ -329,22 +392,42 @@ namespace NinjaTrader.NinjaScript.Strategies
             string entryName,
             PositionInfo pos,
             int qtyToClose,
-            string targetName)
+            string targetName
+        )
         {
             // Submit market order to close the target contracts
             Order closeOrder = SubmitExitOrderForPosition(
-                pos, qtyToClose, OrderType.Market, 0, string.Format("Close{0}_{1}", targetName, entryName));
+                pos,
+                qtyToClose,
+                OrderType.Market,
+                0,
+                string.Format("Close{0}_{1}", targetName, entryName)
+            );
             if (closeOrder != null)
-                Print(string.Format("V10.3: Closing {0} ({1} contracts) at market for {2}", targetName, qtyToClose, entryName));
+                Print(
+                    string.Format(
+                        "V10.3: Closing {0} ({1} contracts) at market for {2}",
+                        targetName,
+                        qtyToClose,
+                        entryName
+                    )
+                );
             else
-                Print(string.Format("V10.3: FAILED to close {0} ({1} contracts) at market for {2}", targetName, qtyToClose, entryName));
+                Print(
+                    string.Format(
+                        "V10.3: FAILED to close {0} ({1} contracts) at market for {2}",
+                        targetName,
+                        qtyToClose,
+                        entryName
+                    )
+                );
         }
 
         private void ToggleStrategyMode(string action)
         {
-             ToggleStrategyMode_SetFlags(action);
-             ToggleStrategyMode_ExecuteModeAction(action);
-             ToggleStrategyMode_PublishSnapshot(action);
+            ToggleStrategyMode_SetFlags(action);
+            ToggleStrategyMode_ExecuteModeAction(action);
+            ToggleStrategyMode_PublishSnapshot(action);
         }
 
         private void ToggleStrategyMode_SetFlags(string action)
@@ -367,21 +450,25 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void ToggleStrategyMode_PublishSnapshot(string action)
         {
-             if (action == "MODE_RMA"
-                 || action == "MODE_MOMO"
-                 || action == "MODE_FFMA"
-                 || action == "FFMA_DISARM")
-             {
-                 BumpUiConfigRevision();
-             }
+            if (action == "MODE_RMA" || action == "MODE_MOMO" || action == "MODE_FFMA" || action == "FFMA_DISARM")
+            {
+                BumpUiConfigRevision();
+            }
 
-             PublishUiSnapshot();
+            PublishUiSnapshot();
 
-             Print(string.Format("IPC Mode Toggle: {0} | RMA={1} MOMO={2} TrendRMA={3} RetestRMA={4} FFMA={5}",
-                action, isRMAModeActive, isMOMOModeActive, isTrendRmaMode, isRetestRmaMode, isFFMAModeArmed));
+            Print(
+                string.Format(
+                    "IPC Mode Toggle: {0} | RMA={1} MOMO={2} TrendRMA={3} RetestRMA={4} FFMA={5}",
+                    action,
+                    isRMAModeActive,
+                    isMOMOModeActive,
+                    isTrendRmaMode,
+                    isRetestRmaMode,
+                    isFFMAModeArmed
+                )
+            );
         }
-
-
 
         #endregion
     }

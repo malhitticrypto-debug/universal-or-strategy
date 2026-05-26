@@ -21,7 +21,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private StackPanel mainStack;
 
         // Placement tracking
-        private enum PanelPlacement { None, Hijack, Injected, Fallback }
+        private enum PanelPlacement
+        {
+            None,
+            Hijack,
+            Injected,
+            Fallback,
+        }
+
         private PanelPlacement _placementMode = PanelPlacement.None;
         private FrameworkElement _chartTraderElement;
         private Grid _placementGrid;
@@ -39,48 +46,107 @@ namespace NinjaTrader.NinjaScript.Strategies
         private Grid manualEntryRow;
 
         // Section 1: Execution
-        private Button orLongButton, orShortButton;
-        private Button retestButton, rmaButton;
-        private Button momoButton, ffmaButton, ffmaManualButton, mButton;
-        private Button trendButton, trendRmaToggle, retestRmaToggle;
-        private Grid execRetestRow, execTrendRow;
+        private Button orLongButton,
+            orShortButton;
+        private Button retestButton,
+            rmaButton;
+        private Button momoButton,
+            ffmaButton,
+            ffmaManualButton,
+            mButton;
+        private Button trendButton,
+            trendRmaToggle,
+            retestRmaToggle;
+        private Grid execRetestRow,
+            execTrendRow;
         private int retestCycleState;
-        private bool isTrendRmaToggle, isRetestRmaToggle;
+        private bool isTrendRmaToggle,
+            isRetestRmaToggle;
 
         // Section 1: Targets + Management
-        private Button t1Button, t2Button, t3Button, t4Button, t5Button;
-        private Button trim50Button, beButton, trailButton;
-        private TextBox trailDistInput, beOffsetInput;
-        private Button flattenButton, cancelButton;
+        private Button t1Button,
+            t2Button,
+            t3Button,
+            t4Button,
+            t5Button;
+        private Button trim50Button,
+            beButton,
+            trailButton;
+        private TextBox trailDistInput,
+            beOffsetInput;
+        private Button flattenButton,
+            cancelButton;
         private TextBlock lastPriceText;
+
         // Build 1107: Live target control rows (visible when in position, collapsed when flat)
-        private Grid liveT1Row, liveT2Row, liveT3Row, liveT4Row, liveT5Row;
-        private TextBox liveT1Price, liveT2Price, liveT3Price, liveT4Price, liveT5Price;
-        private TextBlock liveT1Cts, liveT2Cts, liveT3Cts, liveT4Cts, liveT5Cts;
+        private Grid liveT1Row,
+            liveT2Row,
+            liveT3Row,
+            liveT4Row,
+            liveT5Row;
+        private TextBox liveT1Price,
+            liveT2Price,
+            liveT3Price,
+            liveT4Price,
+            liveT5Price;
+        private TextBlock liveT1Cts,
+            liveT2Cts,
+            liveT3Cts,
+            liveT4Cts,
+            liveT5Cts;
         private Grid liveStopRow;
         private TextBlock liveStopPrice;
         private string _currentLiveEntryName;
 
         // Section 1.5: Risk Manager / Compliance
         private TextBlock complianceSummaryText;
-        private TextBlock complianceConsistencyText, compliancePayoutText, complianceDrawdownText;
+        private TextBlock complianceConsistencyText,
+            compliancePayoutText,
+            complianceDrawdownText;
 
         // Section 2: Telemetry
-        private TextBlock or5Text, or15Text;
-        private TextBlock ema9Text, ema15Text, ema30Text, ema65Text, ema200Text;
+        private TextBlock or5Text,
+            or15Text;
+        private TextBlock ema9Text,
+            ema15Text,
+            ema30Text,
+            ema65Text,
+            ema200Text;
         private TextBlock atrText;
         private Button mktSyncButton;
         private Border trendIndicator;
         private TextBlock trendText;
 
         // Section 3: Config
-        private Button modeOrbButton, modeRmaButton, modeRetestButton;
-        private Button modeMomoButton, modeFfmaButton, modeTrendButton;
-        private Button cnt1, cnt2, cnt3, cnt4, cnt5;
-        private TextBox svT1Val, svT2Val, svT3Val, svT4Val, svT5Val;
-        private ComboBox svT1Type, svT2Type, svT3Type, svT4Type, svT5Type, svStrType;
-        private TextBox strVal, maxVal, citVal;
-        private StackPanel t2Row, t3Row, t4Row, t5Row;
+        private Button modeOrbButton,
+            modeRmaButton,
+            modeRetestButton;
+        private Button modeMomoButton,
+            modeFfmaButton,
+            modeTrendButton;
+        private Button cnt1,
+            cnt2,
+            cnt3,
+            cnt4,
+            cnt5;
+        private TextBox svT1Val,
+            svT2Val,
+            svT3Val,
+            svT4Val,
+            svT5Val;
+        private ComboBox svT1Type,
+            svT2Type,
+            svT3Type,
+            svT4Type,
+            svT5Type,
+            svStrType;
+        private TextBox strVal,
+            maxVal,
+            citVal;
+        private StackPanel t2Row,
+            t3Row,
+            t4Row,
+            t5Row;
         private Button syncAllButton;
 
         private string _panelLastSyncedMode;
@@ -96,14 +162,11 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void CreatePanel()
         {
-            if (rootContainer != null) return;
+            if (rootContainer != null)
+                return;
             UIStateSnapshot snapshot = GetUiSnapshot();
 
-            rootContainer = new Grid
-            {
-                ClipToBounds = true,
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
+            rootContainer = new Grid { ClipToBounds = true, HorizontalAlignment = HorizontalAlignment.Stretch };
 
             contentBody = new Border
             {
@@ -112,20 +175,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BorderThickness = new Thickness(1, 0, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Stretch,
-                ClipToBounds = true
+                ClipToBounds = true,
             };
 
             panelScrollViewer = new ScrollViewer
             {
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                HorizontalContentAlignment = HorizontalAlignment.Stretch
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
             };
 
-            mainStack = new StackPanel
-            {
-                HorizontalAlignment = HorizontalAlignment.Stretch
-            };
+            mainStack = new StackPanel { HorizontalAlignment = HorizontalAlignment.Stretch };
 
             mainStack.Children.Add(CreateSection0_Identity());
             mainStack.Children.Add(CreateSection1_Execution());
@@ -149,18 +209,23 @@ namespace NinjaTrader.NinjaScript.Strategies
                 VerticalAlignment = VerticalAlignment.Bottom,
                 Margin = new Thickness(0, 0, 2, 2),
                 Cursor = System.Windows.Input.Cursors.Hand,
-                ToolTip = "Toggle V12 / Native Chart Trader"
+                ToolTip = "Toggle V12 / Native Chart Trader",
             };
             rootContainer.Children.Add(floatingAnchor);
 
             AttachPanelHandlers();
             UpdateContextualUI(_panelLastSyncedMode ?? "ORB");
-            int initCount = _panelLastSyncedTargetCount > 0 ? _panelLastSyncedTargetCount : Math.Max(1, Math.Min(5, snapshot.TargetCount));
+            int initCount =
+                _panelLastSyncedTargetCount > 0
+                    ? _panelLastSyncedTargetCount
+                    : Math.Max(1, Math.Min(5, snapshot.TargetCount));
             UpdateTargetVisibility(initCount);
             SyncCountChipVisuals(initCount);
             UpdateRmaButtonVisual(snapshot.IsRmaModeActive);
-            if (trendRmaToggle != null) trendRmaToggle.Opacity = snapshot.IsTrendRmaMode ? 1.0 : 0.5;
-            if (retestRmaToggle != null) retestRmaToggle.Opacity = snapshot.IsRetestRmaMode ? 1.0 : 0.5;
+            if (trendRmaToggle != null)
+                trendRmaToggle.Opacity = snapshot.IsTrendRmaMode ? 1.0 : 0.5;
+            if (retestRmaToggle != null)
+                retestRmaToggle.Opacity = snapshot.IsRetestRmaMode ? 1.0 : 0.5;
             _panelAppliedConfigRevision = snapshot.ConfigRevision;
             UpdatePanelState();
 
@@ -173,7 +238,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void PlacePanel()
         {
-            if (rootContainer == null || _placementMode != PanelPlacement.None) return;
+            if (rootContainer == null || _placementMode != PanelPlacement.None)
+                return;
 
             _chartTraderElement = FindChartTrader();
 
@@ -186,8 +252,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 Grid.SetColumn(rootContainer, col);
                 Grid.SetRow(rootContainer, row);
-                if (rSpan > 1) Grid.SetRowSpan(rootContainer, rSpan);
-                if (cSpan > 1) Grid.SetColumnSpan(rootContainer, cSpan);
+                if (rSpan > 1)
+                    Grid.SetRowSpan(rootContainer, rSpan);
+                if (cSpan > 1)
+                    Grid.SetColumnSpan(rootContainer, cSpan);
 
                 traderGrid.Children.Add(rootContainer);
                 _placementGrid = traderGrid;
@@ -202,8 +270,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             _placementGrid = FindChartTabGrid(ChartControl);
             if (_placementGrid != null)
             {
-                _placementGrid.ColumnDefinitions.Add(
-                    new ColumnDefinition { Width = new GridLength(210) });
+                _placementGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(210) });
                 int panelCol = _placementGrid.ColumnDefinitions.Count - 1;
 
                 Grid.SetColumn(rootContainer, panelCol);
@@ -224,8 +291,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (_placementRetryCount < 3)
             {
                 _placementRetryCount++;
-                Print("V12 PANEL: Discovery failed, scheduling retry "
-                    + _placementRetryCount + "/3");
+                Print("V12 PANEL: Discovery failed, scheduling retry " + _placementRetryCount + "/3");
 
                 if (_placementRetryTimer == null)
                 {
@@ -234,9 +300,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     _placementRetryTimer.Tick += (s, e) =>
                     {
                         _placementRetryTimer.Stop();
-                        if (_isTerminating || rootContainer == null) return;
-                        Print("V12 PANEL: Retry " + _placementRetryCount
-                            + " -- re-running discovery");
+                        if (_isTerminating || rootContainer == null)
+                            return;
+                        Print("V12 PANEL: Retry " + _placementRetryCount + " -- re-running discovery");
                         DumpVisualTree();
                         PlacePanel();
                     };
@@ -253,7 +319,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void DestroyPanel()
         {
-            if (rootContainer == null) return;
+            if (rootContainer == null)
+                return;
 
             // Build 1106-C: Restore chart keyboard input on panel destruction.
             // Prevents permanent input lock if a TextBox/ComboBox had focus when strategy was removed.
@@ -270,7 +337,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                 switch (_placementMode)
                 {
                     case PanelPlacement.Fallback:
-                        try { UserControlCollection.Remove(rootContainer); } catch { }
+                        try
+                        {
+                            UserControlCollection.Remove(rootContainer);
+                        }
+                        catch (Exception ex)
+                        {
+                            // V12.EPIC-7-QUALITY-006: Log UI panel removal errors
+                            Print($"[IPC_CLEANUP] Panel removal failed: {ex.Message}");
+                            // Continue - non-fatal UI cleanup
+                        }
                         break;
 
                     case PanelPlacement.Injected:
@@ -281,10 +357,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                             if (_placementGrid.ColumnDefinitions.Count > 0)
                             {
                                 var lastCol = _placementGrid.ColumnDefinitions[
-                                    _placementGrid.ColumnDefinitions.Count - 1];
+                                    _placementGrid.ColumnDefinitions.Count - 1
+                                ];
                                 if (lastCol.Width.IsAbsolute && Math.Abs(lastCol.Width.Value - 210) < 1)
                                     _placementGrid.ColumnDefinitions.RemoveAt(
-                                        _placementGrid.ColumnDefinitions.Count - 1);
+                                        _placementGrid.ColumnDefinitions.Count - 1
+                                    );
                             }
                         }
                         break;
@@ -326,39 +404,99 @@ namespace NinjaTrader.NinjaScript.Strategies
             submitButton = null;
             manualEntryRow = null;
 
-            orLongButton = null; orShortButton = null;
-            retestButton = null; rmaButton = null;
-            momoButton = null; ffmaButton = null; ffmaManualButton = null; mButton = null;
-            trendButton = null; trendRmaToggle = null; retestRmaToggle = null;
-            execRetestRow = null; execTrendRow = null;
+            orLongButton = null;
+            orShortButton = null;
+            retestButton = null;
+            rmaButton = null;
+            momoButton = null;
+            ffmaButton = null;
+            ffmaManualButton = null;
+            mButton = null;
+            trendButton = null;
+            trendRmaToggle = null;
+            retestRmaToggle = null;
+            execRetestRow = null;
+            execTrendRow = null;
 
-            t1Button = null; t2Button = null; t3Button = null; t4Button = null; t5Button = null;
+            t1Button = null;
+            t2Button = null;
+            t3Button = null;
+            t4Button = null;
+            t5Button = null;
             // Build 1107: Live target row cleanup
-            liveT1Row = null; liveT2Row = null; liveT3Row = null; liveT4Row = null; liveT5Row = null;
-            liveT1Price = null; liveT2Price = null; liveT3Price = null; liveT4Price = null; liveT5Price = null;
-            liveT1Cts = null; liveT2Cts = null; liveT3Cts = null; liveT4Cts = null; liveT5Cts = null;
-            liveStopRow = null; liveStopPrice = null;
+            liveT1Row = null;
+            liveT2Row = null;
+            liveT3Row = null;
+            liveT4Row = null;
+            liveT5Row = null;
+            liveT1Price = null;
+            liveT2Price = null;
+            liveT3Price = null;
+            liveT4Price = null;
+            liveT5Price = null;
+            liveT1Cts = null;
+            liveT2Cts = null;
+            liveT3Cts = null;
+            liveT4Cts = null;
+            liveT5Cts = null;
+            liveStopRow = null;
+            liveStopPrice = null;
             _currentLiveEntryName = null;
-            trim50Button = null; beButton = null; trailButton = null;
-            trailDistInput = null; beOffsetInput = null;
-            flattenButton = null; cancelButton = null;
+            trim50Button = null;
+            beButton = null;
+            trailButton = null;
+            trailDistInput = null;
+            beOffsetInput = null;
+            flattenButton = null;
+            cancelButton = null;
             lastPriceText = null;
 
             complianceSummaryText = null;
-            complianceConsistencyText = null; compliancePayoutText = null; complianceDrawdownText = null;
+            complianceConsistencyText = null;
+            compliancePayoutText = null;
+            complianceDrawdownText = null;
 
-            or5Text = null; or15Text = null;
-            ema9Text = null; ema15Text = null; ema30Text = null; ema65Text = null; ema200Text = null;
-            atrText = null; mktSyncButton = null;
-            trendIndicator = null; trendText = null;
+            or5Text = null;
+            or15Text = null;
+            ema9Text = null;
+            ema15Text = null;
+            ema30Text = null;
+            ema65Text = null;
+            ema200Text = null;
+            atrText = null;
+            mktSyncButton = null;
+            trendIndicator = null;
+            trendText = null;
 
-            modeOrbButton = null; modeRmaButton = null; modeRetestButton = null;
-            modeMomoButton = null; modeFfmaButton = null; modeTrendButton = null;
-            cnt1 = null; cnt2 = null; cnt3 = null; cnt4 = null; cnt5 = null;
-            svT1Val = null; svT2Val = null; svT3Val = null; svT4Val = null; svT5Val = null;
-            svT1Type = null; svT2Type = null; svT3Type = null; svT4Type = null; svT5Type = null; svStrType = null;
-            strVal = null; maxVal = null; citVal = null;
-            t2Row = null; t3Row = null; t4Row = null; t5Row = null;
+            modeOrbButton = null;
+            modeRmaButton = null;
+            modeRetestButton = null;
+            modeMomoButton = null;
+            modeFfmaButton = null;
+            modeTrendButton = null;
+            cnt1 = null;
+            cnt2 = null;
+            cnt3 = null;
+            cnt4 = null;
+            cnt5 = null;
+            svT1Val = null;
+            svT2Val = null;
+            svT3Val = null;
+            svT4Val = null;
+            svT5Val = null;
+            svT1Type = null;
+            svT2Type = null;
+            svT3Type = null;
+            svT4Type = null;
+            svT5Type = null;
+            svStrType = null;
+            strVal = null;
+            maxVal = null;
+            citVal = null;
+            t2Row = null;
+            t3Row = null;
+            t4Row = null;
+            t5Row = null;
             syncAllButton = null;
 
             _panelLastSyncedMode = null;
@@ -372,7 +510,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel stack = new StackPanel
             {
                 Margin = new Thickness(2, 2, 2, 1),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             stack.Children.Add(CreateSectionHeader("SECTION 0: IDENTITY"));
@@ -389,7 +527,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 CornerRadius = new CornerRadius(4),
                 Background = TextMuted,
                 Margin = new Thickness(0, 0, 4, 0),
-                ToolTip = "Strategy Status"
+                ToolTip = "Strategy Status",
             };
             Grid.SetColumn(hubStatusLed, 0);
             row1.Children.Add(hubStatusLed);
@@ -419,7 +557,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BorderThickness = new Thickness(1),
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Left,
-                Padding = new Thickness(4, 0, 4, 0)
+                Padding = new Thickness(4, 0, 4, 0),
             };
             Grid.SetColumn(fleetSelectButton, 0);
             fleetRow.Children.Add(fleetSelectButton);
@@ -429,7 +567,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 StaysOpen = false,
                 Placement = PlacementMode.Bottom,
                 PlacementTarget = fleetSelectButton,
-                AllowsTransparency = true
+                AllowsTransparency = true,
             };
 
             Border popupBorder = new Border
@@ -439,7 +577,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(2),
                 Padding = new Thickness(4),
-                MinWidth = 180
+                MinWidth = 180,
             };
 
             StackPanel popupStack = new StackPanel();
@@ -450,11 +588,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Foreground = CyanAccent,
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 0, 0, 4)
+                Margin = new Thickness(0, 0, 0, 4),
             };
             selectAllCheck.Checked += (s, e) =>
             {
-                if (fleetCheckboxPanel == null) return;
+                if (fleetCheckboxPanel == null)
+                    return;
                 foreach (var child in fleetCheckboxPanel.Children)
                 {
                     CheckBox cb = child as CheckBox;
@@ -464,7 +603,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             };
             selectAllCheck.Unchecked += (s, e) =>
             {
-                if (fleetCheckboxPanel == null) return;
+                if (fleetCheckboxPanel == null)
+                    return;
                 foreach (var child in fleetCheckboxPanel.Children)
                 {
                     CheckBox cb = child as CheckBox;
@@ -473,7 +613,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
             };
             popupStack.Children.Add(selectAllCheck);
-            popupStack.Children.Add(new Border { Height = 1, Background = BorderSlate, Margin = new Thickness(0, 2, 0, 4) });
+            popupStack.Children.Add(
+                new Border
+                {
+                    Height = 1,
+                    Background = BorderSlate,
+                    Margin = new Thickness(0, 2, 0, 4),
+                }
+            );
 
             fleetCheckboxPanel = new StackPanel();
             selectedFleetAccounts.Clear();
@@ -494,12 +641,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     FontSize = 10,
                     FontFamily = ConsolasFont,
                     Margin = new Thickness(0, 1, 0, 1),
-                    IsChecked = isActive
+                    IsChecked = isActive,
                 };
                 cb.Checked += (s, e) =>
                 {
                     string accountName = cb.Tag as string;
-                    if (string.IsNullOrEmpty(accountName)) return;
+                    if (string.IsNullOrEmpty(accountName))
+                        return;
                     if (!selectedFleetAccounts.Contains(accountName))
                         selectedFleetAccounts.Add(accountName);
                     UpdateFleetButtonText();
@@ -508,7 +656,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 cb.Unchecked += (s, e) =>
                 {
                     string accountName = cb.Tag as string;
-                    if (string.IsNullOrEmpty(accountName)) return;
+                    if (string.IsNullOrEmpty(accountName))
+                        return;
                     selectedFleetAccounts.Remove(accountName);
                     UpdateFleetButtonText();
                     PanelCommand("TOGGLE_ACCOUNT|" + accountName + "|0");
@@ -534,9 +683,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             Grid.SetColumn(directionCombo, 0);
             row3.Children.Add(directionCombo);
 
-            string priceDefault = lastKnownPrice > 0
-                ? Instrument.MasterInstrument.FormatPrice(lastKnownPrice)
-                : "0.00";
+            string priceDefault = lastKnownPrice > 0 ? Instrument.MasterInstrument.FormatPrice(lastKnownPrice) : "0.00";
             priceInput = CreateTextBox(priceDefault, 0);
             priceInput.Margin = new Thickness(4, 0, 4, 0);
             Grid.SetColumn(priceInput, 1);
@@ -559,7 +706,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel stack = new StackPanel
             {
                 Margin = new Thickness(2, 2, 2, 2),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             stack.Children.Add(CreateSectionHeader("SECTION 1: EXECUTION"));
@@ -572,7 +719,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel leftCol = new StackPanel
             {
                 Margin = new Thickness(0, 0, 1, 0),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             orLongButton = CreateDashedButton("OR L", CyanAccent);
@@ -638,7 +785,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel rightCol = new StackPanel
             {
                 Margin = new Thickness(1, 0, 0, 0),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             t1Button = CreateButton("T1", 0, GreenBg, GreenFg, GreenBorder);
@@ -671,7 +818,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             rightCol.Children.Add(liveT5Row);
 
             // Build 1107: Live stop row (read-only price display)
-            liveStopRow = new Grid { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 2, 0, 0), Height = 22 };
+            liveStopRow = new Grid
+            {
+                Visibility = Visibility.Collapsed,
+                Margin = new Thickness(0, 2, 0, 0),
+                Height = 22,
+            };
             liveStopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             liveStopRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             TextBlock stopLabel = new TextBlock
@@ -682,7 +834,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 9,
                 FontWeight = FontWeights.Bold,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(0, 0, 4, 0)
+                Margin = new Thickness(0, 0, 4, 0),
             };
             Grid.SetColumn(stopLabel, 0);
             liveStopRow.Children.Add(stopLabel);
@@ -692,7 +844,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Foreground = RedFg,
                 FontFamily = ConsolasFont,
                 FontSize = 10,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(liveStopPrice, 1);
             liveStopRow.Children.Add(liveStopPrice);
@@ -737,8 +889,12 @@ namespace NinjaTrader.NinjaScript.Strategies
             rightCol.Children.Add(trailRow);
 
             Grid cancelFlattenRow = new Grid { Margin = new Thickness(0, 2, 0, 0) };
-            cancelFlattenRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            cancelFlattenRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            cancelFlattenRow.ColumnDefinitions.Add(
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }
+            );
+            cancelFlattenRow.ColumnDefinitions.Add(
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }
+            );
 
             cancelButton = CreateButton("CANCEL", 0, RedBg, RedFg, RedBorder);
             cancelButton.FontWeight = FontWeights.Bold;
@@ -766,7 +922,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontWeight = FontWeights.Bold,
                 TextAlignment = TextAlignment.Center,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
-                Margin = new Thickness(0, 3, 0, 0)
+                Margin = new Thickness(0, 3, 0, 0),
             };
             stack.Children.Add(lastPriceText);
 
@@ -780,7 +936,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel stack = new StackPanel
             {
                 Margin = new Thickness(2, 2, 2, 1),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             stack.Children.Add(CreateSectionHeader("SECTION 1.5: RISK"));
@@ -793,7 +949,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 9,
                 FontWeight = FontWeights.SemiBold,
                 TextAlignment = TextAlignment.Center,
-                Margin = new Thickness(0, 1, 0, 1)
+                Margin = new Thickness(0, 1, 0, 1),
             };
             stack.Children.Add(complianceSummaryText);
 
@@ -807,7 +963,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 9,
                 FontWeight = FontWeights.SemiBold,
                 TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextTrimming = TextTrimming.CharacterEllipsis,
             };
 
             compliancePayoutText = new TextBlock
@@ -818,7 +974,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 9,
                 FontWeight = FontWeights.SemiBold,
                 TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextTrimming = TextTrimming.CharacterEllipsis,
             };
 
             complianceDrawdownText = new TextBlock
@@ -829,7 +985,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 9,
                 FontWeight = FontWeights.SemiBold,
                 TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextTrimming = TextTrimming.CharacterEllipsis,
             };
 
             row.Children.Add(complianceConsistencyText);
@@ -847,7 +1003,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel stack = new StackPanel
             {
                 Margin = new Thickness(2, 2, 2, 1),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             stack.Children.Add(CreateSectionHeader("SECTION 2: TELEMETRY"));
@@ -856,9 +1012,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 FontSize = 10,
                 FontFamily = ConsolasFont,
-                Margin = new Thickness(0, 3, 0, 1)
+                Margin = new Thickness(0, 3, 0, 1),
             };
-            or5Text.Inlines.Add(new System.Windows.Documents.Run("OR5: ") { Foreground = OrangeFg, FontWeight = FontWeights.Bold });
+            or5Text.Inlines.Add(
+                new System.Windows.Documents.Run("OR5: ") { Foreground = OrangeFg, FontWeight = FontWeights.Bold }
+            );
             or5Text.Inlines.Add(new System.Windows.Documents.Run("--") { Foreground = OrangeFg });
             or5Text.Inlines.Add(new System.Windows.Documents.Run(" | ") { Foreground = TextMuted });
             or5Text.Inlines.Add(new System.Windows.Documents.Run("--") { Foreground = OrangeFg });
@@ -869,16 +1027,22 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 FontSize = 10,
                 FontFamily = ConsolasFont,
-                Margin = new Thickness(0, 0, 0, 2)
+                Margin = new Thickness(0, 0, 0, 2),
             };
-            or15Text.Inlines.Add(new System.Windows.Documents.Run("OR15: ") { Foreground = OrangeFg, FontWeight = FontWeights.Bold });
+            or15Text.Inlines.Add(
+                new System.Windows.Documents.Run("OR15: ") { Foreground = OrangeFg, FontWeight = FontWeights.Bold }
+            );
             or15Text.Inlines.Add(new System.Windows.Documents.Run("--") { Foreground = OrangeFg });
             or15Text.Inlines.Add(new System.Windows.Documents.Run(" | ") { Foreground = TextMuted });
             or15Text.Inlines.Add(new System.Windows.Documents.Run("--") { Foreground = OrangeFg });
             or15Text.Inlines.Add(new System.Windows.Documents.Run(" (R: --)") { Foreground = TextMuted });
             stack.Children.Add(or15Text);
 
-            StackPanel emaRow1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 0) };
+            StackPanel emaRow1 = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 0),
+            };
             ema9Text = CreateEmaLabel("9:", "--", TextPrimary);
             ema15Text = CreateEmaLabel("15:", "--", TextPrimary);
             ema30Text = CreateEmaLabel("30:", "--", GreenFg);
@@ -887,7 +1051,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             emaRow1.Children.Add(ema30Text);
             stack.Children.Add(emaRow1);
 
-            StackPanel emaRow2 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3) };
+            StackPanel emaRow2 = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 3),
+            };
             ema65Text = CreateEmaLabel("65:", "--", TextPrimary);
             ema200Text = CreateEmaLabel("200:", "--", PurpleFg);
             atrText = new TextBlock
@@ -898,7 +1066,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontFamily = ConsolasFont,
                 FontStyle = FontStyles.Italic,
                 Margin = new Thickness(8, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
             };
             emaRow2.Children.Add(ema65Text);
             emaRow2.Children.Add(ema200Text);
@@ -924,7 +1092,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Padding = new Thickness(10, 2, 10, 2),
                 Margin = new Thickness(8, 0, 0, 0),
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Height = 24
+                Height = 24,
             };
             trendText = new TextBlock
             {
@@ -933,7 +1101,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 10,
                 FontWeight = FontWeights.Bold,
                 FontFamily = ConsolasFont,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
             };
             trendIndicator.Child = trendText;
             Grid.SetColumn(trendIndicator, 1);
@@ -954,7 +1122,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             StackPanel stack = new StackPanel
             {
                 Margin = new Thickness(2, 2, 2, 4),
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
 
             stack.Children.Add(CreateSectionHeader("SECTION 3: CONFIG"));
@@ -967,13 +1135,35 @@ namespace NinjaTrader.NinjaScript.Strategies
             string currentMode = string.IsNullOrEmpty(snapshot.Mode) ? "ORB" : snapshot.Mode;
             int currentCount = Math.Max(1, Math.Min(5, snapshot.TargetCount));
 
-            StackPanel modeColumn = new StackPanel { Margin = new Thickness(0, 0, 1, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
-            modeOrbButton = CreateModeChip("ORB", string.Equals(currentMode, "ORB", StringComparison.OrdinalIgnoreCase));
-            modeRmaButton = CreateModeChip("RMA", string.Equals(currentMode, "RMA", StringComparison.OrdinalIgnoreCase));
-            modeRetestButton = CreateModeChip("RETEST", string.Equals(currentMode, "RETEST", StringComparison.OrdinalIgnoreCase));
-            modeMomoButton = CreateModeChip("MOMO", string.Equals(currentMode, "MOMO", StringComparison.OrdinalIgnoreCase));
-            modeFfmaButton = CreateModeChip("FFMA", string.Equals(currentMode, "FFMA", StringComparison.OrdinalIgnoreCase));
-            modeTrendButton = CreateModeChip("TREND", string.Equals(currentMode, "TREND", StringComparison.OrdinalIgnoreCase));
+            StackPanel modeColumn = new StackPanel
+            {
+                Margin = new Thickness(0, 0, 1, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
+            modeOrbButton = CreateModeChip(
+                "ORB",
+                string.Equals(currentMode, "ORB", StringComparison.OrdinalIgnoreCase)
+            );
+            modeRmaButton = CreateModeChip(
+                "RMA",
+                string.Equals(currentMode, "RMA", StringComparison.OrdinalIgnoreCase)
+            );
+            modeRetestButton = CreateModeChip(
+                "RETEST",
+                string.Equals(currentMode, "RETEST", StringComparison.OrdinalIgnoreCase)
+            );
+            modeMomoButton = CreateModeChip(
+                "MOMO",
+                string.Equals(currentMode, "MOMO", StringComparison.OrdinalIgnoreCase)
+            );
+            modeFfmaButton = CreateModeChip(
+                "FFMA",
+                string.Equals(currentMode, "FFMA", StringComparison.OrdinalIgnoreCase)
+            );
+            modeTrendButton = CreateModeChip(
+                "TREND",
+                string.Equals(currentMode, "TREND", StringComparison.OrdinalIgnoreCase)
+            );
             modeColumn.Children.Add(modeOrbButton);
             modeColumn.Children.Add(modeRmaButton);
             modeColumn.Children.Add(modeRetestButton);
@@ -983,7 +1173,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             Grid.SetColumn(modeColumn, 0);
             modeCountGrid.Children.Add(modeColumn);
 
-            StackPanel countColumn = new StackPanel { Margin = new Thickness(1, 0, 0, 0), HorizontalAlignment = HorizontalAlignment.Stretch };
+            StackPanel countColumn = new StackPanel
+            {
+                Margin = new Thickness(1, 0, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+            };
             cnt1 = CreateCountChip("1");
             cnt2 = CreateCountChip("2");
             cnt3 = CreateCountChip("3");
@@ -998,47 +1192,145 @@ namespace NinjaTrader.NinjaScript.Strategies
             modeCountGrid.Children.Add(countColumn);
             stack.Children.Add(modeCountGrid);
 
-            StackPanel svRow1 = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
-            svRow1.Children.Add(new TextBlock { Text = "SV:", Foreground = TextPrimary, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) });
+            StackPanel svRow1 = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 2),
+            };
+            svRow1.Children.Add(
+                new TextBlock
+                {
+                    Text = "SV:",
+                    Foreground = TextPrimary,
+                    FontSize = 9,
+                    FontFamily = ConsolasFont,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 4, 0),
+                }
+            );
 
-            svRow1.Children.Add(new TextBlock { Text = "T1", Foreground = GreenFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
-            svT1Val = CreateTextBox(FormatPanelDouble(config.Target1Value), 30); svT1Val.Height = 20; svT1Val.FontSize = 9;
+            svRow1.Children.Add(
+                new TextBlock
+                {
+                    Text = "T1",
+                    Foreground = GreenFg,
+                    FontSize = 9,
+                    FontFamily = ConsolasFont,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 2, 0),
+                }
+            );
+            svT1Val = CreateTextBox(FormatPanelDouble(config.Target1Value), 30);
+            svT1Val.Height = 20;
+            svT1Val.FontSize = 9;
             svRow1.Children.Add(svT1Val);
-            svT1Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner"); svT1Type.Height = 20; svT1Type.FontSize = 8; svT1Type.Margin = new Thickness(2, 0, 6, 0);
+            svT1Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner");
+            svT1Type.Height = 20;
+            svT1Type.FontSize = 8;
+            svT1Type.Margin = new Thickness(2, 0, 6, 0);
             SetComboSelection(svT1Type, GetPanelTargetModeText(config.Target1Type));
             svRow1.Children.Add(svT1Type);
 
-            svRow1.Children.Add(new TextBlock { Text = "T2", Foreground = YellowFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
-            svT2Val = CreateTextBox(FormatPanelDouble(config.Target2Value), 30); svT2Val.Height = 20; svT2Val.FontSize = 9;
+            svRow1.Children.Add(
+                new TextBlock
+                {
+                    Text = "T2",
+                    Foreground = YellowFg,
+                    FontSize = 9,
+                    FontFamily = ConsolasFont,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 2, 0),
+                }
+            );
+            svT2Val = CreateTextBox(FormatPanelDouble(config.Target2Value), 30);
+            svT2Val.Height = 20;
+            svT2Val.FontSize = 9;
             svRow1.Children.Add(svT2Val);
-            svT2Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner"); svT2Type.Height = 20; svT2Type.FontSize = 8;
+            svT2Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner");
+            svT2Type.Height = 20;
+            svT2Type.FontSize = 8;
             SetComboSelection(svT2Type, GetPanelTargetModeText(config.Target2Type));
             svRow1.Children.Add(svT2Type);
             stack.Children.Add(svRow1);
 
             t3Row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2) };
-            t3Row.Children.Add(new TextBlock { Text = "       T3", Foreground = OrangeFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
-            svT3Val = CreateTextBox(FormatPanelDouble(config.Target3Value), 30); svT3Val.Height = 20; svT3Val.FontSize = 9;
+            t3Row.Children.Add(
+                new TextBlock
+                {
+                    Text = "       T3",
+                    Foreground = OrangeFg,
+                    FontSize = 9,
+                    FontFamily = ConsolasFont,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 2, 0),
+                }
+            );
+            svT3Val = CreateTextBox(FormatPanelDouble(config.Target3Value), 30);
+            svT3Val.Height = 20;
+            svT3Val.FontSize = 9;
             t3Row.Children.Add(svT3Val);
-            svT3Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner"); svT3Type.Height = 20; svT3Type.FontSize = 8; svT3Type.Margin = new Thickness(2, 0, 0, 0);
+            svT3Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner");
+            svT3Type.Height = 20;
+            svT3Type.FontSize = 8;
+            svT3Type.Margin = new Thickness(2, 0, 0, 0);
             SetComboSelection(svT3Type, GetPanelTargetModeText(config.Target3Type));
             t3Row.Children.Add(svT3Type);
             stack.Children.Add(t3Row);
 
-            t4Row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 2), Visibility = Visibility.Collapsed };
-            t4Row.Children.Add(new TextBlock { Text = "       T4", Foreground = RedFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
-            svT4Val = CreateTextBox(FormatPanelDouble(config.Target4Value), 30); svT4Val.Height = 20; svT4Val.FontSize = 9;
+            t4Row = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 2),
+                Visibility = Visibility.Collapsed,
+            };
+            t4Row.Children.Add(
+                new TextBlock
+                {
+                    Text = "       T4",
+                    Foreground = RedFg,
+                    FontSize = 9,
+                    FontFamily = ConsolasFont,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 2, 0),
+                }
+            );
+            svT4Val = CreateTextBox(FormatPanelDouble(config.Target4Value), 30);
+            svT4Val.Height = 20;
+            svT4Val.FontSize = 9;
             t4Row.Children.Add(svT4Val);
-            svT4Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner"); svT4Type.Height = 20; svT4Type.FontSize = 8; svT4Type.Margin = new Thickness(2, 0, 0, 0);
+            svT4Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner");
+            svT4Type.Height = 20;
+            svT4Type.FontSize = 8;
+            svT4Type.Margin = new Thickness(2, 0, 0, 0);
             SetComboSelection(svT4Type, GetPanelTargetModeText(config.Target4Type));
             t4Row.Children.Add(svT4Type);
             stack.Children.Add(t4Row);
 
-            t5Row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 3), Visibility = Visibility.Collapsed };
-            t5Row.Children.Add(new TextBlock { Text = "       T5", Foreground = PinkFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) });
-            svT5Val = CreateTextBox(FormatPanelDouble(config.Target5Value), 30); svT5Val.Height = 20; svT5Val.FontSize = 9;
+            t5Row = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Margin = new Thickness(0, 0, 0, 3),
+                Visibility = Visibility.Collapsed,
+            };
+            t5Row.Children.Add(
+                new TextBlock
+                {
+                    Text = "       T5",
+                    Foreground = PinkFg,
+                    FontSize = 9,
+                    FontFamily = ConsolasFont,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(0, 0, 2, 0),
+                }
+            );
+            svT5Val = CreateTextBox(FormatPanelDouble(config.Target5Value), 30);
+            svT5Val.Height = 20;
+            svT5Val.FontSize = 9;
             t5Row.Children.Add(svT5Val);
-            svT5Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner"); svT5Type.Height = 20; svT5Type.FontSize = 8; svT5Type.Margin = new Thickness(2, 0, 0, 0);
+            svT5Type = CreateCombo(42, "ATR", "Ticks", "Pts", "Runner");
+            svT5Type.Height = 20;
+            svT5Type.FontSize = 8;
+            svT5Type.Margin = new Thickness(2, 0, 0, 0);
             SetComboSelection(svT5Type, GetPanelTargetModeText(config.Target5Type));
             t5Row.Children.Add(svT5Type);
             stack.Children.Add(t5Row);
@@ -1050,13 +1342,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             riskRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             riskRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            TextBlock strLabel = new TextBlock { Text = "STR:", Foreground = OrangeFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 2, 0) };
+            TextBlock strLabel = new TextBlock
+            {
+                Text = "STR:",
+                Foreground = OrangeFg,
+                FontSize = 9,
+                FontFamily = ConsolasFont,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 2, 0),
+            };
             Grid.SetColumn(strLabel, 0);
             riskRow.Children.Add(strLabel);
 
-            strVal = CreateTextBox(FormatPanelDouble(config.StopValue), 33); strVal.Height = 20; strVal.FontSize = 9; strVal.Foreground = OrangeFg;
+            strVal = CreateTextBox(FormatPanelDouble(config.StopValue), 33);
+            strVal.Height = 20;
+            strVal.FontSize = 9;
+            strVal.Foreground = OrangeFg;
             svStrType = CreateCombo(40, "ATR", "Ticks", "Pts", "OR");
-            svStrType.Height = 20; svStrType.FontSize = 8;
+            svStrType.Height = 20;
+            svStrType.FontSize = 8;
             if (string.Equals(currentMode, "ORB", StringComparison.OrdinalIgnoreCase))
                 SetComboSelection(svStrType, "OR");
             else
@@ -1069,11 +1373,22 @@ namespace NinjaTrader.NinjaScript.Strategies
             Grid.SetColumn(strStack, 1);
             riskRow.Children.Add(strStack);
 
-            TextBlock maxLabel = new TextBlock { Text = "MAX:", Foreground = OrangeFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(6, 0, 2, 0) };
+            TextBlock maxLabel = new TextBlock
+            {
+                Text = "MAX:",
+                Foreground = OrangeFg,
+                FontSize = 9,
+                FontFamily = ConsolasFont,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(6, 0, 2, 0),
+            };
             Grid.SetColumn(maxLabel, 2);
             riskRow.Children.Add(maxLabel);
 
-            maxVal = CreateTextBox(FormatPanelDouble(config.MaxRiskValue), 55); maxVal.Height = 20; maxVal.FontSize = 9; maxVal.Foreground = OrangeFg;
+            maxVal = CreateTextBox(FormatPanelDouble(config.MaxRiskValue), 55);
+            maxVal.Height = 20;
+            maxVal.FontSize = 9;
+            maxVal.Foreground = OrangeFg;
             Grid.SetColumn(maxVal, 3);
             riskRow.Children.Add(maxVal);
             stack.Children.Add(riskRow);
@@ -1084,11 +1399,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             citRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             citRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            TextBlock citLabel = new TextBlock { Text = "CHASE:", Foreground = OrangeFg, FontSize = 9, FontFamily = ConsolasFont, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
+            TextBlock citLabel = new TextBlock
+            {
+                Text = "CHASE:",
+                Foreground = OrangeFg,
+                FontSize = 9,
+                FontFamily = ConsolasFont,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, 0, 4, 0),
+            };
             Grid.SetColumn(citLabel, 0);
             citRow.Children.Add(citLabel);
 
-            citVal = CreateTextBox(string.IsNullOrEmpty(config.ChaseIfTouchPoints) ? "0" : config.ChaseIfTouchPoints, 55); citVal.Height = 20; citVal.FontSize = 10; citVal.Foreground = OrangeFg; citVal.FontWeight = FontWeights.Bold;
+            citVal = CreateTextBox(
+                string.IsNullOrEmpty(config.ChaseIfTouchPoints) ? "0" : config.ChaseIfTouchPoints,
+                55
+            );
+            citVal.Height = 20;
+            citVal.FontSize = 10;
+            citVal.Foreground = OrangeFg;
+            citVal.FontWeight = FontWeights.Bold;
             citVal.ToolTip = "Chase If Touch: Points offset (0 = disabled)";
             Grid.SetColumn(citVal, 1);
             citRow.Children.Add(citVal);
@@ -1116,7 +1446,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Background = BgDeep,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 Margin = new Thickness(0),
-                Padding = new Thickness(0)
+                Padding = new Thickness(0),
             };
         }
 
@@ -1130,17 +1460,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontWeight = FontWeights.Bold,
                 FontFamily = ConsolasFont,
                 HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center
+                TextAlignment = TextAlignment.Center,
             };
         }
 
         private void SetComboSelection(ComboBox combo, string desiredText)
         {
-            if (combo == null || string.IsNullOrEmpty(desiredText)) return;
+            if (combo == null || string.IsNullOrEmpty(desiredText))
+                return;
             foreach (var item in combo.Items)
             {
                 ComboBoxItem cbItem = item as ComboBoxItem;
-                if (cbItem != null && string.Equals(cbItem.Content as string, desiredText, StringComparison.OrdinalIgnoreCase))
+                if (
+                    cbItem != null
+                    && string.Equals(cbItem.Content as string, desiredText, StringComparison.OrdinalIgnoreCase)
+                )
                 {
                     combo.SelectedItem = cbItem;
                     return;
@@ -1172,7 +1506,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private void UpdateFleetButtonText()
         {
-            if (fleetSelectButton == null) return;
+            if (fleetSelectButton == null)
+                return;
 
             int count = selectedFleetAccounts.Count;
             int total = fleetCheckboxPanel != null ? fleetCheckboxPanel.Children.Count : 0;

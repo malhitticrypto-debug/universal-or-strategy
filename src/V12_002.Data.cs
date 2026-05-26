@@ -7,6 +7,10 @@ namespace NinjaTrader.NinjaScript.Strategies
     {
         private int _uiSnapshotTickCounter;
 
+        // V12.EPIC-7-QUALITY-006: IPC Error Handling Diagnostic Counters
+        private long _ipcCleanupFailures = 0;
+        private long _ipcZombieConnections = 0;
+
         // Placeholder for missing Data logic.
         public static class Data
         {

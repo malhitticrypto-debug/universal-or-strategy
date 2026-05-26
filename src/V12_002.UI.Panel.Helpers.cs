@@ -16,7 +16,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private static readonly FontFamily ConsolasFont = new FontFamily("Consolas");
 
-        private Button CreateButton(string text, double width, SolidColorBrush bg, SolidColorBrush fg, SolidColorBrush border)
+        private Button CreateButton(
+            string text,
+            double width,
+            SolidColorBrush bg,
+            SolidColorBrush fg,
+            SolidColorBrush border
+        )
         {
             var btn = new Button
             {
@@ -31,7 +37,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Height = 22,
                 Padding = new Thickness(2, 0, 2, 0),
                 Cursor = System.Windows.Input.Cursors.Hand,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
             if (width > 0)
                 btn.Width = width;
@@ -52,7 +58,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontWeight = FontWeights.Bold,
                 Height = 22,
                 Cursor = System.Windows.Input.Cursors.Hand,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
         }
 
@@ -77,7 +83,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 9,
                 Height = 20,
                 TextAlignment = TextAlignment.Center,
-                VerticalContentAlignment = VerticalAlignment.Center
+                VerticalContentAlignment = VerticalAlignment.Center,
             };
             if (width > 0)
                 tb.Width = width;
@@ -94,16 +100,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             e.Handled = true;
 
             // Null safety
-            if (textBox == null) return;
+            if (textBox == null)
+                return;
 
             // Deletion operations (modify TextBox directly)
-            if (TryHandleBackspace(textBox, e.Key)) return;
-            if (TryHandleDelete(textBox, e.Key)) return;
+            if (TryHandleBackspace(textBox, e.Key))
+                return;
+            if (TryHandleDelete(textBox, e.Key))
+                return;
 
             // Character mapping (numeric, special, space)
             string keyChar;
-            if (TryMapNumericKey(e.Key, out keyChar) ||
-                TryMapSpecialCharacter(e.Key, out keyChar))
+            if (TryMapNumericKey(e.Key, out keyChar) || TryMapSpecialCharacter(e.Key, out keyChar))
             {
                 int caret = textBox.SelectionStart;
                 textBox.Text = textBox.Text.Insert(caret, keyChar);
@@ -202,7 +210,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 BorderThickness = new Thickness(1),
                 FontFamily = ConsolasFont,
                 FontSize = 10,
-                IsTextSearchEnabled = false
+                IsTextSearchEnabled = false,
             };
             if (width > 0)
                 cb.Width = width;
@@ -228,7 +236,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Padding = new Thickness(2, 0, 2, 0),
                 Margin = new Thickness(0, 0, 0, 2),
                 Cursor = System.Windows.Input.Cursors.Hand,
-                HorizontalAlignment = HorizontalAlignment.Stretch
+                HorizontalAlignment = HorizontalAlignment.Stretch,
             };
         }
 
@@ -249,16 +257,29 @@ namespace NinjaTrader.NinjaScript.Strategies
             SolidColorBrush color;
             switch (targetNum)
             {
-                case 1: color = GreenFg; break;
-                case 2: color = YellowFg; break;
-                case 3: color = OrangeFg; break;
-                case 4: color = RedFg; break;
-                case 5: color = PinkFg; break;
-                default: color = TextPrimary; break;
+                case 1:
+                    color = GreenFg;
+                    break;
+                case 2:
+                    color = YellowFg;
+                    break;
+                case 3:
+                    color = OrangeFg;
+                    break;
+                case 4:
+                    color = RedFg;
+                    break;
+                case 5:
+                    color = PinkFg;
+                    break;
+                default:
+                    color = TextPrimary;
+                    break;
             }
 
             Grid row = new Grid { Visibility = Visibility.Collapsed, Height = 22 };
-            if (targetNum > 1) row.Margin = new Thickness(0, 2, 0, 0);
+            if (targetNum > 1)
+                row.Margin = new Thickness(0, 2, 0, 0);
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -271,7 +292,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontFamily = ConsolasFont,
                 FontSize = 9,
                 FontWeight = FontWeights.Bold,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
             };
             Grid.SetColumn(label, 0);
             row.Children.Add(label);
@@ -290,7 +311,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontFamily = ConsolasFont,
                 FontSize = 8,
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(2, 0, 2, 0)
+                Margin = new Thickness(2, 0, 2, 0),
             };
             Grid.SetColumn(ctsBlock, 2);
             row.Children.Add(ctsBlock);
@@ -317,7 +338,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 FontSize = 11,
                 FontFamily = ConsolasFont,
                 FontWeight = FontWeights.Bold,
-                Margin = new Thickness(0, 0, 10, 0)
+                Margin = new Thickness(0, 0, 10, 0),
             };
             tb.Inlines.Add(new System.Windows.Documents.Run(label) { Foreground = TextMuted });
             tb.Inlines.Add(new System.Windows.Documents.Run(value) { Foreground = valueColor });
@@ -342,20 +363,36 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string info = "  [" + depth + "] " + shortName;
 
                     if (current is FrameworkElement fe)
-                        info += " Name=" + fe.Name + " W=" + fe.ActualWidth.ToString("F0")
-                              + " H=" + fe.ActualHeight.ToString("F0") + " Vis=" + fe.Visibility;
+                        info +=
+                            " Name="
+                            + fe.Name
+                            + " W="
+                            + fe.ActualWidth.ToString("F0")
+                            + " H="
+                            + fe.ActualHeight.ToString("F0")
+                            + " Vis="
+                            + fe.Visibility;
 
                     if (current is Grid grid)
                     {
-                        info += " Cols=" + grid.ColumnDefinitions.Count
-                              + " Rows=" + grid.RowDefinitions.Count
-                              + " Children=" + grid.Children.Count;
+                        info +=
+                            " Cols="
+                            + grid.ColumnDefinitions.Count
+                            + " Rows="
+                            + grid.RowDefinitions.Count
+                            + " Children="
+                            + grid.Children.Count;
 
                         for (int i = 0; i < grid.ColumnDefinitions.Count; i++)
                         {
                             var cd = grid.ColumnDefinitions[i];
-                            info += "\n      Col[" + i + "]: Width=" + cd.Width
-                                  + " Actual=" + cd.ActualWidth.ToString("F0");
+                            info +=
+                                "\n      Col["
+                                + i
+                                + "]: Width="
+                                + cd.Width
+                                + " Actual="
+                                + cd.ActualWidth.ToString("F0");
                         }
 
                         for (int i = 0; i < grid.Children.Count; i++)
@@ -363,14 +400,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                             var ch = grid.Children[i];
                             string childType = ch.GetType().Name;
                             if (childType.Contains("ChartTrader") || childType.Contains("Trader"))
-                                info += "\n      ** Trader child at index " + i
-                                      + ": " + ch.GetType().FullName;
+                                info += "\n      ** Trader child at index " + i + ": " + ch.GetType().FullName;
                         }
                     }
 
                     Print(info);
 
-                    if (current is Window) break;
+                    if (current is Window)
+                        break;
                     current = VisualTreeHelper.GetParent(current);
                     depth++;
                 }
@@ -386,7 +423,8 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             try
             {
-                if (ChartControl == null) return null;
+                if (ChartControl == null)
+                    return null;
                 var ownerChart = ChartControl.OwnerChart;
                 if (ownerChart == null)
                 {
@@ -399,8 +437,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     var found = FindChildElementByTypeName(chartDO, "ChartTrader");
                     if (found != null)
                     {
-                        Print("V12 PANEL: Strategy 0 found " + found.GetType().FullName
-                            + " Vis=" + found.Visibility);
+                        Print("V12 PANEL: Strategy 0 found " + found.GetType().FullName + " Vis=" + found.Visibility);
                         if (found.Visibility == Visibility.Visible)
                             return found;
                         Print("V12 PANEL: Strategy 0 -- ChartTrader not Visible, skipping");
@@ -422,7 +459,8 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private Grid FindDescendantGrid(DependencyObject parent, int minColumns)
         {
-            if (parent == null) return null;
+            if (parent == null)
+                return null;
             int childCount = VisualTreeHelper.GetChildrenCount(parent);
             for (int i = 0; i < childCount; i++)
             {
@@ -430,7 +468,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (child is Grid g && g.ColumnDefinitions.Count >= minColumns)
                     return g;
                 var result = FindDescendantGrid(child, minColumns);
-                if (result != null) return result;
+                if (result != null)
+                    return result;
             }
             return null;
         }
@@ -527,8 +566,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 Type tabType = chartTab.GetType();
 
-                PropertyInfo ctProp = tabType.GetProperty("ChartTrader",
-                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+                PropertyInfo ctProp = tabType.GetProperty(
+                    "ChartTrader",
+                    BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance
+                );
                 if (ctProp != null)
                 {
                     object ct = ctProp.GetValue(chartTab);
@@ -536,7 +577,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         return fe;
                 }
 
-                string[] fieldNames = new string[] { "chartTrader", "ChartTrader", "chartTraderControl", "_chartTrader" };
+                string[] fieldNames = new string[]
+                {
+                    "chartTrader",
+                    "ChartTrader",
+                    "chartTraderControl",
+                    "_chartTrader",
+                };
                 for (int f = 0; f < fieldNames.Length; f++)
                 {
                     FieldInfo fi = tabType.GetField(fieldNames[f], BindingFlags.NonPublic | BindingFlags.Instance);
@@ -555,8 +602,11 @@ namespace NinjaTrader.NinjaScript.Strategies
                         return found;
                 }
 
-                Print("V12 PANEL: Strategy 1 -- ChartTab found (" + chartTab.GetType().Name
-                    + ") but no ChartTrader property/field/child");
+                Print(
+                    "V12 PANEL: Strategy 1 -- ChartTab found ("
+                        + chartTab.GetType().Name
+                        + ") but no ChartTrader property/field/child"
+                );
             }
             catch (Exception ex)
             {
@@ -577,15 +627,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         foreach (UIElement child in grid.Children)
                         {
-                            if (child is FrameworkElement fe && child.GetType().Name.Contains("ChartTrader")
-                                && fe.Visibility == Visibility.Visible)
+                            if (
+                                child is FrameworkElement fe
+                                && child.GetType().Name.Contains("ChartTrader")
+                                && fe.Visibility == Visibility.Visible
+                            )
                                 return fe;
                         }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                // V12.EPIC-7-QUALITY-006: Log UI element traversal errors
+                Print($"[IPC_CLEANUP] ChartTrader search failed: {ex.Message}");
+                // Return null - non-fatal UI navigation failure
             }
             return null;
         }
@@ -601,9 +657,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (found != null && found.Visibility == Visibility.Visible)
                     return found;
             }
-            catch
-            {
-            }
+            catch { }
             return null;
         }
 
@@ -654,8 +708,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     var descendantGrid = FindDescendantGrid(current, 2);
                     if (descendantGrid != null)
                     {
-                        Print("V12 PANEL: FindChartTabGrid -- found descendant Grid inside "
-                            + current.GetType().Name + " Cols=" + descendantGrid.ColumnDefinitions.Count);
+                        Print(
+                            "V12 PANEL: FindChartTabGrid -- found descendant Grid inside "
+                                + current.GetType().Name
+                                + " Cols="
+                                + descendantGrid.ColumnDefinitions.Count
+                        );
                         return descendantGrid;
                     }
                 }
