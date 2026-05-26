@@ -62,6 +62,96 @@ Welcome, Agent. You are operating within the **V12 Universal OR Strategy** repos
 - **Forensic Scan**: `grep -r "lock(" src/` (Zero-match requirement).
 - **Jane Street KB Query**: `& "%USERPROFILE%\AppData\Local\Programs\Python\Python312\python.exe" scripts/query_kb.py "<term>"` (Retrieves HFT and high-performance system guidelines from the Firestore knowledge base).
 
+## 3.5. Pre-Push Validation Protocol (V12.22)
+
+**MANDATORY**: ALL agents MUST run `pre_push_validation.ps1` before EVERY push.
+
+### Local Quality Gates (13 checks)
+
+| # | Check | Tool | Threshold | Blocking? |
+|---|-------|------|-----------|-----------|
+| 1 | ASCII-Only | PowerShell | Zero non-ASCII | ✅ YES |
+| 2 | Build | dotnet build | Zero errors | ✅ YES |
+| 3 | Unit Tests | dotnet test | 100% pass | ✅ YES |
+| 4 | Lint | Roslyn | Zero violations | ✅ YES |
+| 5 | Formatting | CSharpier | Zero issues | ✅ YES |
+| 6 | Security | Gitleaks + Snyk | Zero secrets | ⚠️ WARNING |
+| 7 | Markdown Links | verify_links.ps1 | Zero broken | ⚠️ WARNING |
+| 8 | PR Hygiene | verify_pr_hygiene.ps1 | Diff <10k | ✅ YES |
+| 9 | Complexity | complexity_audit.py | CYC ≤ 15 | ✅ YES |
+| 10 | Dead Code | dead_code_scan.py | Zero dead methods | ⚠️ WARNING |
+| 11 | Codacy Preview | query_codacy_issues.ps1 | Zero errors | ⚠️ WARNING |
+| 12 | Semgrep | semgrep CLI | Zero findings | ⚠️ WARNING |
+| 13 | CodeRabbit AI | coderabbit CLI | Zero critical/high | ⚠️ WARNING* |
+
+**\*CodeRabbit**: WARNING mode during 2-week validation period (ends 2026-06-09). Will become BLOCKING after validation.
+
+### Usage
+
+**Fast mode** (skip slow checks 10-13):
+```powershell
+powershell -File .\scripts\pre_push_validation.ps1 -Fast
+```
+
+**Full mode** (all 13 checks):
+```powershell
+powershell -File .\scripts\pre_push_validation.ps1
+```
+
+**Skip specific checks**:
+```powershell
+powershell -File .\scripts\pre_push_validation.ps1 -SkipBuild -SkipTests
+```
+
+### Enforcement
+
+- **Bob CLI**: Automatically runs `-Fast` mode before every commit
+- **PR Loop**: Runs FULL mode in Step 2 (Local Repair)
+- **Epic Run**: Runs FULL mode in Step C (Verification)
+- **Manual TDD**: Developer must run FULL mode in Step 2
+
+### Codacy Integration
+
+- **Local Preview**: Requires `$env:CODACY_API_TOKEN` (set in `.env` or session)
+- **API Endpoint**: `https://app.codacy.com/api/v3`
+- **Rate Limit**: 100 requests/hour (sufficient for PR workflow)
+- **Output**: `codacy_warnings.json` (gitignored)
+
+### CodeRabbit Integration
+
+- **Installation**: `curl -fsSL https://cli.coderabbit.ai/install.sh | sh` or `brew install coderabbit`
+- **Authentication**: `cr auth login` (browser-based) or `cr auth login --api-key` (CI/CD)
+- **Review Mode**: `--agent` (structured JSON for automation) or `--plain` (human-readable)
+- **Timeout**: 30 minutes max (background execution)
+- **Output**: `coderabbit_review.json` (gitignored)
+- **Pricing**: Free tier (limited) or Usage-based Add-on ($0.25/file, unlimited)
+- **Validation Period**: WARNING mode until 2026-06-09, then BLOCKING
+
+### Test Quality Audit
+
+**Current Status**: 1 test file (`tests/V12_Performance.Tests/Core/FSMActorTests.cs`)
+- ✅ Tests FSM/Actor Enqueue model (lock-free correctness)
+- ✅ Validates atomic state transitions
+- ❌ **Coverage Gap**: No tests for complexity-extracted methods (45 methods with CYC > 20)
+
+**Action Required**: Add TDD tests for EPIC-8 through EPIC-14 extractions.
+
+### Complexity Threshold Rationale
+
+**V12 uses CYC ≤ 15** (Jane Street aligned):
+- Jane Street's HFT systems prioritize **cognitive simplicity** over clever abstractions
+- Functions with CYC >15 are harder to:
+  - Reason about under microsecond latency constraints
+  - Test exhaustively (exponential path growth)
+  - Audit for race conditions in lock-free code
+- V12 DNA mandates: "Make illegal states unrepresentable" - requires simple, verifiable logic
+
+**Lizard Tool** (used by Codacy) has hardcoded threshold 8:
+- Too conservative for HFT hot-path co-location
+- Treat Lizard warnings (CYC 9-13) as technical debt visibility, not blockers
+- Track in EPIC-CCN-10 backlog for future refactoring to CCN 10
+
+
 ## 4. Communication & Context
 
 - **Active Task**: Always check `docs/brain/task.md` before initiating work.

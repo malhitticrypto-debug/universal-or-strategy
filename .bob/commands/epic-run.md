@@ -199,24 +199,26 @@ When v12-engineer outputs [TICKET-GATE] (the written plan), present the plan sum
 After v12-engineer confirms execution complete, switch to Advanced mode and hand off:
 ```
 VERIFICATION TASK for epic $1, ticket-XX
-Run the following commands in sequence and report each result:
+Run the FULL pre-push validation suite:
 
-1. powershell -File .\deploy-sync.ps1
-   PASS = exits 0 and ASCII gate shows PASS
-   FAIL = halt, report error to orchestrator
-
-2. python scripts/complexity_audit.py
-   PASS = target method CYC now < 20
-   FAIL = halt, report before/after CYC
-
-3. grep -r "lock(" src/
-   PASS = 0 matches
-   FAIL = halt, report file and line
+powershell -File .\scripts\pre_push_validation.ps1
 
 Report results as:
-  deploy-sync : PASS / FAIL
-  CYC         : [before] -> [after]
-  lock() audit: CLEAN / FAIL [details]
+  ASCII Gate      : PASS / FAIL
+  Build           : PASS / FAIL
+  Unit Tests      : PASS / FAIL
+  Lint            : PASS / FAIL
+  Formatting      : PASS / FAIL
+  Security        : PASS / FAIL (warnings OK)
+  Markdown Links  : PASS / FAIL (warnings OK)
+  PR Hygiene      : PASS / FAIL
+  Complexity (≤15): PASS / FAIL
+  Dead Code       : PASS / FAIL (warnings OK)
+  Codacy Preview  : PASS / FAIL (warnings OK)
+  Semgrep         : PASS / FAIL (warnings OK)
+  CodeRabbit AI   : PASS / FAIL (warnings OK)
+
+If ANY blocking check fails: HALT and report to orchestrator.
 ```
 
 If Advanced mode reports any FAIL: HALT. Report to Director. Do not continue.

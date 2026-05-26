@@ -122,12 +122,12 @@ PROTOCOL:
      - Verify locally (compile, test)
      - Mark as [x] FIXED in fix queue
   3. Run formatters: powershell -File .\scripts\format_all_csharp.ps1
-  4. Run local verification: powershell -File .\scripts\calculate_fleet_score.ps1
-  5. If Score < 15: identify remaining issues, repeat Step 2.
-  6. If Score = 15: emit [LOCAL-READY] with fix summary.
+  4. Run FULL local validation: powershell -File .\scripts\pre_push_validation.ps1
+  5. If ANY blocking check fails: identify issue, repeat Step 2.
+  6. If ALL checks pass (13/13): emit [LOCAL-READY] with fix summary.
 ```
 
-**Gate:** Local Score = 15/15. If < 15, repeat Step 2.
+**Gate:** ALL local checks PASS (8 blocking + 5 warnings). If any blocking check fails, repeat Step 2.
 
 ---
 
