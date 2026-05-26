@@ -1,6 +1,8 @@
+#pragma warning disable SA1636 // File header copyright text should match
 // <copyright file="LintingDummy.cs" company="BMad">
 // Copyright (c) BMad. All rights reserved.
 // </copyright>
+#pragma warning restore SA1636
 
 namespace Linting
 {

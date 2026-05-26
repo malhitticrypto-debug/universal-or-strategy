@@ -654,8 +654,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                 int targetNum = 0;
                 if (
                     targetId.Length >= 2
-                    && targetId.StartsWith("T")
-                    && int.TryParse(targetId.Substring(1), out targetNum)
+                    && targetId.StartsWith('T')
+                    && int.TryParse(targetId.AsSpan(1), out targetNum)
                     && targetNum >= 1
                     && targetNum <= 5
                 )

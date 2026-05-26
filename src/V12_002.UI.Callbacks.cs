@@ -1023,10 +1023,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return false;
 
             string normalized = targetType.Trim().ToUpperInvariant();
-            if (!normalized.StartsWith("T"))
+            if (!normalized.StartsWith('T'))
                 return false;
 
-            return int.TryParse(normalized.Substring(1), out targetNumber) && targetNumber >= 1 && targetNumber <= 5;
+            return int.TryParse(normalized.AsSpan(1), out targetNumber) && targetNumber >= 1 && targetNumber <= 5;
         }
 
         private ConcurrentDictionary<string, Order> GetTargetOrdersDictionary(int targetNumber)

@@ -701,7 +701,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         HandleFleetStopFill(item, ocoOrder, ocoAcct, ocoName);
                     }
-                    else if (ocoName.StartsWith("T") && ocoName.Length > 2 && ocoName[2] == '_')
+                    else if (ocoName.StartsWith('T') && ocoName.Length > 2 && ocoName[2] == '_')
                     {
                         HandleFleetTargetFill(item, ocoOrder, ocoAcct, ocoName);
                     }

@@ -153,7 +153,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                         newFsm.ExpectedStopPrice = ord.StopPrice;
                         newFsm.OcoGroupId = ord.Oco;
                     }
-                    else if (ord.Name.StartsWith("T"))
+                    else if (ord.Name.StartsWith('T'))
                     {
                         for (int tIdx = 1; tIdx <= 5; tIdx++)
                         {

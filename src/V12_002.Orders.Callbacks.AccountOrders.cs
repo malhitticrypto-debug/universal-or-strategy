@@ -90,7 +90,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     var mExpKey = ExpKey(Account.Name);
                     Enqueue(ctx => ctx.SetExpectedPositionLocked(mExpKey, 0));
                 }
-                else if (order.Name.StartsWith("T") && order.Name.Contains("_"))
+                else if (order.Name.StartsWith('T') && order.Name.Contains("_"))
                 {
                     int filledQty = order.Filled;
                     var mExpKey = ExpKey(Account.Name);
@@ -125,7 +125,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     var fExpKey = ExpKey(acct.Name);
                     Enqueue(ctx => ctx.SetExpectedPositionLocked(fExpKey, 0));
                 }
-                else if (order.Name.StartsWith("T") && order.Name.Contains("_"))
+                else if (order.Name.StartsWith('T') && order.Name.Contains("_"))
                 {
                     // Fleet target filled: delta-decrement expectedPositions.
                     int fFilledQty = order.Filled;
