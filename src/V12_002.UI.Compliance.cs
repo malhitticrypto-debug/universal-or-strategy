@@ -165,7 +165,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     // EPIC-7-QUALITY-010: Validate path before write
                     string validPath = PathValidation.ValidateAndCanonicalize(_csvPath, "WriteCSV");
-                    System.IO.File.WriteAllText(validPath, _csvHeader + Environment.NewLine);
+
+                    // EPIC-7-QUALITY-011: Retry logic for transient I/O failures
+                    RetryHelper.ExecuteWithRetry(
+                        () => System.IO.File.WriteAllText(validPath, _csvHeader + Environment.NewLine),
+                        RetryHelper.IsTransientIOError,
+                        "WriteCSVHeader"
+                    );
                 }
                 catch (SecurityException ex)
                 {
@@ -217,7 +223,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 try
                 {
-                    System.IO.File.AppendAllText(pathCopy, lineCopy);
+                    // EPIC-7-QUALITY-010: Validate path before append
+                    string validPath = PathValidation.ValidateAndCanonicalize(pathCopy, "AppendCSV");
+
+                    // EPIC-7-QUALITY-011: Retry logic for transient I/O failures
+                    RetryHelper.ExecuteWithRetry(
+                        () => System.IO.File.AppendAllText(validPath, lineCopy),
+                        RetryHelper.IsTransientIOError,
+                        "AppendCSVLine"
+                    );
                 }
                 catch
                 { /* swallow -- daily summary is best-effort */

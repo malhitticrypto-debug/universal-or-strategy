@@ -76,19 +76,38 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string json = SerializeSnapshot(snapshot);
                 snapshot.ChecksumSHA256 = ComputeSHA256(json);
                 string jsonWithChecksum = SerializeSnapshot(snapshot);
-                File.WriteAllText(validTempPath, jsonWithChecksum, Encoding.UTF8);
+
+                // EPIC-7-QUALITY-011: Retry logic for transient I/O failures
+                RetryHelper.ExecuteWithRetry(
+                    () => File.WriteAllText(validTempPath, jsonWithChecksum, Encoding.UTF8),
+                    RetryHelper.IsTransientIOError,
+                    "WriteStateTempFile"
+                );
 
                 if (File.Exists(validStatePath))
                 {
-                    File.Copy(validStatePath, validBackupPath, overwrite: true);
+                    RetryHelper.ExecuteWithRetry(
+                        () => File.Copy(validStatePath, validBackupPath, overwrite: true),
+                        RetryHelper.IsTransientIOError,
+                        "BackupStateFile"
+                    );
                 }
 
                 // .NET Framework 4.5 doesn't support overwrite parameter
                 if (File.Exists(validStatePath))
                 {
-                    File.Delete(validStatePath);
+                    RetryHelper.ExecuteWithRetry(
+                        () => File.Delete(validStatePath),
+                        RetryHelper.IsTransientIOError,
+                        "DeleteOldStateFile"
+                    );
                 }
-                File.Move(validTempPath, validStatePath);
+
+                RetryHelper.ExecuteWithRetry(
+                    () => File.Move(validTempPath, validStatePath),
+                    RetryHelper.IsTransientIOError,
+                    "MoveStateFile"
+                );
 
                 Interlocked.Exchange(ref _lastSnapshotTicks, DateTime.UtcNow.Ticks);
                 return true;
@@ -142,7 +161,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return null;
                 }
 
-                string json = File.ReadAllText(validStatePath, Encoding.UTF8);
+                // EPIC-7-QUALITY-011: Retry logic for transient I/O failures
+                string json = RetryHelper.ExecuteWithRetry(
+                    () => File.ReadAllText(validStatePath, Encoding.UTF8),
+                    RetryHelper.IsTransientIOError,
+                    "ReadStateFile"
+                );
                 StateSnapshot snapshot = DeserializeSnapshot(json);
 
                 if (snapshot == null)
@@ -161,7 +185,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                             _stickyStatePath,
                             "ReadStateAfterRollback"
                         );
-                        string backupJson = File.ReadAllText(validStatePathAfterRollback, Encoding.UTF8);
+                        // EPIC-7-QUALITY-011: Retry logic for rollback read
+                        string backupJson = RetryHelper.ExecuteWithRetry(
+                            () => File.ReadAllText(validStatePathAfterRollback, Encoding.UTF8),
+                            RetryHelper.IsTransientIOError,
+                            "ReadStateFileAfterRollback"
+                        );
                         snapshot = DeserializeSnapshot(backupJson);
                         return snapshot;
                     }
@@ -237,7 +266,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                     return false;
                 }
 
-                string json = File.ReadAllText(validBackupPath, Encoding.UTF8);
+                // EPIC-7-QUALITY-011: Retry logic for backup read
+                string json = RetryHelper.ExecuteWithRetry(
+                    () => File.ReadAllText(validBackupPath, Encoding.UTF8),
+                    RetryHelper.IsTransientIOError,
+                    "ReadBackupFile"
+                );
                 StateSnapshot backup = DeserializeSnapshot(json);
 
                 if (backup == null)

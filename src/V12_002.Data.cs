@@ -20,6 +20,36 @@ namespace NinjaTrader.NinjaScript.Strategies
         // V12.EPIC-7-QUALITY-008: UI Callbacks Error Handling Diagnostic Counter
         private long _uiCallbackFailures = 0;
 
+        // V12.EPIC-7-QUALITY-011: File I/O Retry Logic Diagnostic Counters
+        // Note: Actual counters are in RetryHelper.cs (static class)
+        // These properties provide access for monitoring/reporting
+        private static long IoRetryAttempts
+        {
+            get
+            {
+                RetryHelper.GetRetryMetrics(out long attempts, out _, out _);
+                return attempts;
+            }
+        }
+
+        private static long IoRetrySuccesses
+        {
+            get
+            {
+                RetryHelper.GetRetryMetrics(out _, out long successes, out _);
+                return successes;
+            }
+        }
+
+        private static long IoRetryFailures
+        {
+            get
+            {
+                RetryHelper.GetRetryMetrics(out _, out _, out long failures);
+                return failures;
+            }
+        }
+
         // Placeholder for missing Data logic.
         public static class Data
         {
