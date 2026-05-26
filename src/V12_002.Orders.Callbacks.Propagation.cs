@@ -892,14 +892,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print("[FSM_TGT] CreateOrder returned null for " + tFsmKey + " -- position may be unprotected.");
                 return;
             }
+            var orderArray = _orderArrayPool.Rent();
             try
             {
-                spec.TargetAccount.Submit(new[] { newTargetOrder });
+                orderArray[0] = newTargetOrder;
+                spec.TargetAccount.Submit(orderArray);
             }
             catch (Exception submitEx)
             {
                 Print("[FSM_TGT] Submit threw for " + tFsmKey + ": " + submitEx.Message);
                 return;
+            }
+            finally
+            {
+                _orderArrayPool.Return(orderArray);
             }
             if (tDict != null)
                 tDict[spec.EntryName] = newTargetOrder;
