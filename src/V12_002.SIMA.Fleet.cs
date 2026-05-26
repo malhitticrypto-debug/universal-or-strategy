@@ -478,6 +478,11 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // [939-P0]: Snapshot Positions to prevent broker-thread mutation during iteration.
                 // T-W1-Perf: for-loop replaces FirstOrDefault lambda -- eliminates delegate allocation.
+                // [PR6-P0]: Null safety hardening - check acct and Positions before snapshot
+                if (acct == null || acct.Positions == null)
+                {
+                    return; // Skip health check if account or positions are null
+                }
                 Position[] posSnapshot = acct.Positions.ToArray();
                 Position brokerPos = null;
                 for (int pi = 0; pi < posSnapshot.Length; pi++)
