@@ -1,13 +1,15 @@
 // Build 971: UI.IPC.Server -- StartIpcServer, ListenForRemote, HandleClient, ProcessClientStream, HandleIncomingIpcLine, StopIpcServer
 // V12 UI.IPC Module (Extracted)
 using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
 using System.Globalization;
+using System.Linq;
+using System.Net;
+using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -17,16 +19,14 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using NinjaTrader.Cbi;
+using NinjaTrader.Data;
 using NinjaTrader.Gui;
 using NinjaTrader.Gui.Chart;
 using NinjaTrader.Gui.Tools;
-using NinjaTrader.Data;
 using NinjaTrader.NinjaScript;
 using NinjaTrader.NinjaScript.DrawingTools;
 using NinjaTrader.NinjaScript.Indicators;
 using NinjaTrader.NinjaScript.Strategies;
-using System.Net;
-using System.Net.Sockets;
 
 namespace NinjaTrader.NinjaScript.Strategies
 {
@@ -36,17 +36,23 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         private string GetCurrentConfigMode()
         {
-            if (isRMAModeActive) return "RMA";
-            if (isTRENDModeActive) return "TREND";
-            if (isRetestModeActive) return "RETEST";
-            if (isMOMOModeActive) return "MOMO";
-            if (isFFMAModeArmed) return "FFMA";
+            if (isRMAModeActive)
+                return "RMA";
+            if (isTRENDModeActive)
+                return "TREND";
+            if (isRetestModeActive)
+                return "RETEST";
+            if (isMOMOModeActive)
+                return "MOMO";
+            if (isFFMAModeArmed)
+                return "FFMA";
             return "OR";
         }
 
         private void StartIpcServer()
         {
-            if (isIpcRunning) return;
+            if (isIpcRunning)
+                return;
 
             try
             {
@@ -150,7 +156,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             if (ipcListener != null)
             {
-                try { ipcListener.Stop(); } catch { }
+                try
+                {
+                    ipcListener.Stop();
+                }
+                catch (Exception ex)
+                {
+                    // V12.EPIC-7-QUALITY-006: Log IPC listener stop errors for forensics
+                    Interlocked.Increment(ref _ipcCleanupFailures);
+                    Print($"[IPC_CLEANUP] Listener stop failed: {ex.Message}");
+                    // Continue cleanup - non-fatal
+                }
             }
         }
 
@@ -172,7 +188,33 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (connectedClients != null)
                     connectedClients.TryRemove(session.ClientId, out _);
                 Print($"V12 IPC: Client Disconnected [id={session.ClientId}]");
-                try { session.Client.Close(); } catch { }
+
+                // V12.EPIC-7-QUALITY-006: Explicit cleanup with zombie detection
+                if (session.Client != null)
+                {
+                    try
+                    {
+                        if (session.Client.Connected)
+                        {
+                            try
+                            {
+                                session.Client.Client?.Shutdown(SocketShutdown.Both);
+                            }
+                            catch (Exception shutdownEx)
+                            {
+                                Interlocked.Increment(ref _ipcZombieConnections);
+                                Print($"[IPC_ZOMBIE] Connection stuck [id={session.ClientId}]: {shutdownEx.Message}");
+                            }
+                        }
+                        session.Client.Close();
+                    }
+                    catch (Exception ex)
+                    {
+                        Interlocked.Increment(ref _ipcCleanupFailures);
+                        Print($"[IPC_CLEANUP] Client close failed [id={session.ClientId}]: {ex.Message}");
+                        // Continue cleanup - non-fatal
+                    }
+                }
             }
         }
 
@@ -189,17 +231,22 @@ namespace NinjaTrader.NinjaScript.Strategies
             while (isIpcRunning && client.Connected)
             {
                 int bytesRead = ProcessClientStream_ReadChunk(stream, buffer);
-                if (bytesRead < 0) continue;
-                if (bytesRead == 0) break;
+                if (bytesRead < 0)
+                    continue;
+                if (bytesRead == 0)
+                    break;
 
-                if (!ProcessClientStream_DecodeUtf8(clientId, utf8Decoder, buffer, bytesRead, charBuf, out string chunk))
+                if (
+                    !ProcessClientStream_DecodeUtf8(clientId, utf8Decoder, buffer, bytesRead, charBuf, out string chunk)
+                )
                     break;
                 lineBuffer.Append(chunk);
 
                 string[] lines = ProcessClientStream_ExtractLines(clientId, lineBuffer, out bool disconnectClient);
                 if (disconnectClient)
                     break;
-                if (lines == null) continue;
+                if (lines == null)
+                    continue;
                 foreach (string line in lines)
                 {
                     ProcessClientStream_DispatchLine(session, line);
@@ -224,7 +271,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             byte[] buffer,
             int bytesRead,
             char[] charBuf,
-            out string chunk)
+            out string chunk
+        )
         {
             chunk = null;
             try
@@ -244,20 +292,24 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string[] ProcessClientStream_ExtractLines(
             int clientId,
             StringBuilder lineBuffer,
-            out bool disconnectClient)
+            out bool disconnectClient
+        )
         {
             disconnectClient = false;
 
             if (lineBuffer.Length > IpcMaxBufferedChars)
             {
-                Print($"V12 IPC: Client {clientId} exceeded max buffered payload ({IpcMaxBufferedChars}); disconnecting.");
+                Print(
+                    $"V12 IPC: Client {clientId} exceeded max buffered payload ({IpcMaxBufferedChars}); disconnecting."
+                );
                 disconnectClient = true;
                 return null;
             }
 
             string accumulated = lineBuffer.ToString();
             int lastNewline = accumulated.LastIndexOf('\n');
-            if (lastNewline < 0) return null;
+            if (lastNewline < 0)
+                return null;
 
             string completeLines = accumulated.Substring(0, lastNewline);
             lineBuffer.Clear();
@@ -266,7 +318,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 lineBuffer.Append(accumulated.Substring(lastNewline + 1));
                 if (lineBuffer.Length > IpcMaxBufferedChars)
                 {
-                    Print($"V12 IPC: Client {clientId} residue exceeded max buffered payload ({IpcMaxBufferedChars}); disconnecting.");
+                    Print(
+                        $"V12 IPC: Client {clientId} residue exceeded max buffered payload ({IpcMaxBufferedChars}); disconnecting."
+                    );
                     disconnectClient = true;
                     return null;
                 }
@@ -285,7 +339,8 @@ namespace NinjaTrader.NinjaScript.Strategies
             int clientId = session.ClientId;
             NetworkStream stream = session.Stream;
             string message = line.Trim();
-            if (string.IsNullOrEmpty(message)) return;
+            if (string.IsNullOrEmpty(message))
+                return;
 
             if (HandleIncomingIpcLine_RespondLayout(stream, message))
                 return;
@@ -304,31 +359,61 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Build 935 [R-04]: Snapshot scalar state under lock; format string outside
             // to minimize critical section duration (removes string allocation from lock).
-            string snapMode; double snapStop; int snapCount;
-            double snapT1, snapT2, snapT3, snapT4, snapT5;
-            TargetMode snapT1Type, snapT2Type, snapT3Type, snapT4Type, snapT5Type;
-            string snapCit; string snapLeader; bool snapTrma, snapRrma;
-            snapMode   = GetCurrentConfigMode();
-            snapStop   = snapMode == "RMA" ? RMAStopATRMultiplier : StopMultiplier;
-            snapCount  = activeTargetCount;
-            snapT1     = Target1Value; snapT1Type = T1Type;
-            snapT2     = Target2Value; snapT2Type = T2Type;
-            snapT3     = Target3Value; snapT3Type = T3Type;
-            snapT4     = Target4Value; snapT4Type = T4Type;
-            snapT5     = Target5Value; snapT5Type = T5Type;
-            snapCit    = ChaseIfTouchPoints ?? "0";
+            string snapMode;
+            double snapStop;
+            int snapCount;
+            double snapT1,
+                snapT2,
+                snapT3,
+                snapT4,
+                snapT5;
+            TargetMode snapT1Type,
+                snapT2Type,
+                snapT3Type,
+                snapT4Type,
+                snapT5Type;
+            string snapCit;
+            string snapLeader;
+            bool snapTrma,
+                snapRrma;
+            snapMode = GetCurrentConfigMode();
+            snapStop = snapMode == "RMA" ? RMAStopATRMultiplier : StopMultiplier;
+            snapCount = activeTargetCount;
+            snapT1 = Target1Value;
+            snapT1Type = T1Type;
+            snapT2 = Target2Value;
+            snapT2Type = T2Type;
+            snapT3 = Target3Value;
+            snapT3Type = T3Type;
+            snapT4 = Target4Value;
+            snapT4Type = T4Type;
+            snapT5 = Target5Value;
+            snapT5Type = T5Type;
+            snapCit = ChaseIfTouchPoints ?? "0";
             snapLeader = _stickyLeaderAccount ?? string.Empty;
-            snapTrma   = isTrendRmaMode;
-            snapRrma   = isRetestRmaMode;
+            snapTrma = isTrendRmaMode;
+            snapRrma = isRetestRmaMode;
             string configResponse = string.Format(
                 "CONFIG|{0}|MODE:{0};COUNT:{1};T1:{2};T1TYPE:{3};T2:{4};T2TYPE:{5};T3:{6};T3TYPE:{7};T4:{8};T4TYPE:{9};T5:{10};T5TYPE:{11};STR:{12};STRTYPE:ATR;MAX:{13};CIT:{14};OT:Limit;TRMA:{15};RRMA:{16};LEADER:{17};\n",
-                snapMode, snapCount, snapT1, ToIpcTargetMode(snapT1Type),
-                snapT2, ToIpcTargetMode(snapT2Type),
-                snapT3, ToIpcTargetMode(snapT3Type),
-                snapT4, ToIpcTargetMode(snapT4Type),
-                snapT5, ToIpcTargetMode(snapT5Type),
-                snapStop, MaxRiskAmount, snapCit,
-                snapTrma ? "1" : "0", snapRrma ? "1" : "0", snapLeader);
+                snapMode,
+                snapCount,
+                snapT1,
+                ToIpcTargetMode(snapT1Type),
+                snapT2,
+                ToIpcTargetMode(snapT2Type),
+                snapT3,
+                ToIpcTargetMode(snapT3Type),
+                snapT4,
+                ToIpcTargetMode(snapT4Type),
+                snapT5,
+                ToIpcTargetMode(snapT5Type),
+                snapStop,
+                MaxRiskAmount,
+                snapCit,
+                snapTrma ? "1" : "0",
+                snapRrma ? "1" : "0",
+                snapLeader
+            );
             byte[] responseBytes = Encoding.UTF8.GetBytes(configResponse);
             stream.Write(responseBytes, 0, responseBytes.Length);
             stream.Flush();
@@ -354,7 +439,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 TriggerCustomEvent(o => ProcessIpcCommands(), null);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // V12.EPIC-7-QUALITY-006: Log IPC command trigger failures
+                Interlocked.Increment(ref _ipcCleanupFailures);
+                Print($"[IPC_CLEANUP] Command trigger failed: {ex.Message}");
+                // Continue - non-fatal, command remains queued
+            }
         }
 
         private void StopIpcServer()
@@ -376,15 +467,44 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     foreach (var kvp in connectedClients.ToArray())
                     {
-                        try { kvp.Value.Client.Close(); } catch { }
+                        // V12.EPIC-7-QUALITY-006: Explicit client cleanup with zombie detection
+                        try
+                        {
+                            if (kvp.Value.Client != null && kvp.Value.Client.Connected)
+                            {
+                                try
+                                {
+                                    kvp.Value.Client.Client?.Shutdown(SocketShutdown.Both);
+                                }
+                                catch (Exception shutdownEx)
+                                {
+                                    Interlocked.Increment(ref _ipcZombieConnections);
+                                    Print(
+                                        $"[IPC_ZOMBIE] Connection stuck during shutdown [id={kvp.Key}]: {shutdownEx.Message}"
+                                    );
+                                }
+                            }
+                            kvp.Value.Client.Close();
+                        }
+                        catch (Exception ex)
+                        {
+                            Interlocked.Increment(ref _ipcCleanupFailures);
+                            Print($"[IPC_CLEANUP] Client close failed during shutdown [id={kvp.Key}]: {ex.Message}");
+                            // Continue cleanup - non-fatal
+                        }
                     }
                     connectedClients.Clear();
                 }
                 Interlocked.Exchange(ref ipcQueuedCommandCount, 0);
             }
-            catch { }
+            catch (Exception ex)
+            {
+                // V12.EPIC-7-QUALITY-006: Log server shutdown errors
+                Interlocked.Increment(ref _ipcCleanupFailures);
+                Print($"[IPC_CLEANUP] Server shutdown failed: {ex.Message}");
+                // Continue - best-effort cleanup
+            }
         }
-
 
         #endregion
     }
