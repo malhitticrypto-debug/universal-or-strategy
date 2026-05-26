@@ -34,7 +34,7 @@ check-pr 7 --poll-interval 180
 
 ## Protocol
 
-1. **Initial Wait**: Sleep 5 minutes (300 seconds) after push
+1. **Initial Wait**: Sleep 4 minutes (240 seconds) after push
 2. **Poll Loop**: Check CI status every 3 minutes (180 seconds)
 3. **Exit Conditions**:
    - All checks complete (success or failure)
@@ -70,6 +70,7 @@ check-pr 7 --poll-interval 180
 This skill is called automatically by `pr-loop-auto` after Step 3 (push). It replaces the manual handoff to Orchestrator.
 
 **Before (Manual)**:
+
 ```
 Agent: "Pushed commit 8fd9b065"
 [Agent stops]
@@ -79,6 +80,7 @@ Director: "/pr-loop 7"
 ```
 
 **After (Autonomous)**:
+
 ```
 Agent: "Pushed commit 8fd9b065"
 Agent: "Invoking check-pr skill..."
@@ -116,6 +118,7 @@ Uses PowerShell script `scripts/monitor_pr_checks.ps1` (see that file for implem
    - Update version history with the fix
 
 3. **Audit Statement**: If no gaps found, state:
+
    ```
    skill(check-pr): no gaps identified
    ```
