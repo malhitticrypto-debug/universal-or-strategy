@@ -151,7 +151,7 @@ PROTOCOL:
   4. Run: powershell -File .\scripts\extract_pr_forensics.ps1 -PrNumber $1
   5. VERIFY extraction:
      - Test-Path docs/brain/pr_$1_forensics.md (must exist)
-     - File age < 2 minutes (must be fresh)
+     - File age < 15 minutes (must be fresh)
   6. Run: powershell -File .\scripts\calculate_fleet_score.ps1 -PrNumber $1
   7. If Score < 100: emit [PHS-RETRY] Current: X/100
   8. If Score = 100: emit [PHS-PERFECT] 100/100

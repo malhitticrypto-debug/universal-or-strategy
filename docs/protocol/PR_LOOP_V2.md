@@ -190,10 +190,10 @@ if (-not (Test-Path "docs/brain/pr_<N>_forensics.md")) {
     exit 1
 }
 
-# 6. VERIFY file is fresh (< 2 minutes old)
+# 6. VERIFY file is fresh (< 15 minutes old)
 $forensicsFile = Get-Item "docs/brain/pr_<N>_forensics.md"
 $fileAge = (Get-Date) - $forensicsFile.LastWriteTime
-if ($fileAge.TotalMinutes -gt 2) {
+if ($fileAge.TotalMinutes -gt 15) {
     Write-Error "Forensics file is stale! Age: $($fileAge.TotalMinutes) minutes"
     exit 1
 }

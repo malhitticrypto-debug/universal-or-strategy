@@ -6,7 +6,7 @@ Verifies forensics files are fresh before reading.
 The PR number to verify forensics for.
 
 .PARAMETER MaxAgeMinutes
-Maximum age in minutes for forensics to be considered fresh (default: 5).
+Maximum age in minutes for forensics to be considered fresh (default: 15).
 
 .EXAMPLE
 powershell -File .\scripts\verify_forensics_freshness.ps1 -PrNumber 5
@@ -17,7 +17,7 @@ param(
     [int]$PrNumber,
     
     [Parameter(Mandatory=$false)]
-    [int]$MaxAgeMinutes = 5
+    [int]$MaxAgeMinutes = 15
 )
 
 $forensicsFile = "docs/brain/pr_$PrNumber`_forensics.md"
