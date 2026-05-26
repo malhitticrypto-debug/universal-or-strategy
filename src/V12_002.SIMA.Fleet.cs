@@ -478,23 +478,28 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // [939-P0]: Snapshot Positions to prevent broker-thread mutation during iteration.
                 // T-W1-Perf: for-loop replaces FirstOrDefault lambda -- eliminates delegate allocation.
-                Position[] _posSnapshot = acct.Positions.ToArray();
+                Position[] posSnapshot = acct.Positions.ToArray();
                 Position brokerPos = null;
-                for (int _pi = 0; _pi < _posSnapshot.Length; _pi++)
+                for (int pi = 0; pi < posSnapshot.Length; pi++)
                 {
-                    if (_posSnapshot[_pi] != null && _posSnapshot[_pi].Instrument.FullName == Instrument.FullName)
+                    if (
+                        posSnapshot[pi] != null
+                        && posSnapshot[pi].Instrument != null
+                        && posSnapshot[pi].Instrument.FullName == Instrument.FullName
+                    )
                     {
-                        brokerPos = _posSnapshot[_pi];
+                        brokerPos = posSnapshot[pi];
                         break;
                     }
                 }
                 bool brokerFlat = (brokerPos == null || brokerPos.MarketPosition == MarketPosition.Flat);
 
                 // H-13: Check for active FSM entries for this account
+                // ConcurrentDictionary is thread-safe for enumeration - no snapshot needed
                 bool hasActiveFsmForAcct = false;
-                foreach (var _fkvp in _followerBrackets)
+                foreach (var fkvp in _followerBrackets)
                 {
-                    var f = _fkvp.Value;
+                    var f = fkvp.Value;
                     if (
                         f != null
                         && f.AccountName == acct.Name
@@ -511,9 +516,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
                 bool hasActivePositionForAcct = false;
-                foreach (var _pkvp in activePositions)
+                foreach (var pkvp in activePositions)
                 {
-                    var p = _pkvp.Value;
+                    var p = pkvp.Value;
                     if (p != null && p.IsFollower && p.ExecutingAccount != null && p.ExecutingAccount.Name == acct.Name)
                     {
                         hasActivePositionForAcct = true;
