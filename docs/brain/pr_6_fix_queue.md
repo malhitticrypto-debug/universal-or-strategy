@@ -1,54 +1,49 @@
 ﻿# PR #6 Fix Queue
-Generated: 2026-05-23 11:22:12
+Generated: 2026-05-25 19:15:48
 
 ## Instructions for v12-engineer
 
 Process these issues in priority order. Mark each as FIXED after applying the fix.
 
 ### Fix #1 - [P0] CRITICAL
-[ ] **Bot:** coderabbitai  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** **Actionable comments posted: 9**
+[x] **Bot:** amazon-q-developer
+[x] **File:** (extract from body)
+[x] **Issue:** ## Review Summary
 
-<details>
-<summary>­ƒñû Prompt for all review comments with AI agents</summary>
-
-```
-Verify each finding against current code. Fix only still-valid issues, skip the
-...
+This PR successfully addresses the stated goals of null safety improvements and code cleanup in the `ShouldSkipFleet_RunHealthCheck` method. The changes are well-contained to a sing...
 
 **Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6
 2. Apply the fix
 3. Verify locally
 4. Mark as [x] FIXED
 
 ---
 
-### Fix #2 - [P0] CRITICAL
-[ ] **Bot:** codacy-production  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ### Pull Request Overview
+### Fix #2 - [P0] CONCURRENCY
+[x] **Bot:** gemini-code-assist
+[x] **File:** src/V12_002.SIMA.Fleet.cs
+[x] **Issue:** ## Code Review - FIXED: Added null safety checks for acct and acct.Positions before snapshot creation
 
-The current PR fails to meet the core objective of 'locking in' performance gains because the benchmarks exercise mock properties and local re-implementations rather than pr...
+This pull request refactors local variable names in `src/V12_002.SIMA.Fleet.cs` to remove leading underscores and adds a null check for `Instrument` when evaluating position snapshots....
 
 **Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6
 2. Apply the fix
 3. Verify locally
 4. Mark as [x] FIXED
 
 ---
 
-### Fix #3 - [P0] CONCURRENCY
-[ ] **Bot:** sourcery-ai  
+### Fix #3 - [P0] CRITICAL
+[ ] **Bot:** cubic-dev-ai  
 [ ] **File:** (extract from body)  
-[ ] **Issue:** Hey - I've found 3 issues, and left some high level feedback:
+[ ] **Issue:** **No issues found** across 1 file
 
-- In `MockOrderTracker.CancelOrder`, the `Interlocked.CompareExchange` is operating on a local `currentState` value rather than shared st...
+<sub>[Re-trigger cubic](https://www.cubic.dev/action/re-review/pr/malhitticrypto-debug/universal-or-strategy/6/ai_pr_review_1779759686208_91c0120f-c942-4f75-addf-fb0...
 
 **Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6
 2. Apply the fix
 3. Verify locally
 4. Mark as [x] FIXED
@@ -56,267 +51,72 @@ The current PR fails to meet the core objective of 'locking in' performance gain
 ---
 
 ### Fix #4 - [P0] CRITICAL
-[ ] **Bot:** cubic-dev-ai  
+[x] **Bot:** codacy-production
+[x] **File:** PR description
+[x] **Issue:** ### Pull Request Overview - FIXED: Updated PR description to accurately reflect null safety changes
+
+This PR's implementation deviates significantly from its description. While titled as a performance and null-safety update, the actual diff is limited to a single file, miss...
+
+**Action Required:**
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6
+2. Apply the fix
+3. Verify locally
+4. Mark as [x] FIXED
+
+---
+
+### Fix #5 - [P1] REVIEW
+[ ] **Bot:** sourcery-ai  
 [ ] **File:** (extract from body)  
-[ ] **Issue:** **6 issues found** across 9 files
+[ ] **Issue:** Hey - I've reviewed your changes and they look great!
+
+***
 
 <details>
-<summary>Prompt for AI agents (unresolved issues)</summary>
+<summary>Sourcery is free for open source - if you like our reviews please consider sharing them Ô£¿</summary>
 
-```text
-
-Check if these issues are valid ÔÇö if so, understand the root cause of each and fix ...
+- [X](https://twit...
 
 **Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6
 2. Apply the fix
 3. Verify locally
 4. Mark as [x] FIXED
 
 ---
 
-### Fix #5 - [P0] CRITICAL
-[ ] **Bot:** coderabbitai  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** **Actionable comments posted: 1**
-
-<details>
-<summary>­ƒñû Prompt for all review comments with AI agents</summary>
-
-```
-Verify each finding against current code. Fix only still-valid issues, skip the
-...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #6 - [P0] CRITICAL
-[ ] **Bot:** cubic-dev-ai  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** **1 issue found across 1 file (changes from recent commits).**
-
-<details>
-<summary>Prompt for AI agents (unresolved issues)</summary>
-
-```text
-
-Check if these issues are valid ÔÇö if so, understand th...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #7 - [P0] CRITICAL
-[ ] **Bot:** cubic-dev-ai  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** **2 issues found across 1 file (changes from recent commits).**
-
-<details>
-<summary>Prompt for AI agents (unresolved issues)</summary>
-
-```text
-
-Check if these issues are valid ÔÇö if so, understand t...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #8 - [P0] CRITICAL
-[ ] **Bot:** gemini-code-assist  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ## Code Review
-
-This pull request adds a performance benchmarking and unit testing framework for the V12 project, including BenchmarkDotNet harnesses for hot paths and Xunit tests for lock-free Actor ...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #9 - [P0] CRITICAL
+### Fix #6 - [P2] PERFORMANCE
 [ ] **Bot:** sourcery-ai  
 [ ] **File:** (extract from body)  
 [ ] **Issue:** <!-- Generated by sourcery-ai[bot]: start review_guide -->
 
+<details>
+<summary>Reviewer's guide (collapsed on small PRs)</summary>
+
 ## Reviewer's Guide
 
-Introduces a dedicated performance testing infrastructure by adding BenchmarkDotNet harnesses for core hot paths, lockÔ...
+This PR refines a performance-related health ch...
 
 **Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6#issuecomment-4525772213
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6#issuecomment-4538933819
 2. Apply the fix
 3. Verify locally
 4. Mark as [x] FIXED
 
 ---
 
-### Fix #10 - [P0] CRITICAL
-[ ] **Bot:** codacy-production  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ## Not up to standards Ôøö
-<details><summary><strong>­ƒö┤ Issues</strong>  <code>6 critical ┬À 1 high ┬À 27 medium</code></summary>
-
-> <br/>
->
-> 
-> **Alerts:**
-> ÔÜá 34 issues (Ôëñ 0 issues of at leas...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6#issuecomment-4525773431
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #11 - [P0] CRITICAL
+### Fix #7 - [P2] PERFORMANCE
 [ ] **Bot:** coderabbitai  
 [ ] **File:** (extract from body)  
 [ ] **Issue:** <!-- This is an auto-generated comment: summarize by coderabbit.ai -->
 <!-- walkthrough_start -->
 
-<details>
-<summary>­ƒôØ Walkthrough</summary>
-
 ## Walkthrough
 
-Adds a benchmark harness, three Benchm...
+This PR refactors local variable naming in the `ShouldSkipFleet_RunHealthCheck` helpe...
 
 **Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6#issuecomment-4525772437
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #12 - [P0] CRITICAL
-[ ] **Bot:** amazon-q-developer  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ## Critical Issues Found - Blocking Merge
-
-This PR contains fundamental logic errors in the test implementation that undermine the lock-free guarantees being tested:
-
-**Critical Defects:**
-1. **Struct...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #13 - [P0] CRITICAL
-[ ] **Bot:** codacy-production  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ## Not up to standards Ôøö
-<details><summary><strong>­ƒö┤ Issues</strong>  <code>6 critical ┬À 1 high ┬À 27 medium</code></summary>
-
-> <br/>
->
-> 
-> **Alerts:**
-> ÔÜá 34 issues (Ôëñ 0 issues of at leas...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6#issuecomment-4526007362
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #14 - [P1] REVIEW
-[ ] **Bot:** coderabbitai  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** **Actionable comments posted: 2**
-
-<details>
-<summary>­ƒñû Prompt for all review comments with AI agents</summary>
-
-```
-Verify each finding against current code. Fix only still-valid issues, skip the
-...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #15 - [P1] REVIEW
-[ ] **Bot:** coderabbitai  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** 
-
-<details>
-<summary>ÔÖ╗´©Å Duplicate comments (1)</summary><blockquote>
-
-<details>
-<summary>Linting.csproj (1)</summary><blockquote>
-
-`24-27`: _ÔÜá´©Å Potential issue_ | _­ƒƒá Major_ | _ÔÜí Quick win...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #16 - [P1] SECURITY
-[ ] **Bot:** pr-insights-tagger  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ## PR Analysis Summary
-
-<div align="center">
-
-<!-- Badges for GitHub web view -->
-![Risk Level](https://img.shields.io/badge/Risk-HIGH-red?style=flat-square) ![Complexity](https://img.shields.io/badge...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6#issuecomment-4526003745
-2. Apply the fix
-3. Verify locally
-4. Mark as [x] FIXED
-
----
-
-### Fix #17 - [P1] SECURITY
-[ ] **Bot:** pr-insights-tagger  
-[ ] **File:** (extract from body)  
-[ ] **Issue:** ## PR Analysis Summary
-
-<div align="center">
-
-<!-- Badges for GitHub web view -->
-![Risk Level](https://img.shields.io/badge/Risk-HIGH-red?style=flat-square) ![Complexity](https://img.shields.io/badge...
-
-**Action Required:**
-1. Read the full finding at: https://github.com/mdasdispatch-hash/universal-or-strategy/pull/6#issuecomment-4525945322
+1. Read the full finding at: https://github.com/malhitticrypto-debug/universal-or-strategy/pull/6#issuecomment-4538933934
 2. Apply the fix
 3. Verify locally
 4. Mark as [x] FIXED

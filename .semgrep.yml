@@ -75,9 +75,9 @@ rules:
       CRITICAL: Unicode/emoji detected in string literal. V12 DNA mandates ASCII-only.
       
       Common substitutions:
-      - (!) instead of ⚠️
-      - -- instead of —
-      - -> instead of →
+      - (!) instead of (!)
+      - -- instead of --
+      - -> instead of ->
       - Use straight quotes "" not curly ""
       
       Fix: Replace all non-ASCII characters with ASCII equivalents.
