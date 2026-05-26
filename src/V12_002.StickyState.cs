@@ -110,7 +110,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         File.Delete(tempPath);
                     }
-                    catch { }
+                    catch (Exception cleanupEx)
+                    {
+                        // V12.EPIC-7-QUALITY-007: Log temp file cleanup failures
+                        Interlocked.Increment(ref _stateTempCleanupFailures);
+                        Print(
+                            string.Format(
+                                "[STICKY_CLEANUP] Failed to delete temp file {0}: {1}",
+                                tempPath,
+                                cleanupEx.Message
+                            )
+                        );
+                        // Non-critical: temp file will be overwritten on next write
+                    }
                 }
 
                 return false;
@@ -424,8 +436,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 return snapshot;
             }
-            catch
+            catch (FormatException ex)
             {
+                // V12.EPIC-7-QUALITY-007: JSON parsing failure (corrupt data)
+                Interlocked.Increment(ref _stateCorruptionDetected);
+                Print(string.Format("[STICKY_CORRUPT] JSON parse failed (format): {0}", ex.Message));
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // V12.EPIC-7-QUALITY-007: Unexpected deserialization failure
+                Interlocked.Increment(ref _stateCorruptionDetected);
+                Print(string.Format("[STICKY_CORRUPT] Deserialization failed: {0}", ex.Message));
                 return null;
             }
         }
