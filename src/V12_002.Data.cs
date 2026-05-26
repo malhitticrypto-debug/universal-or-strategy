@@ -69,11 +69,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
         /// <summary>
         /// Tracks a state rollback event (corruption detected, backup restored).
+        /// Rollback events are counted as persistence failures.
         /// </summary>
         private void TrackStateRollback()
         {
-            // Rollback is a special type of persistence event
-            // Increment both rollback-specific counter (if added) and general failure counter
             Interlocked.Increment(ref _statePersistenceFailures);
         }
 
