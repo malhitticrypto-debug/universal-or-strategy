@@ -13,5 +13,3 @@ namespace Linting
         // Empty class - exists only to enable analyzer execution during build
     }
 }
-
-// Made with Bob
