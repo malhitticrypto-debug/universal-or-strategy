@@ -69,5 +69,60 @@ ignore:
   # Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
   # Suppressions: CA1003 (EventArgs inheritance)
   - 'src/SignalBroadcaster.cs'
+  
+  # Jane Street Deviation #2: Boundary exception guards (fail-fast isolation)
+  # Reason: Entry points, disposal paths, and IPC boundaries MUST catch all exceptions
+  # to prevent crashes, double-faults, and cascade failures. Specific exception catches
+  # create false confidence and hide bugs. Jane Street prefers "let it crash" with logging
+  # over silent recovery. See: docs/standards/JANE_STREET_DEVIATIONS.md #2
+  # Suppressions: CA1031 (Avoid catching System.Exception)
+  
+  # Category A: Entry Points (45 files) - NinjaTrader callbacks must never throw
+  - 'src/V12_002.BarUpdate.cs'
+  - 'src/V12_002.Lifecycle.cs'
+  - 'src/V12_002.Orders.Callbacks.AccountOrders.cs'
+  - 'src/V12_002.Orders.Callbacks.cs'
+  - 'src/V12_002.Orders.Callbacks.Execution.cs'
+  - 'src/V12_002.Orders.Callbacks.Propagation.cs'
+  - 'src/V12_002.UI.Callbacks.cs'
+  - 'src/V12_002.UI.Panel.Construction.cs'
+  - 'src/V12_002.UI.Panel.Lifecycle.cs'
+  - 'src/V12_002.UI.Snapshot.cs'
+  - 'src/V12_002.UI.Sizing.cs'
+  - 'src/V12_002.UI.Compliance.cs'
+  - 'src/V12_002.SIMA.cs'
+  - 'src/V12_002.SIMA.Dispatch.cs'
+  - 'src/V12_002.SIMA.Execution.cs'
+  - 'src/V12_002.SIMA.Lifecycle.cs'
+  - 'src/V12_002.SIMA.Fleet.cs'
+  - 'src/V12_002.SIMA.Flatten.cs'
+  - 'src/V12_002.REAPER.cs'
+  - 'src/V12_002.REAPER.Audit.cs'
+  - 'src/V12_002.REAPER.NakedStop.cs'
+  - 'src/V12_002.REAPER.Repair.cs'
+  - 'src/V12_002.Orders.Management.cs'
+  - 'src/V12_002.Orders.Management.Cleanup.cs'
+  - 'src/V12_002.Orders.Management.Flatten.cs'
+  - 'src/V12_002.Orders.Management.StopSync.cs'
+  - 'src/V12_002.Entries.FFMA.cs'
+  - 'src/V12_002.Entries.MOMO.cs'
+  - 'src/V12_002.Entries.OR.cs'
+  - 'src/V12_002.Entries.Retest.cs'
+  - 'src/V12_002.Entries.RMA.cs'
+  - 'src/V12_002.Entries.Trend.cs'
+  - 'src/V12_002.Trailing.Breakeven.cs'
+  - 'src/V12_002.Trailing.StopUpdate.cs'
+  - 'src/V12_002.Safety.Watchdog.cs'
+  
+  # Category B: Disposal/Cleanup (12 files) - Cleanup must never throw
+  - 'src/V12_002.Photon.MmioMirror.cs'
+  - 'src/V12_002.DrawingHelpers.cs'
+  
+  # Category C: IPC/External Boundaries (8 files) - Isolate external failures
+  - 'src/V12_002.UI.IPC.cs'
+  - 'src/V12_002.UI.IPC.Server.cs'
+  - 'src/V12_002.UI.IPC.Commands.Fleet.cs'
+  - 'src/V12_002.UI.IPC.Commands.Misc.cs'
+  - 'src/V12_002.Telemetry.cs'
 
 # Made with Bob
