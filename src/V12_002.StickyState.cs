@@ -328,7 +328,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 byte[] bytes = Encoding.UTF8.GetBytes(input);
                 byte[] hash = sha256.ComputeHash(bytes);
-                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLower();
+                return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
             }
         }
 
@@ -451,7 +451,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                 snapshot.EnableREAPER = ParseJsonBool(json, "EnableREAPER");
                 snapshot.ChecksumSHA256 = ParseJsonString(json, "ChecksumSHA256");
 
-                int accountPosStart = json.IndexOf("\"AccountPositions\"");
+                int accountPosStart = json.IndexOf("\"AccountPositions\"", StringComparison.Ordinal);
                 if (accountPosStart >= 0)
                 {
                     int objStart = json.IndexOf('{', accountPosStart);
@@ -514,7 +514,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private long ParseJsonLong(string json, string key)
         {
             string pattern = string.Format("\"{0}\": ", key);
-            int startIdx = json.IndexOf(pattern);
+            int startIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (startIdx < 0)
             {
                 return 0;
@@ -544,7 +544,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ParseJsonBool(string json, string key)
         {
             string pattern = string.Format("\"{0}\": ", key);
-            int startIdx = json.IndexOf(pattern);
+            int startIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (startIdx < 0)
             {
                 return false;
@@ -564,7 +564,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string ParseJsonString(string json, string key)
         {
             string pattern = string.Format("\"{0}\": \"", key);
-            int startIdx = json.IndexOf(pattern);
+            int startIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (startIdx < 0)
             {
                 return string.Empty;
