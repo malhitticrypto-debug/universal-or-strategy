@@ -55,6 +55,11 @@ help.txt
 test-vertex.js
 artifacts/rdp_ocr*.txt
 
+# V12.22 Quality Protocol Artifacts
+codacy_warnings.json
+coderabbit_review.json
+complexity_violations.txt
+
 # Persistent ignores
 tmp/
 .claude/

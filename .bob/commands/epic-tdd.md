@@ -24,11 +24,13 @@ Ensure:
 - ✅ FSM/Actor pattern followed.
 
 ### Step 2: Local Verification
-Run the following locally:
+Run the FULL validation suite:
 1. `powershell -File .\deploy-sync.ps1`
-2. `powershell -File .\scripts\pre_push_validation.ps1 -Fast`
+2. `powershell -File .\scripts\pre_push_validation.ps1`
 
-If any local check fails: **HALT and fix.**
+Expected output: ALL blocking checks PASS (8/8 required, 5/5 warnings informational).
+
+If ANY blocking check fails: **HALT and fix.**
 
 ### Step 3: F5 Verification
 1. Press F5 in NinjaTrader.

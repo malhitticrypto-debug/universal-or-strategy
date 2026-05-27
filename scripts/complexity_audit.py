@@ -5,9 +5,13 @@ Analyzes all src/*.cs files for:
 1. Cyclomatic complexity (CYC)
 2. M5 dispatch candidates (switch/if chains >= 4 branches)
 3. LOC health (methods > 80 LOC)
+
+V12.22 Enhancement: Supports --threshold and --fail-on-violation for CI gates.
 """
 import re
 import os
+import sys
+import argparse
 from pathlib import Path
 from typing import List
 from dataclasses import dataclass
@@ -293,6 +297,59 @@ def generate_report():
     print("[CODEBASE-AUDIT-COMPLETE]")
 
 if __name__ == '__main__':
-    generate_report()
+    # V12.22: Add CLI argument parsing for threshold enforcement
+    parser = argparse.ArgumentParser(
+        description='V12 Complexity Audit - Analyze cyclomatic complexity across src/ files'
+    )
+    parser.add_argument(
+        '--threshold',
+        type=int,
+        default=20,
+        help='CYC threshold for violations (default: 20, V12.22 uses 15)'
+    )
+    parser.add_argument(
+        '--fail-on-violation',
+        action='store_true',
+        help='Exit with code 1 if any method exceeds threshold (CI gate mode)'
+    )
+    args = parser.parse_args()
+    
+    # Run the audit
+    src_dir = Path('src')
+    cs_files = sorted(src_dir.glob('*.cs'))
+    
+    all_methods = []
+    violations = []
+    
+    for cs_file in cs_files:
+        methods = extract_methods(str(cs_file))
+        all_methods.extend(methods)
+        
+        # Check for threshold violations
+        for method in methods:
+            if method.cyc > args.threshold:
+                violations.append({
+                    'file': cs_file.name,
+                    'method': method.name,
+                    'cyc': method.cyc,
+                    'line': method.line_start
+                })
+    
+    # If --fail-on-violation is set, check for violations
+    if args.fail_on_violation:
+        if violations:
+            print(f"\n[FAIL] {len(violations)} methods exceed CYC {args.threshold} threshold:")
+            print()
+            for v in violations:
+                print(f"  {v['file']}:{v['line']} - {v['method']} (CYC {v['cyc']})")
+            print()
+            print(f"[BLOCKED] Fix complexity violations before pushing")
+            sys.exit(1)
+        else:
+            print(f"[PASS] All {len(all_methods)} methods are within CYC {args.threshold} threshold")
+            sys.exit(0)
+    else:
+        # Normal report mode (original behavior)
+        generate_report()
 
 # Made with Bob

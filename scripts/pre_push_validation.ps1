@@ -232,21 +232,22 @@ try {
 }
 
 # ============================================================================
-# 9. COMPLEXITY AUDIT (Optional - Slow)
+# 9. COMPLEXITY THRESHOLD ENFORCEMENT (V12 DNA - Jane Street Aligned)
 # ============================================================================
 if (-not $Fast) {
-    Write-CheckHeader "9. Complexity Audit"
+    Write-CheckHeader "9. Complexity Threshold (CYC ≤ 15)"
     try {
         $pythonInstalled = Get-Command "python" -ErrorAction SilentlyContinue
         if ($pythonInstalled) {
-            $complexityOutput = python "$PSScriptRoot\complexity_audit.py" 2>&1
+            # Run with threshold enforcement
+            $complexityOutput = python "$PSScriptRoot\complexity_audit.py" --threshold 15 --fail-on-violation 2>&1
             $complexitySuccess = $LASTEXITCODE -eq 0
             
             if ($complexitySuccess) {
-                Write-CheckResult "Complexity" $true "No high-complexity violations"
+                Write-CheckResult "Complexity (≤15)" $true "All methods within threshold"
             } else {
-                Write-CheckResult "Complexity" $false "High complexity detected"
-                Write-Host $complexityOutput -ForegroundColor Yellow
+                Write-CheckResult "Complexity (≤15)" $false "Methods exceed CYC 15 threshold"
+                Write-Host $complexityOutput -ForegroundColor Red
             }
         } else {
             Write-CheckResult "Complexity" $true "Python not installed (skipped)"
@@ -257,7 +258,7 @@ if (-not $Fast) {
 }
 
 # ============================================================================
-# 10. DEAD CODE SCAN (Optional - Slow)
+# 10. DEAD CODE DETECTION (Warning - Non-blocking)
 # ============================================================================
 if (-not $Fast) {
     Write-CheckHeader "10. Dead Code Detection"
@@ -265,8 +266,15 @@ if (-not $Fast) {
         $pythonInstalled = Get-Command "python" -ErrorAction SilentlyContinue
         if ($pythonInstalled) {
             $deadCodeOutput = python "$PSScriptRoot\dead_code_scan.py" 2>&1
-            # Dead code scan is informational, not blocking
-            Write-CheckResult "Dead Code" $true "Scan complete (informational)"
+            $deadCodeSuccess = $LASTEXITCODE -eq 0
+            
+            if ($deadCodeSuccess) {
+                Write-CheckResult "Dead Code" $true "No dead private methods detected"
+            } else {
+                # Non-blocking warning
+                Write-CheckResult "Dead Code" $true "Dead methods found (warning only)"
+                Write-Host $deadCodeOutput -ForegroundColor Yellow
+            }
         } else {
             Write-CheckResult "Dead Code" $true "Python not installed (skipped)"
         }
@@ -274,6 +282,158 @@ if (-not $Fast) {
         Write-CheckResult "Dead Code" $true "Skipped: $($_.Exception.Message)"
     }
 }
+
+# ============================================================================
+# 11. CODACY LOCAL PREVIEW (API-based, Warning - Non-blocking)
+# ============================================================================
+Write-CheckHeader "11. Codacy Issue Preview"
+try {
+    if ($env:CODACY_API_TOKEN) {
+        # Get current branch
+        $branch = git rev-parse --abbrev-ref HEAD 2>&1
+        
+        if ($branch -and $branch -ne "HEAD") {
+            # Query Codacy for this branch's issues
+            $codacyScript = Join-Path $PSScriptRoot "query_codacy_issues.ps1"
+            if (Test-Path $codacyScript) {
+                & $codacyScript -ErrorAction SilentlyContinue | Out-Null
+                
+                if (Test-Path "codacy_warnings.json") {
+                    $issues = Get-Content "codacy_warnings.json" | ConvertFrom-Json
+                    $errorCount = ($issues | Where-Object { $_.level -eq "Error" }).Count
+                    $warningCount = ($issues | Where-Object { $_.level -eq "Warning" }).Count
+                    
+                    if ($errorCount -gt 0) {
+                        Write-CheckResult "Codacy Preview" $true "$errorCount errors, $warningCount warnings (warning only)"
+                        Write-Host "  Run 'powershell -File .\scripts\query_codacy_issues.ps1' for details" -ForegroundColor Yellow
+                    } else {
+                        Write-CheckResult "Codacy Preview" $true "$warningCount warnings (no errors)"
+                    }
+                } else {
+                    Write-CheckResult "Codacy Preview" $true "Branch not yet pushed (skipped)"
+                }
+            } else {
+                Write-CheckResult "Codacy Preview" $true "query_codacy_issues.ps1 not found (skipped)"
+            }
+        } else {
+            Write-CheckResult "Codacy Preview" $true "Detached HEAD or main branch (skipped)"
+        }
+    } else {
+        Write-CheckResult "Codacy Preview" $true "CODACY_API_TOKEN not set (skipped)"
+    }
+} catch {
+    Write-CheckResult "Codacy Preview" $true "Preview failed (non-blocking): $($_.Exception.Message)"
+}
+
+# ============================================================================
+# 12. SEMGREP SECURITY SCAN (Warning - Non-blocking)
+# ============================================================================
+if (-not $Fast) {
+    Write-CheckHeader "12. Semgrep Security Scan"
+    try {
+        $semgrepInstalled = Get-Command "semgrep" -ErrorAction SilentlyContinue
+        if ($semgrepInstalled) {
+            $semgrepOutput = semgrep --config auto --json src/ 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                try {
+                    $semgrepJson = $semgrepOutput | ConvertFrom-Json
+                    $findings = $semgrepJson.results.Count
+                    
+                    if ($findings -eq 0) {
+                        Write-CheckResult "Semgrep" $true "No security findings"
+                    } else {
+                        # Non-blocking warning
+                        Write-CheckResult "Semgrep" $true "$findings security findings (warning only)"
+                        Write-Host "  Run 'semgrep --config auto src/' for details" -ForegroundColor Yellow
+                    }
+                } catch {
+                    Write-CheckResult "Semgrep" $true "Scan complete (parse error, non-blocking)"
+                }
+            } else {
+                Write-CheckResult "Semgrep" $true "Scan failed (non-blocking)"
+            }
+        } else {
+            Write-CheckResult "Semgrep" $true "Not installed (skipped)"
+        }
+    } catch {
+        Write-CheckResult "Semgrep" $true "Scan failed (non-blocking): $($_.Exception.Message)"
+    }
+}
+# ============================================================================
+# 13. CODERABBIT AI REVIEW (Warning - Non-blocking during validation period)
+# ============================================================================
+if (-not $Fast) {
+    Write-CheckHeader "13. CodeRabbit AI Review"
+    try {
+        $crInstalled = Get-Command "coderabbit" -ErrorAction SilentlyContinue
+        if (-not $crInstalled) {
+            $crInstalled = Get-Command "cr" -ErrorAction SilentlyContinue
+        }
+        
+        if ($crInstalled) {
+            Write-Host "  Running CodeRabbit AI review (may take 7-30 minutes)..." -ForegroundColor Yellow
+            Write-Host "  Command: coderabbit review --agent --type uncommitted" -ForegroundColor Gray
+            
+            # Run CodeRabbit in background with 30-minute timeout
+            $crJob = Start-Job -ScriptBlock {
+                coderabbit review --agent --type uncommitted 2>&1
+            }
+            
+            $crTimeout = 1800 # 30 minutes
+            $crCompleted = Wait-Job -Job $crJob -Timeout $crTimeout
+            
+            if ($crCompleted) {
+                $crOutput = Receive-Job -Job $crJob
+                Remove-Job -Job $crJob
+                
+                # Parse JSON output
+                $crOutputStr = $crOutput -join "`n"
+                if ($crOutputStr -match '\{.*"findings".*\}') {
+                    try {
+                        $crResults = $crOutputStr | ConvertFrom-Json
+                        $criticalCount = 0
+                        $highCount = 0
+                        $totalCount = 0
+                        
+                        if ($crResults.findings) {
+                            $totalCount = $crResults.findings.Count
+                            $criticalCount = ($crResults.findings | Where-Object { $_.severity -eq "critical" }).Count
+                            $highCount = ($crResults.findings | Where-Object { $_.severity -eq "high" }).Count
+                        }
+                        
+                        $criticalHighCount = $criticalCount + $highCount
+                        
+                        if ($criticalHighCount -eq 0) {
+                            Write-CheckResult "CodeRabbit" $true "No critical/high issues ($totalCount total findings)"
+                        } else {
+                            Write-CheckResult "CodeRabbit" $true "$criticalHighCount critical/high issues (warning only - will be blocking after validation period)"
+                            Write-Host "  Total findings: $totalCount (Critical: $criticalCount, High: $highCount)" -ForegroundColor Yellow
+                        }
+                        
+                        # Save results for review
+                        $crResults | ConvertTo-Json -Depth 10 | Out-File "coderabbit_review.json" -Encoding UTF8
+                        Write-Host "  Results saved to: coderabbit_review.json" -ForegroundColor Gray
+                    } catch {
+                        Write-CheckResult "CodeRabbit" $true "Failed to parse results (non-blocking): $($_.Exception.Message)"
+                    }
+                } else {
+                    Write-CheckResult "CodeRabbit" $true "No JSON output detected (non-blocking)"
+                }
+            } else {
+                Write-CheckResult "CodeRabbit" $true "Review timed out after 30 minutes (non-blocking)"
+                Remove-Job -Job $crJob -Force
+            }
+        } else {
+            Write-CheckResult "CodeRabbit" $true "Not installed (skipped)"
+            Write-Host "  Install: curl -fsSL https://cli.coderabbit.ai/install.sh | sh" -ForegroundColor Gray
+            Write-Host "  Or: brew install coderabbit" -ForegroundColor Gray
+            Write-Host "  Then authenticate: cr auth login" -ForegroundColor Gray
+        }
+    } catch {
+        Write-CheckResult "CodeRabbit" $true "Review failed (non-blocking): $($_.Exception.Message)"
+    }
+}
+
 
 # ============================================================================
 # FINAL REPORT
