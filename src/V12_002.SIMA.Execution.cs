@@ -41,10 +41,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ExecuteMultiAccountMarket(OrderAction action, int quantity, string signalName)
         {
             if (!EnableSIMA)
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             // [Phase 9 LATENCY] T0: Start immediately after guards, before any work.
             var sw = Stopwatch.StartNew();
@@ -118,7 +122,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // Delta may or may not have been applied (depends on where exception occurred),
                         // so rollback is conditional on whether reserve completed.
                         if (reservedDelta != 0)
+                        {
                             AddExpectedPositionDeltaLocked(ExpKey(acct.Name), -reservedDelta);
+                        }
                         failCount++;
                         dispatchLog.AppendLine(LogBuffer.Format("  FAIL | {0,-28} | {1}", acct.Name, ex.Message));
                     }
@@ -169,10 +175,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (!EnableSIMA)
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             // [Phase 9 LATENCY] T0: Start immediately after guards, before any work.
             var sw = Stopwatch.StartNew();
@@ -273,7 +283,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         // V12.Phase7 [C-02/GAP-2]: Undo expectedPositions reservation if submission failed.
                         if (reservedDelta != 0)
+                        {
                             AddExpectedPositionDeltaLocked(ExpKey(acct.Name), -reservedDelta);
+                        }
                         dispatchLog.AppendLine(LogBuffer.Format("  FAIL | {0,-28} | {1}", acct.Name, ex.Message));
                     }
                 }
@@ -320,7 +332,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten (INV-4.1)
             if (isFlattenRunning)
+            {
                 return false;
+            }
 
             // [A1]: Defensive guard -- caller must pre-calculate a valid quantity.
             if (contracts <= 0)
@@ -647,7 +661,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Phase 6 [FSM-P3]: Register OrderId for O(1) FSM lookup (populated by Submit)
                 if (fEntry != null && !string.IsNullOrEmpty(fEntry.OrderId))
+                {
                     _orderIdToFsmKey[fEntry.OrderId] = fleetKey;
+                }
 
                 ClearDispatchSyncPending(expectedKey);
                 syncPending = false;
@@ -667,7 +683,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // [923B-FIX-B]: Full rollback -- dicts were registered before expectedPositions,
                 // so both must be cleaned up on Submit failure (mirrors ExecuteSmartDispatchEntry catch).
                 if (reservedDelta != 0)
+                {
                     AddExpectedPositionDeltaLocked(expectedKey, -reservedDelta);
+                }
                 activePositions.TryRemove(fleetKey, out _);
                 entryOrders.TryRemove(fleetKey, out _);
                 // Phase 6: Clean up proactive FSM on dispatch failure
@@ -687,7 +705,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // Helper 1: Validate all entry guards
             if (!ValidateRMAEntryGuards(price, contracts, direction))
+            {
                 return;
+            }
 
             // [Phase 9 LATENCY] T0: Start after validation guards pass, before setup work.
             var sw = Stopwatch.StartNew();
@@ -773,13 +793,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Account acct in Account.All)
                 {
                     if (!IsFleetAccount(acct))
+                    {
                         continue;
+                    }
                     if (acct == this.Account)
+                    {
                         continue; // local already done
+                    }
 
                     // Helper 4: Process single fleet account (ATOMIC: INV-4.3)
                     if (
+                    {
                         ProcessSingleFleetRMAAccount(
+                    }
                             acct,
                             baseSignal,
                             entryAction,

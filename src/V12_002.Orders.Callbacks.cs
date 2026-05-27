@@ -91,14 +91,20 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void RequestStopCancelLifecycleSafe(string entryName)
         {
             if (string.IsNullOrEmpty(entryName))
+            {
                 return;
+            }
             if (!stopOrders.TryGetValue(entryName, out var stopOrder) || stopOrder == null)
+            {
                 return;
+            }
 
             // V12.1101H [COLLIDE-01]: Include ChangePending/ChangeSubmitted -- stops in these transient
             // states were previously ignored by this function, leaving them live at the broker after FlattenAll.
             if (
+            {
                 stopOrder.OrderState == OrderState.Working
+            }
                 || stopOrder.OrderState == OrderState.Accepted
                 || stopOrder.OrderState == OrderState.ChangePending
                 || stopOrder.OrderState == OrderState.ChangeSubmitted
@@ -111,7 +117,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (
+            {
                 stopOrder.OrderState == OrderState.Cancelled
+            }
                 || stopOrder.OrderState == OrderState.Filled
                 || stopOrder.OrderState == OrderState.Rejected
                 || stopOrder.OrderState == OrderState.Unknown
@@ -125,14 +133,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryRemoveTargetReferenceByOrder(ConcurrentDictionary<string, Order> dict, Order order)
         {
             if (dict == null || order == null)
+            {
                 return false;
+            }
             // [EPIC-5-PERF-T02] Single snapshot allocation at method start
             var snapshot = dict.ToArray();
             foreach (var kvp in snapshot)
             {
                 // Re-check existence (mutation safety)
                 if (!dict.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 if (kvp.Value == order)
                 {
                     dict.TryRemove(kvp.Key, out _);
@@ -146,15 +158,25 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void RemoveTargetReferenceOnTerminalFill(Order order)
         {
             if (order == null)
+            {
                 return;
+            }
             if (TryRemoveTargetReferenceByOrder(target1Orders, order))
+            {
                 return;
+            }
             if (TryRemoveTargetReferenceByOrder(target2Orders, order))
+            {
                 return;
+            }
             if (TryRemoveTargetReferenceByOrder(target3Orders, order))
+            {
                 return;
+            }
             if (TryRemoveTargetReferenceByOrder(target4Orders, order))
+            {
                 return;
+            }
             TryRemoveTargetReferenceByOrder(target5Orders, order);
         }
 
@@ -205,7 +227,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (
+                {
                     order.Account == this.Account
+                }
                     && (
                         orderState == OrderState.Working
                         || orderState == OrderState.Accepted
@@ -221,9 +245,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (orderState == OrderState.Filled)
                 {
                     if (entryOrders.Values.Contains(order))
+                    {
                         handled = HandleEntryOrderFilled(order, quantity, filled, averageFillPrice, time);
+                    }
                     else
+                    {
                         handled = HandleSecondaryOrderFilled(order, averageFillPrice);
+                    }
                 }
                 else if (orderState == OrderState.Rejected)
                 {
@@ -240,7 +268,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Terminal catch-all
                 if (
+                {
                     !handled
+                }
                     && (
                         orderState == OrderState.Cancelled
                         || orderState == OrderState.Rejected
@@ -276,9 +306,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in snapshot)
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 if (
+                {
                     entryOrders.TryGetValue(kvp.Key, out var entryOrder)
+                }
                     && entryOrder == order
                     && !kvp.Value.EntryFilled
                 )
@@ -370,7 +404,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         // Re-check existence (mutation safety)
                         if (!activePositions.ContainsKey(kvp.Key))
+                        {
                             continue;
+                        }
                         if (tDict.TryGetValue(kvp.Key, out var tOrder) && tOrder == order)
                         {
                             PositionInfo pos = kvp.Value;
@@ -408,7 +444,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     // Re-check existence (mutation safety)
                     if (!activePositions.ContainsKey(kvp.Key))
+                    {
                         continue;
+                    }
                     if (stopOrders.TryGetValue(kvp.Key, out var sOrder) && sOrder == order)
                     {
                         Print(
@@ -439,7 +477,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (
+            {
                 orderName.StartsWith("T1_")
+            }
                 || orderName.StartsWith("T2_")
                 || orderName.StartsWith("T3_")
                 || orderName.StartsWith("T4_")
@@ -460,7 +500,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             string entryNameFromOrder = orderName.Substring(stopPrefix.Length);
             int lastUnderscore = entryNameFromOrder.LastIndexOf('_');
             if (lastUnderscore > 0 && entryNameFromOrder.Length - lastUnderscore > 10)
+            {
                 entryNameFromOrder = entryNameFromOrder.Substring(0, lastUnderscore);
+            }
             return entryNameFromOrder;
         }
 
@@ -477,7 +519,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (var kvp in snapshot)
                 {
                     if (!activePositions.ContainsKey(kvp.Key))
+                    {
                         continue;
+                    }
                     if (stopOrders.TryGetValue(kvp.Key, out var sOrder) && sOrder == order)
                     {
                         Print(LogBuffer.Format("(!) CRITICAL: Stop REJECTED for {0}. Re-submitting...", kvp.Key));
@@ -498,7 +542,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (var kvp in snapshot)
                 {
                     if (!activePositions.ContainsKey(kvp.Key))
+                    {
                         continue;
+                    }
                     if (entryOrders.TryGetValue(kvp.Key, out var eOrder) && eOrder == order && !kvp.Value.EntryFilled)
                     {
                         Print(LogBuffer.Format("[ZOMBIE-FIX] Entry REJECTED: {0}. Tearing down.", orderName));
@@ -532,11 +578,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 handled = HandleOrderCancelled_ProcessStopReplacement(order);
                 if (!handled)
+                {
                     HandleOrderCancelled_PurgePendingCleanup(order);
+                }
             }
 
             if (!handled && HandleOrderCancelled_RollbackUnfilledEntry(order))
+            {
                 return true;
+            }
 
             RemoveGhostOrderRef(order, "CANCELLED");
             return true;
@@ -547,7 +597,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in pendingStopReplacements.ToArray())
             {
                 if (
+                {
                     (
+                }
                         kvp.Value.OldOrder == order
                         || (kvp.Value.OldOrder != null && kvp.Value.OldOrder.OrderId == order.OrderId)
                     ) && activePositions.TryGetValue(kvp.Key, out var pos)
@@ -568,7 +620,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         }
                     }
                     if (pendingStopReplacements.TryRemove(kvp.Key, out _))
+                    {
                         Interlocked.Decrement(ref pendingReplacementCount);
+                    }
                     return true;
                 }
             }
@@ -587,7 +641,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     PositionInfo cleanupPos;
                     if (
+                    {
                         activePositions.TryGetValue(kvp.Key, out cleanupPos)
+                    }
                         && cleanupPos != null
                         && cleanupPos.PendingCleanup
                         && cleanupPos.RemainingContracts <= 0
@@ -612,7 +668,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (entryOrders.TryGetValue(kvp.Key, out var eOrder) && eOrder == order && !kvp.Value.EntryFilled)
                     {
                         if (EnableSIMA && !kvp.Value.IsFollower)
+                        {
                             SymmetryGuardCascadeFollowerCleanup(kvp.Key);
+                        }
                         RollbackExpectedPosition(kvp.Key, kvp.Value);
                         CleanupPosition(kvp.Key);
                         return true;

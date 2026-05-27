@@ -243,7 +243,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private static void SafeInvoke<T>(Action<T> handler, T args)
         {
             if (handler == null)
+            {
                 return;
+            }
             var probe = LatencyProbe.Start();
             var invocationList = handler.GetInvocationList();
 
@@ -281,7 +283,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         public static void BroadcastTradeSignal(TradeSignal signal)
         {
             if (signal == null)
+            {
                 throw new ArgumentNullException(nameof(signal));
+            }
 
             signal.Timestamp = DateTime.Now;
 
@@ -295,7 +299,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         public static void BroadcastTrailUpdate(TrailUpdateSignal update)
         {
             if (update == null)
+            {
                 throw new ArgumentNullException(nameof(update));
+            }
 
             update.Timestamp = DateTime.Now;
             SafeInvoke(OnTrailUpdate, update);
@@ -307,7 +313,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         public static void BroadcastTargetAction(TargetActionSignal action)
         {
             if (action == null)
+            {
                 throw new ArgumentNullException(nameof(action));
+            }
 
             action.Timestamp = DateTime.Now;
             SafeInvoke(OnTargetAction, action);

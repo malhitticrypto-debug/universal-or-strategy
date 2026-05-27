@@ -19,11 +19,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (eventTicks <= 0)
+                {
                     return true;
+                }
 
                 long ageTicks = DateTime.UtcNow.Ticks - eventTicks;
                 if (ageTicks <= 0)
+                {
                     return true;
+                }
 
                 long maxAgeTicks = MetadataMaxCommandAgeMs * TimeSpan.TicksPerMillisecond;
                 if (ageTicks > maxAgeTicks)
@@ -71,11 +75,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (eventTicks <= 0)
+                {
                     return true;
+                }
 
                 long ageTicks = DateTime.UtcNow.Ticks - eventTicks;
                 if (ageTicks <= 0)
+                {
                     return true;
+                }
 
                 long maxAgeTicks = MetadataMaxEventAgeMs * TimeSpan.TicksPerMillisecond;
                 if (ageTicks > maxAgeTicks)
@@ -109,7 +117,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (
+                {
                     currentState == FollowerBracketState.Filled
+                }
                     || currentState == FollowerBracketState.Cancelled
                     || currentState == FollowerBracketState.Rejected
                 )
@@ -137,14 +147,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (string.IsNullOrEmpty(commandId))
+                {
                     return true;
+                }
 
                 DateTime nowUtc = DateTime.UtcNow;
                 DateTime pruneBefore = nowUtc.AddMilliseconds(-MetadataMaxCommandAgeMs * 2);
                 foreach (var kvp in _processedCommandIds.ToArray())
                 {
                     if (kvp.Value < pruneBefore)
+                    {
                         _processedCommandIds.TryRemove(kvp.Key, out _);
+                    }
                 }
 
                 if (_processedCommandIds.TryAdd(commandId, nowUtc))
@@ -193,10 +207,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                     : (!string.IsNullOrEmpty(evt.SignalName) ? evt.SignalName : "FSM");
 
             if (evt.TimestampTicks > 0 && !MetadataGuardEventAge(evt.TimestampTicks, context))
+            {
                 return false;
+            }
 
             if (fsm != null && !MetadataGuardStateCompatibility(fsm.State, evt.NewState, context))
+            {
                 return false;
+            }
 
             return true;
         }

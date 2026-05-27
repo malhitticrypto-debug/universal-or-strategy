@@ -38,7 +38,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate -- abort if drawdown or daily cap breached.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             if (contracts <= 0)
             {
                 Print(string.Format("[OR] ExecuteLong received invalid contracts={0}. Aborting entry.", contracts));
@@ -82,7 +84,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate -- abort if drawdown or daily cap breached.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             if (contracts <= 0)
             {
                 Print(string.Format("[OR] ExecuteShort received invalid contracts={0}. Aborting entry.", contracts));
@@ -126,10 +130,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate -- abort if drawdown or daily cap breached.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
             if (contracts <= 0)
             {
                 Print(string.Format("[OR] EnterORPosition received invalid contracts={0}. Aborting entry.", contracts));
@@ -350,7 +358,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // v5.13: Use ATR for OR stop (same as RMA) instead of OR range
             if (currentATR <= 0)
+            {
                 return MinimumStop;
+            }
 
             double calculatedStop = CalculateATRStopDistance(StopMultiplier); // V12.30: Ceiling-rounded
             return calculatedStop;

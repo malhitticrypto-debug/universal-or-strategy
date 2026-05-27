@@ -165,7 +165,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             TargetMode mode = GetTargetMode(targetNumber);
             if (mode == TargetMode.Runner)
+            {
                 return Instrument.MasterInstrument.RoundToTickSize(entryPrice);
+            }
 
             double value = GetConfiguredTargetMagnitude(targetNumber);
             if (value <= 0)
@@ -205,7 +207,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ApplyTargetLadderGuard(PositionInfo pos)
         {
             if (pos == null)
+            {
                 return;
+            }
             bool isLong = pos.Direction == MarketPosition.Long;
 
             double[] prices = new double[]
@@ -221,9 +225,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             for (int i = 1; i < prices.Length; i++)
             {
                 if (prices[i] <= 0)
+                {
                     continue; // Skip unused/runner slots
+                }
                 if (prices[i - 1] <= 0)
+                {
                     continue; // Previous slot unused -- nothing to compare against
+                }
 
                 double minValid = isLong ? prices[i - 1] + tickSize : prices[i - 1] - tickSize;
 
@@ -253,7 +261,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             pos.Target5Price = prices[4];
 
             if (anyFixed)
+            {
                 Print(
+            }
                     string.Format(
                         "[LADDER_GUARD] Ladder corrected for {0}: T1={1:F4} T2={2:F4} T3={3:F4} T4={4:F4} T5={5:F4}",
                         pos.SignalName,

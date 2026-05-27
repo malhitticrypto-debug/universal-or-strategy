@@ -52,7 +52,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             public SPSCRing(int capacityPowerOf2)
             {
                 if (capacityPowerOf2 < 2 || (capacityPowerOf2 & (capacityPowerOf2 - 1)) != 0)
+                {
                     throw new ArgumentException("Capacity must be power of 2", "capacityPowerOf2");
+                }
                 _buffer = new T[capacityPowerOf2];
                 _mask = capacityPowerOf2 - 1;
                 _producerCursor = 0;
@@ -64,7 +66,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 long prod = Volatile.Read(ref _producerCursor);
                 long cons = Volatile.Read(ref _consumerCursor);
                 if (prod - cons >= _buffer.Length)
+                {
                     return false; // ring full
+                }
                 int idx = (int)(prod & _mask);
                 _buffer[idx] = item;
                 Volatile.Write(ref _producerCursor, prod + 1); // publish barrier

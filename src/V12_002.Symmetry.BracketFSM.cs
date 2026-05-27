@@ -88,7 +88,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void DrainAccountMailbox()
         {
             if (!EnsureStartupReady("DrainAccountMailbox"))
+            {
                 return;
+            }
 
             int processed = 0;
             const int MAX_PER_DRAIN = 100;
@@ -103,24 +105,36 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void RemoveFsmOrderIdMappings(FollowerBracketFSM fsm)
         {
             if (fsm == null)
+            {
                 return;
+            }
 
             if (fsm.EntryOrder != null && !string.IsNullOrEmpty(fsm.EntryOrder.OrderId))
+            {
                 _orderIdToFsmKey.TryRemove(fsm.EntryOrder.OrderId, out _);
+            }
 
             if (!string.IsNullOrEmpty(fsm.ReplacingCancelOrderId))
+            {
                 _orderIdToFsmKey.TryRemove(fsm.ReplacingCancelOrderId, out _);
+            }
 
             if (fsm.StopOrder != null && !string.IsNullOrEmpty(fsm.StopOrder.OrderId))
+            {
                 _orderIdToFsmKey.TryRemove(fsm.StopOrder.OrderId, out _);
+            }
 
             if (fsm.Targets == null)
+            {
                 return;
+            }
 
             foreach (Order target in fsm.Targets)
             {
                 if (target != null && !string.IsNullOrEmpty(target.OrderId))
+                {
                     _orderIdToFsmKey.TryRemove(target.OrderId, out _);
+                }
             }
         }
 
@@ -128,9 +142,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             removedFsm = null;
             if (string.IsNullOrEmpty(entryName))
+            {
                 return false;
+            }
             if (!_followerBrackets.TryRemove(entryName, out removedFsm))
+            {
                 return false;
+            }
 
             RemoveFsmOrderIdMappings(removedFsm);
             return true;
@@ -139,11 +157,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SetFsmReplacing(string fleetEntryName, string cancelOrderId)
         {
             if (string.IsNullOrEmpty(fleetEntryName) || string.IsNullOrEmpty(cancelOrderId))
+            {
                 return;
+            }
 
             FollowerBracketFSM fsm;
             if (!_followerBrackets.TryGetValue(fleetEntryName, out fsm) || fsm == null)
+            {
                 return;
+            }
 
             fsm.State = FollowerBracketState.Replacing;
             fsm.ReplacingCancelOrderId = cancelOrderId;
@@ -164,7 +186,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FollowerBracketFSM ResolveFsm_ByOrderId(string orderId)
         {
             if (string.IsNullOrEmpty(orderId))
+            {
                 return null;
+            }
 
             if (_orderIdToFsmKey.TryGetValue(orderId, out var entryName))
             {
@@ -183,7 +207,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FollowerBracketFSM ResolveFsm_BySignalName(string signalName, string orderId)
         {
             if (string.IsNullOrEmpty(signalName))
+            {
                 return null;
+            }
 
             int firstUnder = signalName.IndexOf('_');
             if (firstUnder >= 0 && firstUnder < signalName.Length - 1)
@@ -193,7 +219,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     // Back-fill the OrderId map if we found it via signal
                     if (!string.IsNullOrEmpty(orderId))
+                    {
                         _orderIdToFsmKey[orderId] = fleetEntryName;
+                    }
 
                     return fsm;
                 }
@@ -209,12 +237,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FollowerBracketFSM ResolveFsm_ByScan(string accountAlias, string orderId)
         {
             if (string.IsNullOrEmpty(orderId))
+            {
                 return null;
+            }
 
             foreach (var f in _followerBrackets.Values)
             {
                 if (f.AccountName != accountAlias)
+                {
                     continue;
+                }
 
                 if (f.StopOrder != null && f.StopOrder.OrderId == orderId)
                 {
@@ -233,7 +265,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
                 if (foundT)
+                {
                     break;
+                }
 
                 if (f.EntryOrder != null && f.EntryOrder.OrderId == orderId)
                 {
@@ -253,12 +287,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Tier 1: O(1) OrderId lookup (primary)
             FollowerBracketFSM fsm = ResolveFsm_ByOrderId(evt.OrderId);
             if (fsm != null)
+            {
                 return fsm;
+            }
 
             // Tier 2: SignalName parsing (secondary)
             fsm = ResolveFsm_BySignalName(evt.SignalName, evt.OrderId);
             if (fsm != null)
+            {
                 return fsm;
+            }
 
             // Tier 3: O(N) scan (last resort)
             fsm = ResolveFsm_ByScan(evt.AccountAlias, evt.OrderId);
@@ -305,9 +343,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             FollowerBracketFSM fsm = ResolveFsmFromEvent(evt);
             if (fsm == null)
+            {
                 return;
+            }
             if (!MetadataGuardFsmEvent(evt, fsm))
+            {
                 return;
+            }
 
             FollowerBracketState oldState = fsm.State;
 
@@ -316,7 +358,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 case OrderState.Accepted:
                 case OrderState.Working:
                     if (fsm.State == FollowerBracketState.Submitted || fsm.State == FollowerBracketState.PendingSubmit)
+                    {
                         fsm.State = FollowerBracketState.Accepted;
+                    }
                     break;
 
                 case OrderState.Filled:
@@ -326,7 +370,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 case OrderState.Cancelled:
                     if (
+                    {
                         fsm.State == FollowerBracketState.Replacing
+                    }
                         && string.Equals(fsm.ReplacingCancelOrderId, evt.OrderId, StringComparison.Ordinal)
                     )
                     {
@@ -377,10 +423,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 FollowerBracketFSM f = kvp.Value;
                 if (f == null || f.AccountName != accountName)
+                {
                     continue;
+                }
 
                 if (
+                {
                     f.State == FollowerBracketState.Active
+                }
                     || f.State == FollowerBracketState.Accepted
                     || f.State == FollowerBracketState.Submitted
                     || f.State == FollowerBracketState.PendingSubmit

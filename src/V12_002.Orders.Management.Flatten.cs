@@ -68,9 +68,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ManageCIT()
         {
             if (activePositions.Count == 0 && entryOrders.Count == 0)
+            {
                 return;
+            }
             if (string.IsNullOrEmpty(ChaseIfTouchPoints) || ChaseIfTouchPoints == "0")
+            {
                 return;
+            }
 
             // [BUILD 924 -- Fix C] Suppress CIT during price-move propagation to prevent
             // race-fire on freshly resubmitted follower limit orders before sync cycle completes.
@@ -82,7 +86,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double citOffset = 0;
             if (!double.TryParse(ChaseIfTouchPoints, out citOffset))
+            {
                 return;
+            }
 
             int _citBrokerBudget = MaxBrokerCallsPerCycle; // 5 calls max per cycle (constant at V12_002.cs:303)
             // Iterate ALL entry orders in the unified dictionary (local + every fleet account)
@@ -91,11 +97,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string key = kvp.Key;
                 Order order = kvp.Value;
                 if (order == null || order.OrderState != OrderState.Working)
+                {
                     continue;
+                }
                 if (order.OrderType != OrderType.Limit)
+                {
                     continue; // only chase limit entries
+                }
                 if (_citNudgedKeys.ContainsKey(key))
+                {
                     continue; // [BUILD 949] one-shot: already nudged
+                }
 
                 // [BUILD 984 CIT FIX] Correct directional bar-price logic:
                 // - LONG entry (Buy): price must DROP DOWN to the limit -> compare Low[0] <= limitPrice
@@ -111,7 +123,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         : (currentPrice >= limitPrice); // Short: bar high touched or pierced the limit
 
                 if (!triggerChase)
+                {
                     continue;
+                }
 
                 // Determine local vs follower
                 PositionInfo pos = null;
@@ -200,14 +214,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     Print("FLATTEN: No active positions to close");
                     if (EnableSIMA)
+                    {
                         DispatchFleetFlatten();
+                    }
                     return;
                 }
 
                 Print("FLATTEN: Closing all positions...");
                 CancelMasterEntryOrders();
                 if (EnableSIMA)
+                {
                     DispatchFleetFlatten();
+                }
                 ResetSyncStateAndPurgeFollowers();
                 FlattenFilledMasterPositions();
                 CancelUnfilledMasterEntries();
@@ -238,9 +256,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Print(string.Format("FLATTEN GHOST: Closing ORPHANED position of {0} contracts", liveQty));
                 if (liveDir == MarketPosition.Long)
+                {
                     SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, liveQty, 0, 0, "", "Flatten_Ghost");
+                }
                 else
+                {
                     SubmitOrderUnmanaged(
+                }
                         0,
                         OrderAction.BuyToCover,
                         OrderType.Market,
@@ -262,7 +284,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var entryOrder in entryOrders.Values)
             {
                 if (
+                {
                     entryOrder != null
+                }
                     && (entryOrder.OrderState == OrderState.Working || entryOrder.OrderState == OrderState.Accepted)
                     && (entryOrder.Account == null || entryOrder.Account == Account)
                 )
@@ -303,12 +327,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions.ToArray())
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 PositionInfo pos = kvp.Value;
                 string entryName = kvp.Key;
 
                 if (!pos.EntryFilled)
+                {
                     continue;
+                }
 
                 FlattenSinglePosition(entryName, pos);
             }
@@ -342,7 +370,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (tDict != null && tDict.TryGetValue(entryName, out var tOrder))
                 {
                     if (
+                    {
                         tOrder != null
+                    }
                         && (
                             tOrder.OrderState == OrderState.Working
                             || tOrder.OrderState == OrderState.Accepted
@@ -358,7 +388,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (Position != null && Position.MarketPosition != MarketPosition.Flat)
+                {
                     livePositionQty = Position.Quantity;
+                }
             }
             catch (Exception pEx)
             {
@@ -416,9 +448,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         );
 
                 if (flattenOrder == null)
+                {
                     Print("FLATTEN ERROR: SubmitOrderUnmanaged returned NULL");
+                }
                 else
+                {
                     Print(
+                }
                         string.Format(
                             "FLATTEN SENT: {0} {1} contracts",
                             pos.Direction == MarketPosition.Long ? "SELL" : "BUY",
@@ -438,19 +474,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions.ToArray())
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 PositionInfo pos = kvp.Value;
                 string entryName = kvp.Key;
 
                 if (pos.EntryFilled)
+                {
                     continue;
+                }
 
                 // Cancel pending entry order
                 if (entryOrders.ContainsKey(entryName))
                 {
                     Order entryOrder = entryOrders[entryName];
                     if (
+                    {
                         entryOrder != null
+                    }
                         && (entryOrder.OrderState == OrderState.Working || entryOrder.OrderState == OrderState.Accepted)
                     )
                     {
@@ -470,16 +512,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void FlattenPositionByName(string entryName)
         {
             if (!activePositions.TryGetValue(entryName, out var pos))
+            {
                 return;
+            }
             if (!pos.EntryFilled || pos.RemainingContracts <= 0)
+            {
                 return;
+            }
 
             Print(string.Format("(!) EMERGENCY FLATTEN: Closing {0} position due to stop order failure", entryName));
 
             CancelAllBracketOrdersForPosition(entryName, pos);
 
             if (pendingStopReplacements.TryRemove(entryName, out _))
+            {
                 Interlocked.Decrement(ref pendingReplacementCount);
+            }
 
             SubmitEmergencyFlattenOrder(entryName, pos);
         }
@@ -519,7 +567,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 string sigName = "EF_" + entryName;
                 if (sigName.Length > 50)
+                {
                     sigName = sigName.Substring(0, 50);
+                }
                 flattenOrder = pos.ExecutingAccount.CreateOrder(
                     Instrument,
                     flattenAction,
@@ -539,7 +589,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 try
                 {
                     if (Position != null && Position.MarketPosition != MarketPosition.Flat)
+                    {
                         flattenQty = Math.Max(flattenQty, Position.Quantity);
+                    }
                 }
                 catch
                 {
@@ -548,7 +600,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 string sigName = "EF_" + entryName;
                 if (sigName.Length > 50)
+                {
                     sigName = sigName.Substring(0, 50);
+                }
                 flattenOrder = SubmitOrderUnmanaged(0, flattenAction, OrderType.Market, flattenQty, 0, 0, "", sigName);
             }
 
@@ -583,13 +637,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool HasActiveOrPendingOrderForEntry(string entryName)
         {
             if (stopOrders.TryGetValue(entryName, out var stop) && stop != null && !IsOrderTerminal(stop.OrderState))
+            {
                 return true;
+            }
 
             for (int tNum = 1; tNum <= 5; tNum++)
             {
                 var tDict = GetTargetOrdersDictionary(tNum);
                 if (
+                {
                     tDict != null
+                }
                     && tDict.TryGetValue(entryName, out var tOrder)
                     && tOrder != null
                     && !IsOrderTerminal(tOrder.OrderState)
@@ -598,7 +656,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (entryOrders.TryGetValue(entryName, out var e) && e != null && !IsOrderTerminal(e.OrderState))
+            {
                 return true;
+            }
             return false;
         }
 

@@ -67,7 +67,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Use trailing separator to prevent bypass via paths like "C:\NinjaTrader 8.1"
                     // Allow exact match to base directory itself (for directory operations)
                     if (
+                    {
                         !canonical.StartsWith(_baseDirWithSeparator, StringComparison.OrdinalIgnoreCase)
+                    }
                         && !canonical.Equals(_baseDir, StringComparison.OrdinalIgnoreCase)
                     )
                     {

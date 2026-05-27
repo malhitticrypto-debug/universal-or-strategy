@@ -53,7 +53,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void EnsureAccountComplianceTracking(string accountName, DateTime nowInZone)
         {
             if (string.IsNullOrEmpty(accountName))
+            {
                 return;
+            }
             accountDailyProfit.TryAdd(accountName, 0);
             accountTotalProfit.TryAdd(accountName, 0);
             accountTradeCount.TryAdd(accountName, 0);
@@ -67,16 +69,24 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void TrackTradeEntry(Account acct, Execution execution)
         {
             if (acct == null || execution == null || execution.Order == null)
+            {
                 return;
+            }
             if (execution.Order.OrderState != OrderState.Filled)
+            {
                 return;
+            }
 
             OrderAction action = execution.Order.OrderAction;
             if (action != OrderAction.Buy && action != OrderAction.SellShort)
+            {
                 return;
+            }
 
             if (EnableSIMA && !IsFleetAccount(acct))
+            {
                 return;
+            }
 
             DateTime nowInZone = GetComplianceNow();
             EnsureAccountComplianceTracking(acct.Name, nowInZone);
@@ -99,9 +109,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdateAccountMetricsFromAccount(Account acct)
         {
             if (acct == null)
+            {
                 return;
+            }
             if (EnableSIMA && !IsFleetAccount(acct))
+            {
                 return;
+            }
 
             DateTime nowInZone = GetComplianceNow();
             EnsureAccountComplianceTracking(acct.Name, nowInZone);
@@ -112,13 +126,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             double balance = acct.Get(AccountItem.CashValue, Currency.UsDollar);
             UpdateEquityDrawdown(acct.Name, balance);
             if (Account != null && acct.Name == Account.Name)
+            {
                 PublishUiSnapshot();
+            }
         }
 
         private int GetUniqueTradingDays(string accountName)
         {
             if (accountTradingDays.TryGetValue(accountName, out var days))
+            {
                 return days.Count;
+            }
             return 0;
         }
 
@@ -133,9 +151,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void EnsureDailySummaryCsv()
         {
             if (string.IsNullOrEmpty(dailySummaryCsvPath))
+            {
                 return;
+            }
             if (Volatile.Read(ref _csvHeaderCreated) != 0)
+            {
                 return;
+            }
 
             try
             {
@@ -155,7 +177,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (Interlocked.CompareExchange(ref _csvHeaderCreated, 1, 0) != 0)
+            {
                 return;
+            }
 
             string _csvPath = dailySummaryCsvPath;
             string _csvHeader = "Date,Account,DailyPL,DailyTrades,TotalProfit,TotalTrades,MaxDrawdown,UniqueDays";
@@ -198,7 +222,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (string.IsNullOrEmpty(dailySummaryCsvPath))
+            {
                 return;
+            }
 
             string safeName = (accountName ?? string.Empty).Replace("\"", "\"\"");
             string line = string.Format(
@@ -243,7 +269,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void FinalizeDailySummaryForAccount(string accountName, DateTime summaryDate)
         {
             if (string.IsNullOrEmpty(accountName))
+            {
                 return;
+            }
 
             double dailyPL = accountDailyProfit.TryGetValue(accountName, out var dp) ? dp : 0;
             int dailyTrades = accountDailyTradeCount.TryGetValue(accountName, out var dt) ? dt : 0;
@@ -267,16 +295,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void MaybeFinalizeDailySummaries(DateTime nowInZone, List<Account> accounts)
         {
             if (string.IsNullOrEmpty(dailySummaryCsvPath))
+            {
                 return;
+            }
 
             if ((nowInZone - lastDailySummaryCheck).TotalSeconds < 30)
+            {
                 return;
+            }
             lastDailySummaryCheck = nowInZone;
 
             foreach (Account acct in accounts)
             {
                 if (acct == null)
+                {
                     continue;
+                }
                 EnsureAccountComplianceTracking(acct.Name, nowInZone);
 
                 DateTime lastDate = accountLastSummaryDate.GetOrAdd(acct.Name, nowInZone.Date);
@@ -299,13 +333,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Account acct in Account.All)
                 {
                     if (IsFleetAccount(acct))
+                    {
                         accounts.Add(acct);
+                    }
                 }
             }
             else
             {
                 if (Account != null)
+                {
                     accounts.Add(Account);
+                }
             }
 
             return accounts;
@@ -323,11 +361,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool IsOrderAllowed(string? accountName = null)
         {
             if (!EnableComplianceHub)
+            {
                 return true;
+            }
 
             string acctName = accountName ?? Account?.Name;
             if (string.IsNullOrEmpty(acctName))
+            {
                 return true;
+            }
 
             // Hard-block: trailing drawdown breached
             if (accountEquityPeak.TryGetValue(acctName, out double peak) && peak > 0 && TrailingDrawdownLimit > 0)
@@ -369,7 +411,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (EnableSIMA && EnableConsistencyLock)
             {
                 if (
+                {
                     accountDailyProfit.TryGetValue(acctName, out double dp)
+                }
                     && MaxDailyProfitCap > 0
                     && dp >= MaxDailyProfitCap
                 )
@@ -401,7 +445,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void OnAccountExecutionUpdate(object sender, ExecutionEventArgs e)
         {
             if (e == null)
+            {
                 return;
+            }
 
             // V12.1101E [TM-02]: Broker-thread callback only enqueues work; state mutation stays on strategy thread.
             Account execAccount = sender as Account;
@@ -464,7 +510,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // [BUILD 984] Reschedule if items remain after hitting the drain cap
             if (!_accountExecutionQueue.IsEmpty)
+            {
                 try
+            }
                 {
                     TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null);
                 }
@@ -475,7 +523,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Update the compliance log once after draining all queued events
             if (EnableComplianceHub && !isFlattenRunning)
+            {
                 LogApexPerformance();
+            }
         }
 
         /// <summary>
@@ -496,7 +546,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             string fleetKey = kvp.Key;
                             if (
+                            {
                                 activePositions.TryGetValue(fleetKey, out var pos)
+                            }
                                 && pos.IsFollower
                                 && !pos.EntryFilled
                             )
@@ -521,7 +573,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Phase 1: Cancel orphaned targets
             int cancelledTargets = CancelOrphanedTargets(ocoAcct);
             if (cancelledTargets > 0)
+            {
                 Print(
+            }
                     string.Format(
                         "[1104.1 OCO] Fleet {0}: stop filled -- cancelled {1} orphaned targets.",
                         ocoAcct.Name,
@@ -534,11 +588,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             string ocoEntryKey = ExtractEntryKeyFromStopName(ocoName);
             if (string.IsNullOrEmpty(ocoEntryKey))
+            {
                 return;
+            }
 
             PositionInfo ocoPos;
             if (!activePositions.TryGetValue(ocoEntryKey, out ocoPos) || ocoPos == null)
+            {
                 return;
+            }
 
             int stopQty = Math.Max(0, item.EventArgs.Execution.Quantity);
             FinalizeStopFilledPosition(ocoEntryKey, ocoPos, stopQty);
@@ -556,11 +614,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order o in account.Orders.ToArray())
             {
                 if (o == null || o.Instrument?.FullName != Instrument?.FullName)
+                {
                     continue;
+                }
                 if (o.OrderState != OrderState.Working && o.OrderState != OrderState.Accepted)
+                {
                     continue;
+                }
                 if (
+                {
                     o.Name != null
+                }
                     && (
                         o.Name.StartsWith("T1_")
                         || o.Name.StartsWith("T2_")
@@ -587,12 +651,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string ExtractEntryKeyFromStopName(string stopOrderName)
         {
             if (string.IsNullOrEmpty(stopOrderName) || stopOrderName.Length <= 5)
+            {
                 return string.Empty;
+            }
 
             string ocoEntryKey = stopOrderName.Substring(5); // Strip "Stop_"
             int ocoLastUnderscore = ocoEntryKey.LastIndexOf('_');
             if (ocoLastUnderscore > 0)
+            {
                 ocoEntryKey = ocoEntryKey.Substring(0, ocoLastUnderscore);
+            }
 
             return ocoEntryKey;
         }
@@ -613,7 +681,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 stopOrders.TryRemove(entryKey, out _);
                 if (pendingStopReplacements.TryRemove(entryKey, out _))
+                {
                     Interlocked.Decrement(ref pendingReplacementCount);
+                }
                 activePositions.TryRemove(entryKey, out _);
                 entryOrders.TryRemove(entryKey, out _);
                 SymmetryGuardForgetEntry(entryKey);
@@ -628,11 +698,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             string tgtEntryKey = ocoName.Substring(tgtPrefix.Length);
             int tgtLastUnderscore = tgtEntryKey.LastIndexOf('_');
             if (tgtLastUnderscore > 0)
+            {
                 tgtEntryKey = tgtEntryKey.Substring(0, tgtLastUnderscore);
+            }
 
             PositionInfo tgtPos;
             if (
+            {
                 !string.IsNullOrEmpty(tgtEntryKey)
+            }
                 && activePositions.TryGetValue(tgtEntryKey, out tgtPos)
                 && tgtPos != null
             )
@@ -676,9 +750,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         foreach (Order o in ocoAcct.Orders.ToArray())
                         {
                             if (o == null || o.Instrument?.FullName != Instrument?.FullName)
+                            {
                                 continue;
+                            }
                             if (o.OrderState != OrderState.Working && o.OrderState != OrderState.Accepted)
+                            {
                                 continue;
+                            }
                             if (o.Name != null && o.Name.StartsWith("Stop_"))
                             {
                                 CancelOrderOnAccount(o, ocoAcct);
@@ -702,7 +780,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Order ocoOrder = item.EventArgs.Execution?.Order;
                 Account ocoAcct = item.Account;
                 if (
+                {
                     ocoOrder != null
+                }
                     && ocoAcct != null
                     && IsFleetAccount(ocoAcct)
                     && (ocoOrder.OrderState == OrderState.Filled || ocoOrder.OrderState == OrderState.PartFilled)
@@ -732,7 +812,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Account fleetAcct = item.Account;
                 if (
+                {
                     fleetAcct != null
+                }
                     && expectedPositions != null
                     && expectedPositions.ContainsKey(ExpKey(fleetAcct.Name))
                 )
@@ -787,7 +869,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessQueuedExecution(QueuedAccountExecution item)
         {
             if (EnableComplianceHub)
+            {
                 Print(string.Format("[COMPLIANCE] Execution Update received for account."));
+            }
 
             if (EnableComplianceHub && item.Account != null)
             {
@@ -810,11 +894,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void LogApexPerformance()
         {
             if (!EnableComplianceHub || string.IsNullOrEmpty(complianceLogPath))
+            {
                 return;
+            }
 
             // Throttle logging to once per 5 seconds to prevent disk thrashing during heavy fills
             if ((DateTime.Now - lastComplianceLog).TotalSeconds < 5)
+            {
                 return;
+            }
 
             try
             {
@@ -832,10 +920,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Account acct in accounts)
                 {
                     if (acct == null)
+                    {
                         continue;
+                    }
 
                     if (count > 0)
+                    {
                         sbCompliance.Append(",\n");
+                    }
 
                     UpdateAccountMetricsFromAccount(acct);
 
@@ -861,7 +953,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                             : 0;
                     int expectedQty = 0;
                     if (expectedPositions != null)
+                    {
                         expectedPositions.TryGetValue(ExpKey(acct.Name), out expectedQty);
+                    }
 
                     sbCompliance.AppendLine("      \"ActualQty\": " + actualQty + ",");
                     sbCompliance.AppendLine("      \"ExpectedQty\": " + expectedQty + ",");

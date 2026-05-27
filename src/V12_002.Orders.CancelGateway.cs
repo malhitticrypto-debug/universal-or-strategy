@@ -18,12 +18,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CancelOrderSafe(Order order, PositionInfo pos)
         {
             if (order == null || IsOrderTerminal(order.OrderState))
+            {
                 return;
+            }
 
             if (pos != null && pos.IsFollower && pos.ExecutingAccount != null)
+            {
                 pos.ExecutingAccount.Cancel(new[] { order });
+            }
             else
+            {
                 CancelOrder(order);
+            }
         }
 
         /// <summary>
@@ -33,7 +39,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CancelOrderForReplace(Order order, PositionInfo pos)
         {
             if (order == null || IsOrderTerminal(order.OrderState))
+            {
                 return;
+            }
 
             StampReaperMoveGrace();
             CancelOrderSafe(order, pos);
@@ -46,12 +54,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CancelOrderOnAccount(Order order, Account executingAccount)
         {
             if (order == null || IsOrderTerminal(order.OrderState))
+            {
                 return;
+            }
 
             if (executingAccount != null && executingAccount != Account)
+            {
                 executingAccount.Cancel(new[] { order });
+            }
             else
+            {
                 CancelOrder(order);
+            }
         }
     }
 }

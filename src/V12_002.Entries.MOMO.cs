@@ -45,10 +45,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             if (!MOMOEnabled)
             {

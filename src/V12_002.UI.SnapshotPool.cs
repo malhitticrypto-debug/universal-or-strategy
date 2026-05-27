@@ -50,7 +50,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ReturnPooledSnapshot(UIStateSnapshot snapshot)
         {
             if (snapshot == null)
+            {
                 return;
+            }
 
             // Clear primitive fields and string references, preserve nested objects
             ClearSnapshotForReuse(snapshot);
@@ -165,7 +167,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             PositionInfo masterPos;
             string entryName;
             if (!FindMasterPosition(out masterPos, out entryName))
+            {
                 return;
+            }
 
             // Update live position fields
             target.HasLivePosition = true;
@@ -180,16 +184,22 @@ namespace NinjaTrader.NinjaScript.Strategies
                 targetSlot.IsVisible = isVisible;
 
                 if (!isVisible)
+                {
                     continue;
+                }
 
                 var targetDict = GetTargetOrdersDictionary(targetNum);
                 Order targetOrder = null;
                 if (targetDict != null)
+                {
                     targetDict.TryGetValue(entryName, out targetOrder);
+                }
 
                 double price = GetTargetPrice(masterPos, targetNum);
                 if (targetOrder != null && targetOrder.LimitPrice > 0)
+                {
                     price = targetOrder.LimitPrice;
+                }
 
                 int contracts = GetTargetContracts(masterPos, targetNum);
                 int filled = GetTargetFilledQuantity(masterPos, targetNum);
@@ -204,11 +214,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Update stop snapshot
             Order stopOrder = null;
             if (stopOrders != null)
+            {
                 stopOrders.TryGetValue(entryName, out stopOrder);
+            }
 
             target.StopPrice = masterPos.CurrentStopPrice;
             if (stopOrder != null && stopOrder.StopPrice > 0)
+            {
                 target.StopPrice = stopOrder.StopPrice;
+            }
         }
 
         /// <summary>

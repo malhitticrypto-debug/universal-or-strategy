@@ -127,7 +127,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void StartReaperAudit()
         {
             if (_reaperTimer != null)
+            {
                 StopReaperAudit();
+            }
 
             _reaperTimer = new System.Timers.Timer(ReaperIntervalMs);
             _reaperTimer.Elapsed += OnReaperTimerElapsed;

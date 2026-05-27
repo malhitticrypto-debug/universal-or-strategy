@@ -345,7 +345,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (!hasWorkingStop)
             {
                 if (
+                {
                     DetectNakedPosition(
+                }
                         acct,
                         pos,
                         actualQty,
@@ -504,7 +506,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // H17-GUARD: Prevent new enqueues after shutdown initiated
             if (_isTerminating)
+            {
                 return false;
+            }
             string flattenKey = acct.Name + "_" + Instrument.FullName;
             if (!_reaperFlattenInFlight.TryAdd(flattenKey, 0))
             {
@@ -651,7 +655,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         );
                     }
                     else if (
+                    {
                         EnqueueReaperMasterNakedStop(masterPos, masterActualQty, masterExpectedKey, masterFirstSeen)
+                    }
                     )
                     {
                         try
@@ -724,7 +730,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (isCriticalDesync)
             {
                 if (shouldLog)
+                {
                     Print(
+                }
                         $"[REAPER] CRITICAL DESYNC on {Account.Name} (Master): Expected={masterExpectedQty}, Actual={masterActualQty}"
                     );
                 if (AutoFlattenDesync)
@@ -746,7 +754,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // H17-GUARD: Prevent new enqueues after shutdown initiated
             if (_isTerminating)
+            {
                 return false;
+            }
             string flattenKey = Account.Name + "_" + Instrument.FullName;
             if (!_reaperFlattenInFlight.TryAdd(flattenKey, 0))
             {
@@ -765,9 +775,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // H17-GUARD: Prevent new enqueues after shutdown initiated
             if (_isTerminating)
+            {
                 return false;
+            }
             if (
+            {
                 (DateTime.UtcNow - masterFirstSeen).TotalSeconds
+            }
                 >= ((NakedPositionGraceSec >= 5) ? NakedPositionGraceSec : 5)
             )
             {
@@ -844,7 +858,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Also check if it's the Master account
             if (targetAcct == null && Account.Name == accountName)
+            {
                 targetAcct = Account;
+            }
 
             return targetAcct;
         }
@@ -860,7 +876,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in accountOrders)
             {
                 if (
+                {
                     order != null
+                }
                     && order.Instrument.FullName == Instrument.FullName
                     && (
                         order.OrderState == OrderState.Working
@@ -892,7 +910,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Position position in accountPositions)
             {
                 if (
+                {
                     position.Instrument.FullName != Instrument.FullName
+                }
                     || position.MarketPosition == MarketPosition.Flat
                 )
                 {

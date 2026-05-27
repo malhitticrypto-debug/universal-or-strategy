@@ -168,7 +168,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             internal void End(Action<string> print)
             {
                 if (print == null)
+                {
                     return;
+                }
                 long elapsedMs = (DateTime.UtcNow.Ticks - StartTicks) / TimeSpan.TicksPerMillisecond;
                 print(string.Format("[TRACE:{0}][{1}][SPAN] elapsed={2}ms", TraceId, Module, elapsedMs));
             }

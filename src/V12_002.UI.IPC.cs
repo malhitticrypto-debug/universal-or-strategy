@@ -121,7 +121,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             mode = TargetMode.ATR;
             if (string.IsNullOrWhiteSpace(raw))
+            {
                 return false;
+            }
 
             string normalized = raw.Trim().ToUpperInvariant();
             switch (normalized)
@@ -174,7 +176,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             reason = null;
             if (message != null)
+            {
                 message = message.Trim();
+            }
             if (string.IsNullOrWhiteSpace(message))
             {
                 reason = "empty command";
@@ -198,7 +202,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Build 941 [FIX-4]: Track peak queue depth for DIAG_IPC telemetry.
             int peak = _ipcQueueDepthPeak;
             while (queueDepth > peak && Interlocked.CompareExchange(ref _ipcQueueDepthPeak, queueDepth, peak) != peak)
+            {
                 peak = _ipcQueueDepthPeak;
+            }
 
             ipcCommandQueue.Enqueue(message);
             return true;
@@ -207,10 +213,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool IsAllowedIpcAction(string action)
         {
             if (string.IsNullOrWhiteSpace(action))
+            {
                 return false;
+            }
 
             if (AllowedIpcActions.Contains(action))
+            {
                 return true;
+            }
 
             return action.StartsWith("MOVE_TARGET", StringComparison.OrdinalIgnoreCase)
                 || action.StartsWith("CLOSE_T", StringComparison.OrdinalIgnoreCase)
@@ -234,18 +244,26 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             if (accounts == null)
+            {
                 return map;
+            }
             for (int i = 0; i < accounts.Count; i++)
+            {
                 map[accounts[i].Name] = "F" + (i + 1).ToString("D2");
+            }
             return map;
         }
 
         private string GetIpcFleetIdentity(string accountName, Dictionary<string, string> aliasMap)
         {
             if (IpcExposeSensitiveFleetIdentity || string.IsNullOrEmpty(accountName))
+            {
                 return accountName;
+            }
             if (aliasMap != null && aliasMap.TryGetValue(accountName, out string alias))
+            {
                 return alias;
+            }
             return "F00";
         }
 
@@ -257,7 +275,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string ResolveAccountName(string identity)
         {
             if (string.IsNullOrWhiteSpace(identity))
+            {
                 return null;
+            }
 
             var accounts = GetFleetAccountsSnapshot();
 
@@ -266,14 +286,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string.Equals(a.Name, identity, StringComparison.OrdinalIgnoreCase)
             );
             if (direct != null)
+            {
                 return direct.Name;
+            }
 
             // Reverse alias lookup: F01 -> real name via BuildFleetAliasMap
             var aliasMap = BuildFleetAliasMap(accounts);
             foreach (var kv in aliasMap)
             {
                 if (string.Equals(kv.Value, identity, StringComparison.OrdinalIgnoreCase))
+                {
                     return kv.Key;
+                }
             }
 
             Print($"V12 IPC REJECT: ResolveAccountName could not resolve identity '{identity}'");
@@ -291,7 +315,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 return;
             }
             if (ipcCommandQueue == null || ipcCommandQueue.IsEmpty)
+            {
                 return;
+            }
 
             int drainedCount = 0;
             while (ProcessIpc_DrainOneCommand(ref drainedCount, out string command))
@@ -299,16 +325,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                 try
                 {
                     if (!ProcessIpc_ParseAction(command, out string[] parts, out string action, out long senderTicks))
+                    {
                         continue;
+                    }
 
                     if (!MetadataGuardCommandTimestamp(senderTicks, action))
+                    {
                         continue;
+                    }
 
                     if (!ProcessIpc_ValidateAllowlist(action))
+                    {
                         continue;
+                    }
 
                     if (!ProcessIpc_MatchSymbol(action, parts))
+                    {
                         continue;
+                    }
 
                     ProcessIpc_EnqueueCore(action, parts, senderTicks);
                 }
@@ -338,13 +372,19 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             command = null;
             if (drainedCount >= IpcMaxCommandsPerDrain)
+            {
                 return false;
+            }
 
             if (!ipcCommandQueue.TryDequeue(out command))
+            {
                 return false;
+            }
 
             if (Interlocked.Decrement(ref ipcQueuedCommandCount) < 0)
+            {
                 Interlocked.Exchange(ref ipcQueuedCommandCount, 0);
+            }
             drainedCount++;
             return true;
         }
@@ -500,19 +540,31 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Build 942 [FIX-2]: Diag commands handled here; removes 2 branches from chain below (CS-R1140)
                 if (TryHandleDiagCommand(action, parts))
+                {
                     return;
+                }
 
                 // Build 943: Sub-handler routing -- CS-R1140 complexity reduction
                 if (TryHandleModeCommand(action, parts))
+                {
                     return;
+                }
                 if (TryHandleRiskCommand(action, parts))
+                {
                     return;
+                }
                 if (TryHandleFleetCommand(action, parts, senderTicks))
+                {
                     return;
+                }
                 if (TryHandleConfigCommand(action, parts))
+                {
                     return;
+                }
                 if (TryHandleComplianceCommand(action, parts))
+                {
                     return;
+                }
                 Print(
                     string.Format(
                         "[IPC] WARNING: Unhandled IPC action '{0}' -- parts: {1}",

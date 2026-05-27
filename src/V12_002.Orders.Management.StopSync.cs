@@ -38,7 +38,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             var snapshot = ValidateAndSnapshotPositions();
             if (snapshot == null)
+            {
                 return;
+            }
 
             int refreshed = 0;
             foreach (var kvp in snapshot)
@@ -49,15 +51,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 for (int targetNum = 1; targetNum <= 5; targetNum++)
                 {
                     if (IsTargetFilled(pos, targetNum))
+                    {
                         continue;
+                    }
 
                     int targetQty = GetTargetContracts(pos, targetNum);
                     if (targetQty <= 0)
+                    {
                         continue;
+                    }
 
                     var targetDict = GetTargetOrdersDictionary(targetNum);
                     if (targetDict == null)
+                    {
                         continue;
+                    }
 
                     Order existingOrder = null;
                     bool hasWorkingOrder =
@@ -120,7 +128,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 PositionInfo pos = kvp.Value;
 
                 if (!pos.EntryFilled || pos.RemainingContracts <= 0)
+                {
                     continue;
+                }
 
                 if (pos.IsFollower)
                 {
@@ -148,7 +158,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 && (existingOrder.OrderState == OrderState.Working || existingOrder.OrderState == OrderState.Accepted);
 
             if (!hasWorkingOrder)
+            {
                 return;
+            }
 
             try
             {
@@ -349,12 +361,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             // V12.Hardening [RISK-01]: Atomic update guard
             // Locks stateLock to prevent dirty reads of pos.RemainingContracts while ApplyTargetFill is modifying it
             if (!stopOrders.ContainsKey(entryName))
+            {
                 return;
+            }
             if (pos.RemainingContracts <= 0)
+            {
                 return;
+            }
             // V12.41: No trailing/updates before entry fill is confirmed
             if (!pos.EntryFilled)
+            {
                 return;
+            }
 
             try
             {
@@ -363,7 +381,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // V8.11 FIX: Store pending replacement BEFORE cancelling
                 // This ensures we only create a new stop when the old one is confirmed cancelled
                 if (
+                {
                     currentStop != null
+                }
                     && (currentStop.OrderState == OrderState.Working || currentStop.OrderState == OrderState.Accepted)
                 )
                 {
@@ -375,7 +395,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (pendingAgeSeconds > STALE_PENDING_FAST_PATH_SEC)
                         {
                             if (pendingStopReplacements.TryRemove(entryName, out _))
+                            {
                                 Interlocked.Decrement(ref pendingReplacementCount);
+                            }
                             Print(
                                 string.Format(
                                     "[1104.2] Stale pending purged for {0} ({1:F1}s). Re-initiating stop resize.",
@@ -462,7 +484,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 );
 
                 if (!canProceed)
+                {
                     return;
+                }
 
                 // Phase 2: Submit to broker (fleet vs local routing, OCO linking)
                 Order newStop = SubmitStopOrderToBroker(entryName, quantity, stopPrice, direction, pos);
@@ -572,7 +596,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (stopOrders.TryGetValue(entryName, out var existingStop))
             {
                 if (
+                {
                     existingStop != null
+                }
                     && (
                         existingStop.OrderState == OrderState.Working
                         || existingStop.OrderState == OrderState.Accepted
@@ -643,7 +669,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Fleet follower: use Account API
                 string sigName = "S_" + entryName;
                 if (sigName.Length > 50)
+                {
                     sigName = sigName.Substring(0, 50);
+                }
 
                 newStop = pos.ExecutingAccount.CreateOrder(
                     Instrument,
@@ -694,7 +722,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string suffix = (DateTime.Now.Ticks % 100000000).ToString();
                 string sigName = "S_" + entryName + "_" + suffix;
                 if (sigName.Length > 50)
+                {
                     sigName = sigName.Substring(0, 50);
+                }
 
                 newStop = SubmitOrderUnmanaged(
                     0,
@@ -717,11 +747,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void RestoreCascadedTargets(string entryName, TargetSnapshot[] capturedTargets)
         {
             if (capturedTargets == null || capturedTargets.Length == 0)
+            {
                 return;
+            }
 
             PositionInfo pos;
             if (!activePositions.TryGetValue(entryName, out pos))
+            {
                 return;
+            }
 
             bool entryFilled;
             int remainingContracts;
@@ -738,7 +772,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             ocoGroupId = pos.OcoGroupId;
 
             if (!entryFilled || remainingContracts <= 0)
+            {
                 return;
+            }
 
             OrderAction exitAction = direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
             string bracketOcoId = ocoGroupId ?? string.Empty;
@@ -746,12 +782,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (TargetSnapshot snap in capturedTargets)
             {
                 if (snap == null || snap.CapturedOrder == null)
+                {
                     continue;
+                }
 
                 // Only restore targets the broker OCO cascade-cancelled.
                 // Filled targets have OrderState.Filled -- skip them.
                 if (
+                {
                     snap.CapturedOrder.OrderState != OrderState.Cancelled
+                }
                     && snap.CapturedOrder.OrderState != OrderState.Rejected
                 )
                     continue;
@@ -977,9 +1017,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (level == 1 && entryPrice > 0)
             {
                 if (direction == MarketPosition.Long && resultStop < entryPrice)
+                {
                     resultStop = entryPrice;
+                }
                 else if (direction == MarketPosition.Short && resultStop > entryPrice)
+                {
                     resultStop = entryPrice;
+                }
             }
 
             // V12.Phase7 [C-04]: Always round to valid tick boundary before returning.

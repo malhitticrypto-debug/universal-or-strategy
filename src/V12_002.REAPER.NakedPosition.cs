@@ -53,14 +53,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // H17-GUARD: Prevent new enqueues after shutdown initiated
             if (_isTerminating)
+            {
                 return false;
+            }
 
             // Check for pending stop-replace (suppression logic)
             if (CheckPendingStopReplace(acct, pendingStopReplacements, activePositions))
             {
                 _nakedPositionFirstSeen.TryRemove(acct.Name, out _);
                 if (shouldLog)
+                {
                     Print(string.Format("[REAPER] {0}: Stop replace in flight -- suppressing naked audit.", acct.Name));
+                }
                 return false;
             }
 
@@ -94,7 +98,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 PositionInfo psrPos;
                 if (
+                {
                     activePositions.TryGetValue(psr.EntryName, out psrPos)
+                }
                     && psrPos != null
                     && psrPos.ExecutingAccount != null
                     && psrPos.ExecutingAccount.Name == acct.Name
@@ -207,7 +213,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Fallback: If result is still invalid, use MinimumStop
             if (emergencyStopDist <= 0)
+            {
                 emergencyStopDist = Math.Max(tickSize, MinimumStop);
+            }
 
             // Calculate stop price and close action based on direction
             double stopPrice;

@@ -17,9 +17,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ShadowEngineCheck()
         {
             if (!EnableSIMA || !ShadowModeEnabled)
+            {
                 return;
+            }
             if (_isTerminating || isFlattenRunning)
+            {
                 return;
+            }
 
             ShadowPropagateStopMoves();
             ShadowPropagateLeaderFlatten();
@@ -36,26 +40,38 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 PositionInfo pos = kvp.Value;
                 if (pos == null || pos.IsFollower)
+                {
                     continue;
+                }
                 if (!pos.EntryFilled || pos.RemainingContracts <= 0)
+                {
                     continue;
+                }
 
                 Order leaderStop;
                 if (!stopOrders.TryGetValue(kvp.Key, out leaderStop))
+                {
                     continue;
+                }
                 if (leaderStop == null || leaderStop.StopPrice <= 0)
+                {
                     continue;
+                }
 
                 double lastKnown;
                 _leaderLastStopPrice.TryGetValue(kvp.Key, out lastKnown);
 
                 // Only propagate if price actually changed (beyond half-tick noise)
                 if (Math.Abs(leaderStop.StopPrice - lastKnown) < tickSize * 0.5)
+                {
                     continue;
+                }
 
                 // Find and update all follower positions linked to this leader entry
                 if (ShadowMoveFollowerStops(kvp.Key, leaderStop.StopPrice))
+                {
                     _leaderLastStopPrice[kvp.Key] = leaderStop.StopPrice;
+                }
             }
 
             foreach (var cacheKvp in _leaderLastStopPrice.ToArray())
@@ -63,7 +79,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 PositionInfo livePos;
                 Order liveStop;
                 if (
+                {
                     !activePositions.TryGetValue(cacheKvp.Key, out livePos)
+                }
                     || livePos == null
                     || livePos.IsFollower
                     || !livePos.EntryFilled
@@ -86,7 +104,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             ctx = null;
             string dispatchId;
             if (
+            {
                 string.IsNullOrEmpty(leaderEntryKey)
+            }
                 || !symmetryMasterEntryToDispatch.TryGetValue(leaderEntryKey, out dispatchId)
                 || !symmetryDispatchById.TryGetValue(dispatchId, out ctx)
                 || ctx == null
@@ -113,18 +133,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (string followerEntryName in followerSnapshot)
             {
                 if (string.IsNullOrEmpty(followerEntryName))
+                {
                     continue;
+                }
                 if (!symmetryFleetEntryToDispatch.TryGetValue(followerEntryName, out var linkedDispatch))
+                {
                     continue;
+                }
                 if (!string.Equals(linkedDispatch, dispatchId, StringComparison.Ordinal))
+                {
                     continue;
+                }
                 followerEntryNames.Add(followerEntryName);
             }
 
             foreach (var kvp in symmetryFleetEntryToDispatch.ToArray())
             {
                 if (!string.Equals(kvp.Value, dispatchId, StringComparison.Ordinal))
+                {
                     continue;
+                }
                 if (followerEntryNames.Contains(kvp.Key))
                 {
                     continue;
@@ -154,7 +182,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 activePositions.TryGetValue(followerEntryName, out followerPos) && followerPos != null;
 
             if (!hasFsm && !hasFollowerPos)
+            {
                 return false;
+            }
 
             if (!hasFollowerPos || !followerPos.EntryFilled || !followerPos.BracketSubmitted)
             {
@@ -170,7 +200,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Skip if follower stop is already at the target price
             if (Math.Abs(fsm.StopOrder.StopPrice - newStopPrice) < tickSize * 0.5)
+            {
                 return true;
+            }
 
             // Use existing stop update infrastructure (two-phase Replace FSM)
             Print(
@@ -194,7 +226,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             SymmetryDispatchContext ctx;
             if (!ShadowValidateDispatchContext(leaderEntryKey, out ctx))
+            {
                 return false;
+            }
 
             string dispatchId;
             symmetryMasterEntryToDispatch.TryGetValue(leaderEntryKey, out dispatchId);
@@ -210,7 +244,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     foundAnyFollower = true;
                     if (waitingOnThis)
+                    {
                         waitingOnFollower = true;
+                    }
                 }
             }
 

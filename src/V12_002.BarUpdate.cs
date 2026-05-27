@@ -77,7 +77,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     List<Account> complianceAccounts = GetComplianceAccounts();
                     if (complianceAccounts.Count > 0)
+                    {
                         MaybeFinalizeDailySummaries(nowInZone, complianceAccounts);
+                    }
                 }
             }
 
@@ -241,9 +243,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Only process primary series
             if (BarsInProgress != 0)
+            {
                 return;
+            }
             if (CurrentBar < 5)
+            {
                 return;
+            }
 
             try
             {

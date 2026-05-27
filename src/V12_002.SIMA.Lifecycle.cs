@@ -43,7 +43,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // V12.Phase7: Lock-free toggle gate via Interlocked.CompareExchange
             // If a previous toggle was contended, attempt retry now.
             if (Volatile.Read(ref _simaTogglePending) == 1)
+            {
                 Print("[SIMA LIFECYCLE] Retrying previously contended toggle (pending retry flag was set).");
+            }
 
             // Measure lifecycle gate contention because this runs on the actor path
             // and can stall queue drain when SIMA toggles overlap with other work.
@@ -69,7 +71,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     catch (Exception ex)
                     {
                         if (_diagFleet)
+                        {
                             Print("[FLEET_CATCH] ApplySimaState toggle retry failed: " + ex.Message);
+                        }
                     }
                     return;
                 }
@@ -81,7 +85,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 waitTimer.Stop();
                 if (waitTimer.Elapsed.TotalMilliseconds >= 25.0)
+                {
                     Print(
+                }
                         string.Format(
                             "[LATENCY] [SIMA LIFECYCLE] Toggle gate spin-wait: {0:F1}ms",
                             waitTimer.Elapsed.TotalMilliseconds
@@ -89,9 +95,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     );
 
                 if (enabled)
+                {
                     ProcessInitializeSIMA();
+                }
                 else
+                {
                     ProcessShutdownSIMA();
+                }
 
                 EnableSIMA = enabled;
                 // V12.Phase7: Toggle completed successfully -- clear any pending-retry flag.
@@ -108,7 +118,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             EnumerateApexAccounts(); // Unsubs first (idempotent), then re-subscribes + hydrates
             if (ReaperAuditEnabled)
+            {
                 StartReaperAudit();
+            }
             Print("[SIMA LIFECYCLE] SIMA ENABLED -- fleet enumerated, Reaper started");
         }
 
@@ -127,14 +139,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string _expectedKey =
                         (_sbIdx >= 0 && _sbIdx < _photonSideband.Length) ? _photonSideband[_sbIdx].ExpectedKey : null;
                     if (ringSlot.ReservedDelta != 0 && _expectedKey != null)
+                    {
                         AddExpectedPositionDelta(_expectedKey, -ringSlot.ReservedDelta);
+                    }
                     if (_expectedKey != null)
+                    {
                         ClearDispatchSyncPending(_expectedKey);
+                    }
                     if (_sbIdx >= 0)
                     {
                         _photonPool.ReleaseByIndex(_sbIdx);
                         if (_sbIdx < _photonSideband.Length)
+                        {
                             _photonSideband[_sbIdx] = default(FleetDispatchSideband);
+                        }
                     }
                 }
                 Print("[SIMA] Photon ring cleared on shutdown with delta rollback.");
@@ -146,7 +164,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 while (_pendingFleetDispatches.TryDequeue(out ignored))
                 {
                     if (ignored.ReservedDelta != 0)
+                    {
                         AddExpectedPositionDelta(ignored.ExpectedKey, -ignored.ReservedDelta);
+                    }
                     ClearDispatchSyncPending(ignored.ExpectedKey);
                 }
                 Print("[SIMA] Dispatch queue cleared on shutdown with delta rollback.");
@@ -230,12 +250,16 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Account acct in Account.All)
             {
                 if (!IsFleetAccount(acct))
+                {
                     continue;
+                }
                 HydrateSingleAccountExpectedPosition(acct, ref hydratedCount);
             }
 
             if (hydratedCount > 0)
+            {
                 Print(
+            }
                     string.Format("[SIMA HYDRATE] Hydrated {0} account(s) with live broker positions", hydratedCount)
                 );
 
@@ -243,7 +267,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // IsFleetAccount excludes master -- must be handled separately, same as REAPER audit.
             bool masterIsFleet993 = IsFleetAccount(Account);
             if (!masterIsFleet993)
+            {
                 HydrateSingleAccountExpectedPosition(Account, ref hydratedCount);
+            }
         }
 
         private void HydrateSingleAccountExpectedPosition(Account acct, ref int hydratedCount)
@@ -254,7 +280,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Position pos in acct.Positions.ToArray())
                 {
                     if (
+                    {
                         pos != null
+                    }
                         && pos.Instrument != null
                         && pos.Instrument.FullName == Instrument.FullName
                         && pos.MarketPosition != MarketPosition.Flat
@@ -320,14 +348,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             _orderAdoptionComplete = true;
             if (adoptedCount > 0)
+            {
                 Print(
+            }
                     string.Format(
                         "[SIMA HYDRATE] Adopted {0} working order(s) from broker -- adoption complete.",
                         adoptedCount
                     )
                 );
             else
+            {
                 Print("[SIMA HYDRATE] No working orders to adopt -- adoption complete.");
+            }
         }
 
         /// <summary>
@@ -339,19 +371,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Account acct in Account.All)
             {
                 if (!IsFleetAccount(acct))
+                {
                     continue;
+                }
                 try
                 {
                     foreach (Order ord in acct.Orders.ToArray())
                     {
                         if (ord.Instrument?.FullName != Instrument?.FullName)
+                        {
                             continue;
+                        }
                         // [Codex P2] Include all live in-flight states -- Submitted/ChangePending/ChangeSubmitted
                         // can be active during an in-flight FSM replace at reconnect time.
                         // Setting _orderAdoptionComplete=true while these are skipped leaves REAPER
                         // auditing against incomplete order tracking and can fire false repair cycles.
                         if (
+                        {
                             ord.OrderState != OrderState.Working
+                        }
                             && ord.OrderState != OrderState.Accepted
                             && ord.OrderState != OrderState.Submitted
                             && ord.OrderState != OrderState.ChangePending
@@ -368,7 +406,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         );
 
                         if (targetDict == null || orderKey == null)
+                        {
                             continue;
+                        }
 
                         targetDict[orderKey] = ord;
 
@@ -523,7 +563,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             pos.IsTRENDTrade = key.IndexOf("_TREND_", StringComparison.OrdinalIgnoreCase) >= 0;
             pos.IsRetestTrade = key.IndexOf("_RETEST_", StringComparison.OrdinalIgnoreCase) >= 0;
             if (pos.IsMOMOTrade)
+            {
                 pos.IsRMATrade = false; // MOMO overrides generic RMA flag
+            }
 
             activePositions[key] = pos;
             Print(
@@ -567,17 +609,29 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool IsOrderStateAdoptable(OrderState state, bool includeMasterUnknown)
         {
             if (state == OrderState.Working)
+            {
                 return true;
+            }
             if (state == OrderState.Accepted)
+            {
                 return true;
+            }
             if (state == OrderState.Submitted)
+            {
                 return true;
+            }
             if (state == OrderState.ChangePending)
+            {
                 return true;
+            }
             if (state == OrderState.ChangeSubmitted)
+            {
                 return true;
+            }
             if (includeMasterUnknown && state == OrderState.Unknown)
+            {
                 return true;
+            }
             return false;
         }
 
@@ -593,9 +647,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Order ord in masterBroker996h.Orders.ToArray())
                 {
                     if (ord.Instrument?.FullName != Instrument?.FullName)
+                    {
                         continue;
+                    }
                     if (!IsOrderStateAdoptable(ord.OrderState, includeMasterUnknown: true))
+                    {
                         continue;
+                    }
 
                     string name = ord.Name ?? string.Empty;
                     string key,
@@ -607,7 +665,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     );
 
                     if (targetDict == null || key == null)
+                    {
                         continue;
+                    }
 
                     targetDict[key] = ord;
                     adoptedCount++;
@@ -721,9 +781,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         string key = stopKvp.Key;
                         if (key.StartsWith("Fleet_", StringComparison.OrdinalIgnoreCase))
+                        {
                             continue;
+                        }
                         if (activePositions.ContainsKey(key))
+                        {
                             continue;
+                        }
 
                         Order adoptedStop = stopKvp.Value;
                         double stopPrice = adoptedStop != null ? adoptedStop.StopPrice : 0;
@@ -758,7 +822,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Position brokerPos in Account.Positions.ToArray())
             {
                 if (
+                {
                     brokerPos != null
+                }
                     && brokerPos.Instrument != null
                     && brokerPos.Instrument.FullName == Instrument.FullName
                     && brokerPos.MarketPosition != MarketPosition.Flat
@@ -827,7 +893,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             pos.IsRMATrade = key.StartsWith("TRMA_", StringComparison.OrdinalIgnoreCase) || pos.IsRetestTrade;
             pos.IsFFMATrade = key.StartsWith("FFMA", StringComparison.OrdinalIgnoreCase);
             if (pos.IsMOMOTrade)
+            {
                 pos.IsRMATrade = false;
+            }
 
             return pos;
         }
@@ -844,13 +912,19 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FollowerBracketState HydrateFSM_MapOrderStateToFsmState(OrderState entryState)
         {
             if (entryState == OrderState.Filled || entryState == OrderState.PartFilled)
+            {
                 return FollowerBracketState.Active;
+            }
 
             if (entryState == OrderState.Accepted)
+            {
                 return FollowerBracketState.Accepted;
+            }
 
             if (
+            {
                 entryState == OrderState.Working
+            }
                 || entryState == OrderState.Submitted
                 || entryState == OrderState.Initialized
                 || entryState == OrderState.ChangePending
@@ -885,7 +959,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     );
 
                 if (livePosition != null)
+                {
                     contracts = Math.Abs(livePosition.Quantity);
+                }
             }
 
             return contracts;
@@ -934,11 +1010,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Account acct in Account.All)
             {
                 if (!IsFleetAccount(acct))
+                {
                     continue;
+                }
 
                 // Do we already have an FSM for this account?
                 if (
+                {
                     _followerBrackets.Values.Any(f =>
+                }
                         string.Equals(f.AccountName, acct.Name, StringComparison.OrdinalIgnoreCase)
                     )
                 )
@@ -950,7 +1030,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 );
 
                 if (acctPos != null)
+                {
                     return acct;
+                }
             }
             return null;
         }
@@ -972,9 +1054,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Order stopCand = stopKvp.Value;
                 if (stopCand == null)
+                {
                     continue;
+                }
                 if (stopCand.Account == null)
+                {
                     continue;
+                }
 
                 // If the stop order's original account matches our target account
                 if (string.Equals(stopCand.Account.Name, targetAccount.Name, StringComparison.OrdinalIgnoreCase))
@@ -1061,13 +1147,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Account acct = RecoverFSM_FindAccountWithPosition();
                 if (acct == null)
+                {
                     break;
+                }
 
                 Position acctPos = acct.Positions.FirstOrDefault(p =>
                     p.Instrument.FullName == Instrument.FullName && p.MarketPosition != MarketPosition.Flat
                 );
                 if (acctPos == null)
+                {
                     break;
+                }
 
                 // Scan stopOrders for any entryKey belonging to this account
                 string recoveredKey;
@@ -1089,7 +1179,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Idempotent guard
                 if (_followerBrackets.ContainsKey(recoveredKey))
+                {
                     break;
+                }
 
                 var fsm = RecoverFSM_BuildRecoveredFSM(recoveredKey, acct, acctPos, recoveredStop);
                 RecoverFSM_LinkRecoveredBrackets(recoveredKey, recoveredStop, fsm, ref ordersIndexed);
@@ -1128,23 +1220,33 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string entryKey = kvp.Key;
                 Order entryOrder = kvp.Value;
                 if (entryOrder == null)
+                {
                     continue;
+                }
 
                 // Skip master account entries
                 PositionInfo pi;
                 if (!activePositions.TryGetValue(entryKey, out pi) || !pi.IsFollower)
+                {
                     continue;
+                }
                 if (pi.ExecutingAccount == null)
+                {
                     continue;
+                }
 
                 // Idempotent: skip if FSM already exists (safe on repeated reconnects)
                 if (_followerBrackets.ContainsKey(entryKey))
+                {
                     continue;
+                }
 
                 // Map broker order state to FSM state
                 FollowerBracketState hydrationState = HydrateFSM_MapOrderStateToFsmState(entryOrder.OrderState);
                 if (hydrationState == FollowerBracketState.None)
+                {
                     continue; // Terminal state -- FSM not needed
+                }
 
                 int hydratedRemainingContracts = HydrateFSM_DetermineRemainingContracts(
                     entryOrder,
@@ -1230,14 +1332,20 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var dict in trackedDicts)
             {
                 if (dict == null)
+                {
                     continue;
+                }
                 foreach (var kvp in dict.ToArray())
                 {
                     Order ord = kvp.Value;
                     if (ord == null)
+                    {
                         continue;
+                    }
                     if (
+                    {
                         ord.OrderState != OrderState.Working
+                    }
                         && ord.OrderState != OrderState.Accepted
                         && ord.OrderState != OrderState.Submitted
                         && ord.OrderState != OrderState.ChangePending
@@ -1252,7 +1360,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     catch (Exception ex)
                     {
                         if (_diagFleet)
+                        {
                             Print("[FLEET_CATCH] SweepTrackedOrders cancel failed: " + ex.Message);
+                        }
                     }
                 }
             }
@@ -1292,15 +1402,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Account acct in Account.All)
             {
                 if (!IsFleetAccount(acct))
+                {
                     continue;
+                }
                 try
                 {
                     foreach (Order ord in acct.Orders.ToArray())
                     {
                         if (ord.Instrument?.FullName != Instrument?.FullName)
+                        {
                             continue;
+                        }
                         if (
+                        {
                             ord.OrderState != OrderState.Working
+                        }
                             && ord.OrderState != OrderState.Accepted
                             && ord.OrderState != OrderState.Submitted
                             && ord.OrderState != OrderState.ChangePending
@@ -1310,13 +1426,17 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         string ordName = ord.Name ?? string.Empty;
                         if (!IsV12OrderPrefix(ordName, v12Prefixes))
+                        {
                             continue;
+                        }
 
                         // [FIX-FF]: Explicit bracket exclusion on soft disable.
                         // Bracket orders protect live positions -- never cancel them during
                         // SIMA disable or soft terminate. Defensive guard against naming drift.
                         if (ShouldProtectBracketOrder(ordName, force, acct.Name))
+                        {
                             continue;
+                        }
 
                         try
                         {
@@ -1326,14 +1446,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                         catch (Exception ex)
                         {
                             if (_diagFleet)
+                            {
                                 Print("[FLEET_CATCH] SweepBrokerOrders per-order cancel failed: " + ex.Message);
+                            }
                         }
                     }
                 }
                 catch (Exception ex)
                 {
                     if (_diagFleet)
+                    {
                         Print("[FLEET_CATCH] SweepBrokerOrders account iteration failed: " + ex.Message);
+                    }
                 }
             }
             return brokerCancels;
@@ -1348,7 +1472,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             for (int pi = 0; pi < v12Prefixes.Length; pi++)
             {
                 if (orderName.StartsWith(v12Prefixes[pi], StringComparison.OrdinalIgnoreCase))
+                {
                     return true;
+                }
             }
             return false;
         }
@@ -1362,7 +1488,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ShouldProtectBracketOrder(string orderName, bool force, string accountName)
         {
             if (force)
+            {
                 return false;
+            }
 
             bool isBracketOrder =
                 orderName.StartsWith("Stop_", StringComparison.OrdinalIgnoreCase)

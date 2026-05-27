@@ -49,7 +49,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // Safety: never flatten via trim
                     if (remainingAfterTrim < 1)
+                    {
                         rawQty = pos.RemainingContracts - 1;
+                    }
 
                     if (rawQty >= 1 && (pos.RemainingContracts - rawQty) >= 1)
                     {
@@ -61,7 +63,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             string trimSig = "Trim_" + pos.SignalName;
                             if (trimSig.Length > 50)
+                            {
                                 trimSig = trimSig.Substring(0, 50);
+                            }
                             Order trimOrder = pos.ExecutingAccount.CreateOrder(
                                 Instrument,
                                 trimAction,
@@ -98,7 +102,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                             );
 
                             if (pos.Direction == MarketPosition.Long)
+                            {
                                 SubmitOrderUnmanaged(
+                            }
                                     0,
                                     OrderAction.Sell,
                                     OrderType.Market,
@@ -109,7 +115,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                                     "Trim_" + pos.SignalName
                                 );
                             else
+                            {
                                 SubmitOrderUnmanaged(
+                            }
                                     0,
                                     OrderAction.BuyToCover,
                                     OrderType.Market,

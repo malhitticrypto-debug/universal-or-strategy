@@ -41,22 +41,34 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             State state = State;
             if (state != State.SetDefaults)
+            {
                 RefreshActorOwnerThread();
+            }
             ProcessOnStateChange(state);
         }
 
         private void ProcessOnStateChange(State state)
         {
             if (state == State.SetDefaults)
+            {
                 OnStateChangeSetDefaults();
+            }
             else if (state == State.Configure)
+            {
                 OnStateChangeConfigure();
+            }
             else if (state == State.DataLoaded)
+            {
                 OnStateChangeDataLoaded();
+            }
             else if (state == State.Realtime)
+            {
                 OnStateChangeRealtime();
+            }
             else if (state == State.Terminated)
+            {
                 OnStateChangeTerminated();
+            }
         }
 
         private void DrainQueuesForShutdown()
@@ -89,7 +101,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 StrategyCommand overflowCmd;
                 while (_cmdQueue.TryDequeue(out overflowCmd))
+                {
                     actorOverflow++;
+                }
 
                 Print(
                     string.Format(
@@ -129,7 +143,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     // B984-F07: _isTerminating guard ensures no re-entrant panel ops if invoked late.
                     if (!_isTerminating)
+                    {
                         return;
+                    }
                     DetachHotkeys();
                     DetachChartClickHandler();
                     DestroyPanel();
@@ -211,7 +227,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (_accountMailbox != null)
             {
                 while (_accountMailbox.TryDequeue(out var _))
+                {
                     ;
+                }
             }
 
             // Compliance tracking dictionaries - grouped with unconditional Clear() to reduce CYC
@@ -467,7 +485,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string validLogDir = PathValidation.ValidateDirectoryPath(logsDirInit, "CreateLogDirectory");
 
                 if (!System.IO.Directory.Exists(validLogDir))
+                {
                     System.IO.Directory.CreateDirectory(validLogDir);
+                }
             }
             catch (SecurityException ex)
             {
@@ -764,7 +784,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double stopPrice = direction == MarketPosition.Long ? Low[0] : High[0];
                     double ffmaStopDist = Math.Min(Math.Abs(currentPrice - stopPrice), MaximumStop);
                     if (ffmaStopDist < tickSize * 2)
+                    {
                         ffmaStopDist = tickSize * 2;
+                    }
                     int ffmaContracts = CalculatePositionSize(ffmaStopDist);
                     Enqueue(ctx => ctx.ExecuteFFMAEntry(direction, ffmaContracts));
                 },
@@ -786,7 +808,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             _stickyStatePath = System.IO.Path.Combine(logsDir, string.Format("StickyState_{0}.v12state", symbol));
             bool stickyLoaded = LoadStickyState();
             if (stickyLoaded)
+            {
                 Print("[STICKY] Persisted state hydrated -- GET_LAYOUT will serve last-synced config");
+            }
 
             // V12.2 HEADLESS SAFETY: Start core services even if ChartControl is null (for background execution)
             // [Build 932]: Start IPC in DataLoaded so Control Surface connects even if market is closed/offline.
@@ -814,7 +838,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     ctx.EnumerateApexAccounts();
                     if (ctx.ReaperAuditEnabled)
+                    {
                         ctx.StartReaperAudit();
+                    }
                 });
             }
 
@@ -828,7 +854,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     () =>
                     {
                         if (_isTerminating)
+                        {
                             return;
+                        }
                         AttachHotkeys();
                         AttachChartClickHandler();
                     },
@@ -841,7 +869,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     () =>
                     {
                         if (_isTerminating)
+                        {
                             return;
+                        }
                         CreatePanel();
                         StartPanelRefresh();
                         Print("REALTIME - Hotkeys: L=Long, S=Short, Shift+Click=RMA, F=Flatten");
@@ -884,7 +914,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (!enableSima || strategyState != State.Realtime)
             {
                 if (status == ConnectionStatus.Connected)
+                {
                     Print(
+                }
                         string.Format("[BUILD 984] Reconnect skipped -- SIMA={0}, State={1}", enableSima, strategyState)
                     );
                 return;
@@ -932,7 +964,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (marketDataUpdate.MarketDataType == MarketDataType.Last)
                 {
                     if (!EnsureStartupReady(nameof(OnMarketData)))
+                    {
                         return;
+                    }
                     TouchStrategyHeartbeat();
 
                     // Update last known price for real-time tracking
@@ -941,7 +975,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // B984-F12: Rate-gate UI snapshot -- publish only every 5 ticks to reduce dispatcher pressure.
                     _uiSnapshotTickCounter = (_uiSnapshotTickCounter + 1) % 5;
                     if (_uiSnapshotTickCounter == 0)
+                    {
                         PublishUiSnapshot();
+                    }
 
                     // Process IPC commands immediately on every tick
                     // This ensures Remote App buttons work even outside session time

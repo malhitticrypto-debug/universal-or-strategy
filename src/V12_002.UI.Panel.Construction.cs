@@ -163,7 +163,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CreatePanel()
         {
             if (rootContainer != null)
+            {
                 return;
+            }
             UIStateSnapshot snapshot = GetUiSnapshot();
 
             rootContainer = new Grid { ClipToBounds = true, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -223,9 +225,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             SyncCountChipVisuals(initCount);
             UpdateRmaButtonVisual(snapshot.IsRmaModeActive);
             if (trendRmaToggle != null)
+            {
                 trendRmaToggle.Opacity = snapshot.IsTrendRmaMode ? 1.0 : 0.5;
+            }
             if (retestRmaToggle != null)
+            {
                 retestRmaToggle.Opacity = snapshot.IsRetestRmaMode ? 1.0 : 0.5;
+            }
             _panelAppliedConfigRevision = snapshot.ConfigRevision;
             UpdatePanelState();
 
@@ -239,7 +245,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void PlacePanel()
         {
             if (rootContainer == null || _placementMode != PanelPlacement.None)
+            {
                 return;
+            }
 
             _chartTraderElement = FindChartTrader();
 
@@ -253,9 +261,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Grid.SetColumn(rootContainer, col);
                 Grid.SetRow(rootContainer, row);
                 if (rSpan > 1)
+                {
                     Grid.SetRowSpan(rootContainer, rSpan);
+                }
                 if (cSpan > 1)
+                {
                     Grid.SetColumnSpan(rootContainer, cSpan);
+                }
 
                 traderGrid.Children.Add(rootContainer);
                 _placementGrid = traderGrid;
@@ -276,7 +288,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Grid.SetColumn(rootContainer, panelCol);
                 Grid.SetRow(rootContainer, 0);
                 if (_placementGrid.RowDefinitions.Count > 1)
+                {
                     Grid.SetRowSpan(rootContainer, _placementGrid.RowDefinitions.Count);
+                }
 
                 rootContainer.HorizontalAlignment = HorizontalAlignment.Stretch;
                 rootContainer.Width = double.NaN;
@@ -301,7 +315,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         _placementRetryTimer.Stop();
                         if (_isTerminating || rootContainer == null)
+                        {
                             return;
+                        }
                         Print("V12 PANEL: Retry " + _placementRetryCount + " -- re-running discovery");
                         DumpVisualTree();
                         PlacePanel();
@@ -320,7 +336,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void DestroyPanel()
         {
             if (rootContainer == null)
+            {
                 return;
+            }
 
             // Build 1106-C: Restore chart keyboard input on panel destruction.
             // Prevents permanent input lock if a TextBox/ComboBox had focus when strategy was removed.
@@ -332,7 +350,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (_chartTraderElement != null)
+                {
                     _chartTraderElement.Visibility = Visibility.Visible;
+                }
 
                 switch (_placementMode)
                 {
@@ -353,14 +373,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (_placementGrid != null)
                         {
                             if (_placementGrid.Children.Contains(rootContainer))
+                            {
                                 _placementGrid.Children.Remove(rootContainer);
+                            }
                             if (_placementGrid.ColumnDefinitions.Count > 0)
                             {
                                 var lastCol = _placementGrid.ColumnDefinitions[
                                     _placementGrid.ColumnDefinitions.Count - 1
                                 ];
                                 if (lastCol.Width.IsAbsolute && Math.Abs(lastCol.Width.Value - 210) < 1)
+                                {
                                     _placementGrid.ColumnDefinitions.RemoveAt(
+                                }
                                         _placementGrid.ColumnDefinitions.Count - 1
                                     );
                             }
@@ -369,7 +393,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     case PanelPlacement.Hijack:
                         if (_placementGrid != null && _placementGrid.Children.Contains(rootContainer))
+                        {
                             _placementGrid.Children.Remove(rootContainer);
+                        }
                         break;
 
                     default:
@@ -597,23 +623,31 @@ namespace NinjaTrader.NinjaScript.Strategies
             selectAllCheck.Checked += (s, e) =>
             {
                 if (fleetCheckboxPanel == null)
+                {
                     return;
+                }
                 foreach (var child in fleetCheckboxPanel.Children)
                 {
                     CheckBox cb = child as CheckBox;
                     if (cb != null)
+                    {
                         cb.IsChecked = true;
+                    }
                 }
             };
             selectAllCheck.Unchecked += (s, e) =>
             {
                 if (fleetCheckboxPanel == null)
+                {
                     return;
+                }
                 foreach (var child in fleetCheckboxPanel.Children)
                 {
                     CheckBox cb = child as CheckBox;
                     if (cb != null)
+                    {
                         cb.IsChecked = false;
+                    }
                 }
             };
             popupStack.Children.Add(selectAllCheck);
@@ -635,7 +669,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isActive = false;
                 activeFleetAccounts.TryGetValue(acct.Name, out isActive);
                 if (isActive && !selectedFleetAccounts.Contains(acct.Name))
+                {
                     selectedFleetAccounts.Add(acct.Name);
+                }
 
                 CheckBox cb = new CheckBox
                 {
@@ -651,9 +687,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     string accountName = cb.Tag as string;
                     if (string.IsNullOrEmpty(accountName))
+                    {
                         return;
+                    }
                     if (!selectedFleetAccounts.Contains(accountName))
+                    {
                         selectedFleetAccounts.Add(accountName);
+                    }
                     UpdateFleetButtonText();
                     PanelCommand("TOGGLE_ACCOUNT|" + accountName + "|1");
                 };
@@ -661,7 +701,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     string accountName = cb.Tag as string;
                     if (string.IsNullOrEmpty(accountName))
+                    {
                         return;
+                    }
                     selectedFleetAccounts.Remove(accountName);
                     UpdateFleetButtonText();
                     PanelCommand("TOGGLE_ACCOUNT|" + accountName + "|0");
@@ -1366,9 +1408,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             svStrType.Height = 20;
             svStrType.FontSize = 8;
             if (string.Equals(currentMode, "ORB", StringComparison.OrdinalIgnoreCase))
+            {
                 SetComboSelection(svStrType, "OR");
+            }
             else
+            {
                 SetComboSelection(svStrType, "ATR");
+            }
 
             StackPanel strStack = new StackPanel { Orientation = Orientation.Horizontal };
             strStack.Children.Add(strVal);
@@ -1471,12 +1517,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SetComboSelection(ComboBox combo, string desiredText)
         {
             if (combo == null || string.IsNullOrEmpty(desiredText))
+            {
                 return;
+            }
             foreach (var item in combo.Items)
             {
                 ComboBoxItem cbItem = item as ComboBoxItem;
                 if (
+                {
                     cbItem != null
+                }
                     && string.Equals(cbItem.Content as string, desiredText, StringComparison.OrdinalIgnoreCase)
                 )
                 {
@@ -1511,17 +1561,25 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdateFleetButtonText()
         {
             if (fleetSelectButton == null)
+            {
                 return;
+            }
 
             int count = selectedFleetAccounts.Count;
             int total = fleetCheckboxPanel != null ? fleetCheckboxPanel.Children.Count : 0;
 
             if (count <= 0)
+            {
                 fleetSelectButton.Content = "FLEET: None Selected [v]";
+            }
             else if (count >= total && total > 0)
+            {
                 fleetSelectButton.Content = "FLEET: ALL Accounts [v]";
+            }
             else
+            {
                 fleetSelectButton.Content = "FLEET: " + count + " of " + total + " [v]";
+            }
         }
 
         #endregion

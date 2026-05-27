@@ -53,9 +53,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             public MmioDispatchMirror(string name, int capacity, int slotSize, ulong salt)
             {
                 if (capacity < 2 || (capacity & (capacity - 1)) != 0)
+                {
                     throw new ArgumentException("Capacity must be power of 2", "capacity");
+                }
                 if (slotSize <= 0 || (slotSize & 7) != 0)
+                {
                     throw new ArgumentException("Slot size must be a positive multiple of 8", "slotSize");
+                }
 
                 _capacity = capacity;
                 _mask = capacity - 1;
@@ -69,7 +73,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Zero header and publish salt
                 for (long i = 0; i < HeaderBytes; i++)
+                {
                     _accessor.Write(i, (byte)0);
+                }
                 unchecked
                 {
                     _accessor.Write(ShadowSaltOffset, (long)salt);
@@ -85,7 +91,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             public bool TryPublish(ref FleetDispatchSlot slot)
             {
                 if (Volatile.Read(ref _disposed) != 0)
+                {
                     return false;
+                }
 
                 long prod = _producerCursor;
                 // Sidecar cursor is not read back in single-writer/observer mode; wrap
@@ -112,7 +120,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             public void Dispose()
             {
                 if (Interlocked.Exchange(ref _disposed, 1) != 0)
+                {
                     return;
+                }
                 try
                 {
                     _accessor.Dispose();

@@ -37,24 +37,38 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleModeCommand(string action, string[] parts)
         {
             if (TryHandleMode_SetRmaMode(action, parts))
+            {
                 return true;
+            }
             if (TryHandleMode_SyncMode(action, parts))
+            {
                 return true;
+            }
             if (TryHandleMode_MktSync(action))
+            {
                 return true;
+            }
             if (TryHandleMode_SyncAll(action))
+            {
                 return true;
+            }
             if (TryHandleMode_SetMode(action, parts))
+            {
                 return true;
+            }
             if (TryHandleMode_ToggleOrExecute(action))
+            {
                 return true;
+            }
             return false;
         }
 
         private bool TryHandleMode_SetRmaMode(string action, string[] parts)
         {
             if (action != "SET_RMA_MODE")
+            {
                 return false;
+            }
 
             if (parts.Length > 1)
             {
@@ -62,7 +76,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 isRMAModeActive = enable;
                 isRMAButtonClicked = enable;
                 if (!enable)
+                {
                     ClearClickTraderBorderIfInactive();
+                }
                 Print(
                     string.Format(
                         "V12.4: SET_RMA_MODE = {0} (Chart-Click RMA {1})",
@@ -82,7 +98,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.2: SYNC_MODE|{MODE} - Relay mode sync from chart panel to external app
             if (action != "SYNC_MODE")
+            {
                 return false;
+            }
 
             if (parts.Length > 1)
             {
@@ -99,7 +117,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // Phase 9.1: MKT_SYNC -- Toggle ToS Armed Mode (Top button)
             if (action != "MKT_SYNC")
+            {
                 return false;
+            }
 
             isTosSyncMode = !isTosSyncMode;
             Print(string.Format("[SYNC] ToS Sync Mode: {0}", isTosSyncMode));
@@ -110,7 +130,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // Phase 9.1: SYNC_ALL -- Refresh active target orders to match current panel config (Bottom button)
             if (action != "SYNC_ALL")
+            {
                 return false;
+            }
 
             Print("[SYNC_ALL] Refresh triggered -- recalculating active target orders");
             RefreshActivePositionOrders();
@@ -121,7 +143,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.5: SET_MODE|mode - Panel is sole source of truth
             if (action != "SET_MODE")
+            {
                 return false;
+            }
 
             if (parts.Length > 1)
             {
@@ -145,15 +169,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     isRMAButtonClicked = true;
                 }
                 else if (newMode == "RETEST")
+                {
                     isRetestModeActive = true;
+                }
                 else if (newMode == "TREND")
+                {
                     isTRENDModeActive = true;
+                }
                 else if (newMode == "MOMO")
                 {
                     ActivateMOMOMode();
                 }
                 else if (newMode == "FFMA")
+                {
                     isFFMAModeArmed = true;
+                }
 
                 // Build 1106 Phase 2: Hydrate incoming mode's config (if profile exists)
                 ModeConfigProfile incomingProfile;
@@ -221,26 +251,42 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRiskCommand(string action, string[] parts)
         {
             if (TryHandleRisk_SetTrail(action, parts))
+            {
                 return true;
+            }
             if (TryHandleRisk_SetCit(action, parts))
+            {
                 return true;
+            }
             if (TryHandleRisk_Breakeven(action, parts))
+            {
                 return true;
+            }
             if (TryHandleRisk_SetMaxRisk(action, parts))
+            {
                 return true;
+            }
             if (TryHandleRisk_SetAnchor(action, parts))
+            {
                 return true;
+            }
             if (TryHandleRisk_SetTargets(action, parts))
+            {
                 return true;
+            }
             if (TryHandleRisk_SetManualPrice(action, parts))
+            {
                 return true;
+            }
             return false;
         }
 
         private bool TryHandleRisk_SetTrail(string action, string[] parts)
         {
             if (action != "SET_TRAIL")
+            {
                 return false;
+            }
 
             // V12 PRO: Dynamic trail - move stop to current price +/- distance
             if (parts.Length >= 2 && double.TryParse(parts[1], out double trailDistance))
@@ -257,12 +303,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                     foreach (var kvp in activePositions.ToArray())
                     {
                         if (!activePositions.ContainsKey(kvp.Key))
+                        {
                             continue;
+                        }
                         PositionInfo pos = kvp.Value;
                         string entryName = kvp.Key;
 
                         if (!pos.EntryFilled)
+                        {
                             continue;
+                        }
 
                         // Calculate new stop: Longs = Price - Distance, Shorts = Price + Distance
                         double newStopPrice =
@@ -304,7 +354,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRisk_SetCit(string action, string[] parts)
         {
             if (action != "SET_CIT")
+            {
                 return false;
+            }
 
             if (parts.Length >= 2)
             {
@@ -321,7 +373,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRisk_Breakeven(string action, string[] parts)
         {
             if (action != "BE" && action != "BE_CUSTOM" && action != "BE_PLUS_2" && action != "BE_PLUS_1")
+            {
                 return false;
+            }
 
             double beOffset;
             if (action == "BE_CUSTOM" && parts.Length >= 2)
@@ -329,14 +383,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // V12.23: Dynamic ticks from panel input -- syncs auto-trail BE too
                 int customTicks;
                 if (!int.TryParse(parts[1].Trim(), out customTicks) || customTicks < 0)
+                {
                     customTicks = BreakEvenOffsetTicks; // fallback to default
+                }
                 BreakEvenOffsetTicks = customTicks; // V12.23: Sync auto-trail + fleet symmetry
                 beOffset = customTicks * tickSize;
             }
             else if (action == "BE" || action == "BE_PLUS_2")
+            {
                 beOffset = BreakEvenOffsetTicks * tickSize;
+            }
             else
+            {
                 beOffset = 1 * tickSize; // Legacy BE_PLUS_1
+            }
             MoveStopsToBreakevenWithOffset(beOffset);
             return true;
         }
@@ -344,7 +404,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRisk_SetMaxRisk(string action, string[] parts)
         {
             if (!action.StartsWith("SET_MAX_RISK"))
+            {
                 return false;
+            }
 
             if (parts.Length > 2 && double.TryParse(parts[2], out double val))
             {
@@ -362,7 +424,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRisk_SetAnchor(string action, string[] parts)
         {
             if (!action.StartsWith("SET_ANCHOR"))
+            {
                 return false;
+            }
 
             // V11: SET_ANCHOR|EMA30|Global
             if (parts.Length > 2)
@@ -378,7 +442,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRisk_SetTargets(string action, string[] parts)
         {
             if (action != "SET_TARGETS")
+            {
                 return false;
+            }
 
             // V12.5: SET_TARGETS|count - Panel is sole source of truth
             // V12.Phase8.3: Now writes to activeTargetCount -- minContracts is symbol-specific risk floor only
@@ -410,12 +476,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleRisk_SetManualPrice(string action, string[] parts)
         {
             if (action != "SET_MANUAL_PRICE")
+            {
                 return false;
+            }
 
             // Format: SET_MANUAL_PRICE|<symbol>|<price>  (symbol in parts[1] for router, price in parts[2])
             // NOTE: External callers must use the new symbol-first format (updated Build 944).
             if (
+            {
                 parts.Length > 2
+            }
                 && double.TryParse(
                     parts[2],
                     System.Globalization.NumberStyles.Float,

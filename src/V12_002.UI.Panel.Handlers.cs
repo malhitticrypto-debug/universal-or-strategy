@@ -80,108 +80,158 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void AttachMiscellaneousHandlers()
         {
             if (floatingAnchor != null)
+            {
                 floatingAnchor.Click += ToggleLayout_Click;
+            }
 
             if (fleetSelectButton != null)
+            {
                 fleetSelectButton.Click += (s, e) =>
+            }
                 {
                     if (fleetPopup != null)
+                    {
                         fleetPopup.IsOpen = !fleetPopup.IsOpen;
+                    }
                 };
 
             if (submitButton != null)
+            {
                 submitButton.Click += OnSubmitClick;
+            }
         }
 
         private void AttachExecutionPanelHandlers()
         {
             if (orLongButton != null)
+            {
                 orLongButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("OR_LONG");
                     ResetExecutionMode();
                     TriggerGlow(CyanAccent);
                 };
             if (orShortButton != null)
+            {
                 orShortButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("OR_SHORT");
                     ResetExecutionMode();
                     TriggerGlow(PinkFg);
                 };
             if (retestButton != null)
+            {
                 retestButton.Click += OnRetestClick;
+            }
             if (retestRmaToggle != null)
+            {
                 retestRmaToggle.Click += OnRetestRmaToggleClick;
+            }
             if (rmaButton != null)
+            {
                 rmaButton.Click += OnRmaClick;
+            }
             if (momoButton != null)
+            {
                 momoButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("MODE_MOMO");
                     ResetExecutionMode();
                     TriggerGlow(GreenFg);
                 };
             if (ffmaButton != null)
+            {
                 ffmaButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("MODE_FFMA");
                     ResetExecutionMode();
                     TriggerGlow(PinkFg);
                 };
             if (ffmaManualButton != null)
+            {
                 ffmaManualButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("FFMA_MANUAL_MARKET");
                     ResetExecutionMode();
                     TriggerGlow(PinkFg);
                 };
             if (mButton != null)
+            {
                 mButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("MODE_M");
                     TriggerGlow(OrangeFg);
                 };
             if (trendButton != null)
+            {
                 trendButton.Click += OnTrendClick;
+            }
             if (trendRmaToggle != null)
+            {
                 trendRmaToggle.Click += OnTrendRmaToggleClick;
+            }
         }
 
         private void AttachTargetButtonHandlers()
         {
             if (t1Button != null)
+            {
                 AttachTargetDropdown(t1Button, 1, GreenFg);
+            }
             if (t2Button != null)
+            {
                 AttachTargetDropdown(t2Button, 2, YellowFg);
+            }
             if (t3Button != null)
+            {
                 AttachTargetDropdown(t3Button, 3, OrangeFg);
+            }
             if (t4Button != null)
+            {
                 AttachTargetDropdown(t4Button, 4, RedFg);
+            }
             if (t5Button != null)
+            {
                 AttachTargetDropdown(t5Button, 5, PinkFg);
+            }
         }
 
         private void AttachActionButtonHandlers()
         {
             if (trim50Button != null)
+            {
                 trim50Button.Click += (s, e) =>
+            }
                 {
                     PanelCommand("TRIM_50");
                     TriggerGlow(OrangeFg);
                 };
             if (beButton != null)
+            {
                 beButton.Click += OnBeClick;
+            }
             if (trailButton != null)
+            {
                 trailButton.Click += OnTrailClick;
+            }
             if (cancelButton != null)
+            {
                 cancelButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("CANCEL_ALL");
                     TriggerGlow(RedFg);
                 };
             if (flattenButton != null)
+            {
                 flattenButton.Click += (s, e) =>
+            }
                 {
                     PanelCommand("FLATTEN_ONLY");
                     TriggerGlow(RedFg);
@@ -191,45 +241,73 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void AttachSyncButtonHandlers()
         {
             if (mktSyncButton != null)
+            {
                 mktSyncButton.Click += (s, e) => PanelCommand("MKT_SYNC");
+            }
             if (syncAllButton != null)
+            {
                 syncAllButton.Click += OnSyncAllClick;
+            }
         }
 
         private void AttachConfigModeHandlers()
         {
             if (modeOrbButton != null)
+            {
                 modeOrbButton.Click += (s, e) => SelectConfigMode("ORB", modeOrbButton);
+            }
             if (modeRmaButton != null)
+            {
                 modeRmaButton.Click += (s, e) => SelectConfigMode("RMA", modeRmaButton);
+            }
             if (modeRetestButton != null)
+            {
                 modeRetestButton.Click += (s, e) => SelectConfigMode("RETEST", modeRetestButton);
+            }
             if (modeMomoButton != null)
+            {
                 modeMomoButton.Click += (s, e) => SelectConfigMode("MOMO", modeMomoButton);
+            }
             if (modeFfmaButton != null)
+            {
                 modeFfmaButton.Click += (s, e) => SelectConfigMode("FFMA", modeFfmaButton);
+            }
             if (modeTrendButton != null)
+            {
                 modeTrendButton.Click += (s, e) => SelectConfigMode("TREND", modeTrendButton);
+            }
         }
 
         private void AttachTargetCountHandlers()
         {
             if (cnt1 != null)
+            {
                 cnt1.Click += (s, e) => SelectTargetCount(1, cnt1);
+            }
             if (cnt2 != null)
+            {
                 cnt2.Click += (s, e) => SelectTargetCount(2, cnt2);
+            }
             if (cnt3 != null)
+            {
                 cnt3.Click += (s, e) => SelectTargetCount(3, cnt3);
+            }
             if (cnt4 != null)
+            {
                 cnt4.Click += (s, e) => SelectTargetCount(4, cnt4);
+            }
             if (cnt5 != null)
+            {
                 cnt5.Click += (s, e) => SelectTargetCount(5, cnt5);
+            }
         }
 
         private void DetachPanelHandlers()
         {
             if (floatingAnchor != null)
+            {
                 floatingAnchor.Click -= ToggleLayout_Click;
+            }
         }
 
         private void ToggleLayout_Click(object sender, RoutedEventArgs e)
@@ -267,9 +345,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             string price = priceInput != null ? priceInput.Text.Trim() : string.Empty;
             string mode = _panelLastSyncedMode;
             if (string.IsNullOrEmpty(mode))
+            {
                 mode = GetCurrentConfigMode();
+            }
             if (string.Equals(mode, "OR", StringComparison.OrdinalIgnoreCase))
+            {
                 mode = "ORB";
+            }
 
             string symbol =
                 Instrument != null && Instrument.MasterInstrument != null
@@ -295,7 +377,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 cmd = dir == "LONG" ? "OR_LONG" : "OR_SHORT";
                 cmd += "|" + symbol;
                 if (!string.IsNullOrEmpty(price) && price != "0.00")
+                {
                     cmd += "|" + price;
+                }
             }
 
             PanelCommand(cmd);
@@ -309,17 +393,23 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 case 0:
                     if (retestButton != null)
+                    {
                         retestButton.Content = "RETEST";
+                    }
                     PanelCommand("EXEC_RETEST");
                     break;
                 case 1:
                     if (retestButton != null)
+                    {
                         retestButton.Content = "RET +";
+                    }
                     PanelCommand("EXEC_RETEST_PLUS");
                     break;
                 default:
                     if (retestButton != null)
+                    {
                         retestButton.Content = "RET -";
+                    }
                     PanelCommand("EXEC_RETEST_MINUS");
                     break;
             }
@@ -339,7 +429,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             isRetestRmaToggle = !isRetestRmaToggle;
             if (retestRmaToggle != null)
+            {
                 retestRmaToggle.Opacity = isRetestRmaToggle ? 1.0 : 0.5;
+            }
             PanelCommand(isRetestRmaToggle ? "MODE_RETEST_RMA" : "MODE_RETEST_STD");
         }
 
@@ -371,7 +463,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             isTrendRmaToggle = !isTrendRmaToggle;
             if (trendRmaToggle != null)
+            {
                 trendRmaToggle.Opacity = isTrendRmaToggle ? 1.0 : 0.5;
+            }
             PanelCommand(isTrendRmaToggle ? "MODE_TREND_RMA" : "MODE_TREND_STD");
         }
 
@@ -379,7 +473,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             string ticks = beOffsetInput != null ? beOffsetInput.Text.Trim() : "2";
             if (string.IsNullOrEmpty(ticks))
+            {
                 ticks = "2";
+            }
             PanelCommand("BE_CUSTOM|" + ticks);
             TriggerGlow(CyanFg);
         }
@@ -388,7 +484,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             string dist = trailDistInput != null ? trailDistInput.Text.Trim() : "1.0";
             if (string.IsNullOrEmpty(dist))
+            {
                 dist = "1.0";
+            }
             PanelCommand("SET_TRAIL|" + dist);
             TriggerGlow(CyanFg);
         }
@@ -407,9 +505,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             string mode = _panelLastSyncedMode;
             if (string.IsNullOrEmpty(mode))
+            {
                 mode = GetCurrentConfigMode();
+            }
             if (string.Equals(mode, "OR", StringComparison.OrdinalIgnoreCase))
+            {
                 mode = "ORB";
+            }
             return mode;
         }
 
@@ -449,7 +551,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             string maxText = maxVal != null ? maxVal.Text : string.Empty;
             if (maxText == null)
+            {
                 maxText = string.Empty;
+            }
             config.Max = maxText.Replace("$", string.Empty).Replace(" ", string.Empty);
 
             config.TrendRma = isTrendRmaMode;
@@ -567,14 +671,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             retestCycleState = 0;
             if (retestButton != null)
+            {
                 retestButton.Content = "RETEST";
+            }
 
             if (isTrendRmaToggle)
             {
                 isTrendRmaToggle = false;
                 PanelCommand("MODE_TREND_STD");
                 if (trendRmaToggle != null)
+                {
                     trendRmaToggle.Opacity = 0.5;
+                }
             }
 
             if (isRetestRmaToggle)
@@ -582,7 +690,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 isRetestRmaToggle = false;
                 PanelCommand("MODE_RETEST_STD");
                 if (retestRmaToggle != null)
+                {
                     retestRmaToggle.Opacity = 0.5;
+                }
             }
 
             Print("V12 PANEL: ResetExecutionMode -- one click = one order");
@@ -596,7 +706,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             string transportMode = string.Equals(uiMode, "ORB", StringComparison.OrdinalIgnoreCase) ? "OR" : uiMode;
 
             foreach (
+            {
                 Button btn in new[]
+            }
                 {
                     modeOrbButton,
                     modeRmaButton,
@@ -608,7 +720,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             )
             {
                 if (btn == null)
+                {
                     continue;
+                }
                 btn.Background = BtnBg;
                 btn.Foreground = TextMuted;
                 btn.BorderBrush = BtnBorder;
@@ -635,7 +749,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Button btn in new[] { cnt1, cnt2, cnt3, cnt4, cnt5 })
             {
                 if (btn == null)
+                {
                     continue;
+                }
                 btn.Background = BtnBg;
                 btn.Foreground = TextPrimary;
                 btn.BorderBrush = BtnBorder;
@@ -665,25 +781,45 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CollapseAllExecutionControls()
         {
             if (execRetestRow != null)
+            {
                 execRetestRow.Visibility = Visibility.Collapsed;
+            }
             if (execTrendRow != null)
+            {
                 execTrendRow.Visibility = Visibility.Collapsed;
+            }
             if (rmaButton != null)
+            {
                 rmaButton.Visibility = Visibility.Collapsed;
+            }
             if (momoButton != null)
+            {
                 momoButton.Visibility = Visibility.Collapsed;
+            }
             if (ffmaButton != null)
+            {
                 ffmaButton.Visibility = Visibility.Collapsed;
+            }
             if (ffmaManualButton != null)
+            {
                 ffmaManualButton.Visibility = Visibility.Collapsed;
+            }
             if (mButton != null)
+            {
                 mButton.Visibility = Visibility.Collapsed;
+            }
             if (orLongButton != null)
+            {
                 orLongButton.Visibility = Visibility.Collapsed;
+            }
             if (orShortButton != null)
+            {
                 orShortButton.Visibility = Visibility.Collapsed;
+            }
             if (manualEntryRow != null)
+            {
                 manualEntryRow.Visibility = Visibility.Visible;
+            }
         }
 
         private void ShowModeSpecificControls(string mode)
@@ -692,43 +828,67 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 case "ORB":
                     if (orLongButton != null)
+                    {
                         orLongButton.Visibility = Visibility.Visible;
+                    }
                     if (orShortButton != null)
+                    {
                         orShortButton.Visibility = Visibility.Visible;
+                    }
                     break;
                 case "RMA":
                     if (rmaButton != null)
+                    {
                         rmaButton.Visibility = Visibility.Visible;
+                    }
                     break;
                 case "RETEST":
                     if (execRetestRow != null)
+                    {
                         execRetestRow.Visibility = Visibility.Visible;
+                    }
                     break;
                 case "MOMO":
                     if (momoButton != null)
+                    {
                         momoButton.Visibility = Visibility.Visible;
+                    }
                     break;
                 case "FFMA":
                     if (ffmaButton != null)
+                    {
                         ffmaButton.Visibility = Visibility.Visible;
+                    }
                     if (ffmaManualButton != null)
+                    {
                         ffmaManualButton.Visibility = Visibility.Visible;
+                    }
                     if (manualEntryRow != null)
+                    {
                         manualEntryRow.Visibility = Visibility.Collapsed;
+                    }
                     break;
                 case "TREND":
                     if (execTrendRow != null)
+                    {
                         execTrendRow.Visibility = Visibility.Visible;
+                    }
                     break;
                 case "MNL":
                     if (mButton != null)
+                    {
                         mButton.Visibility = Visibility.Visible;
+                    }
                     break;
                 default:
                     if (orLongButton != null)
+                    {
                         orLongButton.Visibility = Visibility.Visible;
+                    }
                     if (orShortButton != null)
+                    {
                         orShortButton.Visibility = Visibility.Visible;
+                    }
                     break;
             }
         }
@@ -736,7 +896,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void PopulateDirectionCombo(string mode)
         {
             if (directionCombo == null)
+            {
                 return;
+            }
 
             directionCombo.Items.Clear();
             if (mode == "ORB")
@@ -755,52 +917,88 @@ namespace NinjaTrader.NinjaScript.Strategies
         public void UpdateTargetVisibility(int count)
         {
             if (svT2Val != null)
+            {
                 svT2Val.IsEnabled = count >= 2;
+            }
             if (svT2Type != null)
+            {
                 svT2Type.IsEnabled = count >= 2;
+            }
             if (svT3Val != null)
+            {
                 svT3Val.IsEnabled = count >= 3;
+            }
             if (svT3Type != null)
+            {
                 svT3Type.IsEnabled = count >= 3;
+            }
             if (svT4Val != null)
+            {
                 svT4Val.IsEnabled = count >= 4;
+            }
             if (svT4Type != null)
+            {
                 svT4Type.IsEnabled = count >= 4;
+            }
             if (svT5Val != null)
+            {
                 svT5Val.IsEnabled = count >= 5;
+            }
             if (svT5Type != null)
+            {
                 svT5Type.IsEnabled = count >= 5;
+            }
 
             if (t2Row != null)
+            {
                 t2Row.Visibility = count >= 2 ? Visibility.Visible : Visibility.Collapsed;
+            }
             if (t3Row != null)
+            {
                 t3Row.Visibility = count >= 3 ? Visibility.Visible : Visibility.Collapsed;
+            }
             if (t4Row != null)
+            {
                 t4Row.Visibility = count >= 4 ? Visibility.Visible : Visibility.Collapsed;
+            }
             if (t5Row != null)
+            {
                 t5Row.Visibility = count >= 5 ? Visibility.Visible : Visibility.Collapsed;
+            }
 
             // Build 1107: In live mode, Section 1 buttons stay collapsed (live rows replace them).
             // Only manage button visibility when in config mode (flat).
             if (_currentLiveEntryName == null)
             {
                 if (t1Button != null)
+                {
                     t1Button.Visibility = Visibility.Visible;
+                }
                 if (t2Button != null)
+                {
                     t2Button.Visibility = count >= 2 ? Visibility.Visible : Visibility.Collapsed;
+                }
                 if (t3Button != null)
+                {
                     t3Button.Visibility = count >= 3 ? Visibility.Visible : Visibility.Collapsed;
+                }
                 if (t4Button != null)
+                {
                     t4Button.Visibility = count >= 4 ? Visibility.Visible : Visibility.Collapsed;
+                }
                 if (t5Button != null)
+                {
                     t5Button.Visibility = count >= 5 ? Visibility.Visible : Visibility.Collapsed;
+                }
             }
         }
 
         private void UpdateRmaButtonVisual(bool active)
         {
             if (rmaButton == null)
+            {
                 return;
+            }
             if (active)
             {
                 rmaButton.Background = PurpleFg;
@@ -831,7 +1029,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void AttachLiveTargetPriceHandler(TextBox priceBox, int targetNum)
         {
             if (priceBox == null)
+            {
                 return;
+            }
             priceBox.PreviewKeyDown += (s, e) =>
             {
                 if (e.Key == Key.Enter)
@@ -850,12 +1050,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CommitLiveTargetPrice(int targetNum, string priceText)
         {
             if (string.IsNullOrWhiteSpace(priceText) || priceText == "--")
+            {
                 return;
+            }
             double testParse;
             if (!double.TryParse(priceText, NumberStyles.Float, CultureInfo.InvariantCulture, out testParse))
+            {
                 return;
+            }
             if (testParse <= 0)
+            {
                 return;
+            }
             PanelCommand(
                 string.Format(CultureInfo.InvariantCulture, "SET_TARGET_PRICE|T{0}|{1}", targetNum, testParse)
             );
@@ -871,19 +1077,29 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 string[] parts = captured.Split(new[] { '|' }, StringSplitOptions.RemoveEmptyEntries);
                 if (parts.Length == 0)
+                {
                     return;
+                }
                 string action = parts[0].Trim().ToUpperInvariant();
 
                 Print("V12 PANEL: Dispatch -> " + action);
 
                 if (ctx.TryHandleModeCommand(action, parts))
+                {
                     return;
+                }
                 if (ctx.TryHandleRiskCommand(action, parts))
+                {
                     return;
+                }
                 if (ctx.TryHandleFleetCommand(action, parts, senderTicks))
+                {
                     return;
+                }
                 if (ctx.TryHandleConfigCommand(action, parts))
+                {
                     return;
+                }
             });
         }
 

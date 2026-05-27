@@ -89,7 +89,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // V12.Phase8.3: Diagnostic warning when ATR/Risk math produces 0
             if (contracts == 0)
+            {
                 Print(
+            }
                     $"[SIZING] Risk/Stop math resulted in 0 -- falling back to minContracts floor ({minContracts}). Risk=${MaxRiskAmount:F0}, StopPoints={stopPoints:F1}"
                 );
 
@@ -149,7 +151,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (
+                {
                     !CalculateSyncParameters(
+                }
                         pos,
                         entryOrder,
                         entryName,
@@ -207,7 +211,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (currentState != OrderState.Accepted && currentState != OrderState.Working)
             {
                 if (currentState == OrderState.ChangePending)
+                {
                     Print($"[V12.45 SYNC] SKIP {entryName}: ChangeOrder already in-flight (ChangePending)");
+                }
                 return false;
             }
 

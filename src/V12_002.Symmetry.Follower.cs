@@ -21,11 +21,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (followerPos == null || !followerPos.IsFollower)
+            {
                 return false;
+            }
 
             followerPos.EntryFilled = true;
             if (followerPos.RemainingContracts <= 0)
+            {
                 followerPos.RemainingContracts = Math.Max(1, followerPos.TotalContracts);
+            }
 
             if (!followerPos.BracketSubmitted)
             {
@@ -35,7 +39,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // master-anchored prices on the FIRST submission -- eliminates the "wrong-prices-first
                 // + retarget" double round-trip that causes transient drift in volatile bursts.
                 if (
+                {
                     symmetryFleetEntryToDispatch.TryGetValue(fleetEntryName, out var preCheckId)
+                }
                     && symmetryDispatchById.TryGetValue(preCheckId, out var preCheckCtx)
                 )
                 {
@@ -82,7 +88,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             symmetryPendingFollowerFills[fleetEntryName] = pending;
 
             if (SymmetryGuardTryResolveFollower(fleetEntryName, followerPos, pending, DateTime.UtcNow))
+            {
                 symmetryPendingFollowerFills.TryRemove(fleetEntryName, out _);
+            }
 
             return true;
         }
@@ -90,7 +98,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool SymmetryGuardIsAnchorPending(string entryName)
         {
             if (string.IsNullOrEmpty(entryName))
+            {
                 return false;
+            }
             return symmetryPendingFollowerFills.ContainsKey(entryName);
         }
 
@@ -120,7 +130,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (SymmetryGuardTryResolveFollower(fleetEntryName, pos, pending, nowUtc))
+                {
                     symmetryPendingFollowerFills.TryRemove(fleetEntryName, out _);
+                }
             }
 
             SymmetryGuardPruneDispatches();
@@ -135,7 +147,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             SymmetryDispatchContext ctx = null;
             if (
+            {
                 !symmetryFleetEntryToDispatch.TryGetValue(fleetEntryName, out var dispatchId)
+            }
                 || !symmetryDispatchById.TryGetValue(dispatchId, out ctx)
                 || ctx == null
             )
@@ -255,7 +269,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             double stopDist = Math.Abs(oldBase - pos.InitialStopPrice);
             if (stopDist <= 0)
+            {
                 stopDist = Math.Abs(oldBase - pos.CurrentStopPrice);
+            }
 
             double t1Dist = Math.Abs(pos.Target1Price - oldBase);
             double t2Dist = Math.Abs(pos.Target2Price - oldBase);
@@ -285,10 +301,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SymmetryGuardSubmitFollowerBracket(string fleetEntryName, PositionInfo pos)
         {
             if (pos.BracketSubmitted)
+            {
                 return;
+            }
             Account acct = pos.ExecutingAccount;
             if (acct == null)
+            {
                 return;
+            }
 
             OrderAction exitAction = pos.Direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
             double validatedStop = ValidateStopPrice(pos.Direction, pos.CurrentStopPrice);
@@ -325,7 +345,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int targetQty = GetTargetContracts(pos, targetNum);
                 if (targetQty <= 0)
+                {
                     continue;
+                }
 
                 if (IsRunnerTarget(targetNum))
                 {
@@ -384,7 +406,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ExpectedStopPrice = validatedStop,
             };
             for (int i = 0; i < 5; i++)
+            {
                 fsm.ExpectedTargetPrices[i] = 0;
+            }
             foreach (var (tNum, tOrder) in stagedTargets)
             {
                 if (tNum >= 1 && tNum <= 5)
@@ -406,7 +430,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 });
             }
             foreach (var (targetNum, order) in stagedTargets)
+            {
                 GetTargetOrdersDictionary(targetNum)[fleetEntryName] = order;
+            }
 
             fsm.State = FollowerBracketState.Submitted;
             fsm.LastUpdateUtc = DateTime.UtcNow;

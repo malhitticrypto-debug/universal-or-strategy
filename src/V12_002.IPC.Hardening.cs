@@ -151,7 +151,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             public bool TryReset()
             {
                 if (Interlocked.CompareExchange(ref _isOpen, 0, 0) == 0)
+                {
                     return false;
+                }
 
                 long lastFailure = Interlocked.Read(ref _lastFailureTicks);
                 long elapsed = DateTime.UtcNow.Ticks - lastFailure;

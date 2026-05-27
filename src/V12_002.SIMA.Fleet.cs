@@ -56,7 +56,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (
+                {
                     !ValidateDispatchTimestamp(signalTicks, fleetEntryName, expectedKey, reservedDelta, ref syncCleared)
+                }
                 )
                     return;
 
@@ -68,15 +70,21 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Print(string.Format("[PUMP] Submit FAILED for {0} ({1}): {2}", fleetEntryName, acct.Name, ex.Message));
                 if (!syncCleared)
+                {
                     ClearDispatchSyncPending(expectedKey);
+                }
                 if (reservedDelta != 0)
+                {
                     AddExpectedPositionDeltaLocked(expectedKey, -reservedDelta);
+                }
                 RollbackFleetDispatchState(fleetEntryName);
             }
             finally
             {
                 if (poolSlotIndex >= 0)
+                {
                     _photonPool.ReleaseByIndex(poolSlotIndex);
+                }
                 Interlocked.Decrement(ref _pendingFleetDispatchCount);
 
                 // REAPER-EXPANSION Ticket 2: Circuit breaker reset logic
@@ -84,14 +92,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TryResetCircuitBreakerIfBelow(currentCount);
 
                 if ((_photonDispatchRing != null && !_photonDispatchRing.IsEmpty) || !_pendingFleetDispatches.IsEmpty)
+                {
                     try
+                }
                     {
                         TriggerCustomEvent(o => PumpFleetDispatch(), null);
                     }
                     catch (Exception ex)
                     {
                         if (_diagFleet)
+                        {
                             Print("[FLEET_CATCH] ProcessFleetSlot pump prime failed: " + ex.Message);
+                        }
                     }
             }
         }
@@ -109,7 +121,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 ClearDispatchSyncPending(expectedKey);
                 syncCleared = true;
                 if (reservedDelta != 0)
+                {
                     AddExpectedPositionDeltaLocked(expectedKey, -reservedDelta);
+                }
                 RollbackFleetDispatchState(fleetEntryName);
                 Print(string.Format("[PUMP] STALE dispatch rejected for {0} -- rolled back", fleetEntryName));
                 return false;
@@ -140,7 +154,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var ord = orders[i];
                     if (ord == null || string.IsNullOrEmpty(ord.Name))
+                    {
                         continue;
+                    }
 
                     if (ord.Name == fleetEntryName)
                     {
@@ -193,7 +209,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             FollowerBracketFSM pFsm;
             if (
+            {
                 _followerBrackets.TryGetValue(fleetEntryName, out pFsm)
+            }
                 && pFsm != null
                 && pFsm.State == FollowerBracketState.PendingSubmit
             )
@@ -209,7 +227,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var ord = orders[i];
                     if (ord != null && !string.IsNullOrEmpty(ord.OrderId))
+                    {
                         _orderIdToFsmKey[ord.OrderId] = fleetEntryName;
+                    }
                 }
             }
 
@@ -225,7 +245,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 var td = GetTargetOrdersDictionary(tNum);
                 if (td != null)
+                {
                     td.TryRemove(fleetEntryName, out _);
+                }
             }
             _followerBrackets.TryRemove(fleetEntryName, out _);
         }
@@ -254,7 +276,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Verify integrity
                 if (!VerifyPhotonSlotIntegrity(ref _ringSlot, _sb, _sbIdx))
+                {
                     return;
+                }
 
                 // Process valid slot
                 ProcessValidPhotonSlot(_ringSlot, _sb, _sbIdx);
@@ -264,7 +288,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Fallback: drain legacy ConcurrentQueue
             FleetDispatchRequest req;
             if (!_pendingFleetDispatches.TryDequeue(out req))
+            {
                 return;
+            }
 
             ProcessFleetSlot(
                 req.Account,
@@ -292,14 +318,20 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string _expectedKey =
                     (_sbIdx >= 0 && _sbIdx < _photonSideband.Length) ? _photonSideband[_sbIdx].ExpectedKey : null;
                 if (abortSlot.ReservedDelta != 0 && _expectedKey != null)
+                {
                     AddExpectedPositionDeltaLocked(_expectedKey, -abortSlot.ReservedDelta);
+                }
                 if (_expectedKey != null)
+                {
                     ClearDispatchSyncPending(_expectedKey);
+                }
                 if (_sbIdx >= 0)
                 {
                     _photonPool.ReleaseByIndex(_sbIdx);
                     if (_sbIdx < _photonSideband.Length)
+                    {
                         _photonSideband[_sbIdx] = default(FleetDispatchSideband);
+                    }
                 }
                 Interlocked.Decrement(ref _pendingFleetDispatchCount);
             }
@@ -308,7 +340,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             while (_pendingFleetDispatches.TryDequeue(out stale))
             {
                 if (stale.ReservedDelta != 0)
+                {
                     AddExpectedPositionDeltaLocked(stale.ExpectedKey, -stale.ReservedDelta);
+                }
                 ClearDispatchSyncPending(stale.ExpectedKey);
                 Interlocked.Decrement(ref _pendingFleetDispatchCount);
             }
@@ -342,9 +376,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     )
                 );
                 if (_ringSlot.ReservedDelta != 0 && _sb.ExpectedKey != null)
+                {
                     AddExpectedPositionDeltaLocked(_sb.ExpectedKey, -_ringSlot.ReservedDelta);
+                }
                 if (_sb.ExpectedKey != null)
+                {
                     ClearDispatchSyncPending(_sb.ExpectedKey);
+                }
                 if (_sb.FleetEntryName != null)
                 {
                     activePositions.TryRemove(_sb.FleetEntryName, out _);
@@ -354,7 +392,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         var td = GetTargetOrdersDictionary(tNum);
                         if (td != null)
+                        {
                             td.TryRemove(_sb.FleetEntryName, out _);
+                        }
                     }
                     _followerBrackets.TryRemove(_sb.FleetEntryName, out _);
                 }
@@ -362,7 +402,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     _photonPool.ReleaseByIndex(_sbIdx);
                     if (_sbIdx < _photonSideband.Length)
+                    {
                         _photonSideband[_sbIdx] = default(FleetDispatchSideband);
+                    }
                 }
                 Interlocked.Decrement(ref _pendingFleetDispatchCount);
 
@@ -371,14 +413,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 TryResetCircuitBreakerIfBelow(currentCount);
 
                 if (!_photonDispatchRing.IsEmpty || !_pendingFleetDispatches.IsEmpty)
+                {
                     try
+                }
                     {
                         TriggerCustomEvent(o => PumpFleetDispatch(), null);
                     }
                     catch (Exception ex)
                     {
                         if (_diagFleet)
+                        {
                             Print("[FLEET_CATCH] ValidateDispatchTimestamp pump prime failed: " + ex.Message);
+                        }
                     }
                 return false;
             }
@@ -406,7 +452,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Clear sideband to release refs (avoid stale retention across ring wraps)
             if (_sbIdx >= 0 && _sbIdx < _photonSideband.Length)
+            {
                 _photonSideband[_sbIdx] = default(FleetDispatchSideband);
+            }
         }
 
         /// <summary>
@@ -488,7 +536,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 for (int pi = 0; pi < posSnapshot.Length; pi++)
                 {
                     if (
+                    {
                         posSnapshot[pi] != null
+                    }
                         && posSnapshot[pi].Instrument != null
                         && posSnapshot[pi].Instrument.FullName == Instrument.FullName
                     )
@@ -506,7 +556,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var f = fkvp.Value;
                     if (
+                    {
                         f != null
+                    }
                         && f.AccountName == acct.Name
                         && (
                             f.State == FollowerBracketState.Active
@@ -558,7 +610,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             catch (Exception ex)
             {
                 if (_diagFleet)
+                {
                     Print("[FLEET_CATCH] ProcessFleetSlot account iteration failed: " + ex.Message);
+                }
             }
         }
 

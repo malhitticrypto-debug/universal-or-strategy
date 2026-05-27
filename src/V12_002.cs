@@ -394,12 +394,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         protected void Enqueue(Action<V12_002> action)
         {
             if (action == null)
+            {
                 return;
+            }
             _cmdQueue.Enqueue(new DelegateCommand(action));
             if (IsActorThread())
+            {
                 TryDrain();
+            }
             else
+            {
                 ScheduleActorDrain();
+            }
         }
 
         private bool IsActorThread()
@@ -416,17 +422,23 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool EnsureStartupReady(string callbackName)
         {
             if (_configureComplete && _dataLoadedComplete)
+            {
                 return true;
+            }
 
             if (Interlocked.CompareExchange(ref _startupReadinessLogEmitted, 1, 0) == 0)
             {
                 StringBuilder missingPhases = new StringBuilder();
                 if (!_configureComplete)
+                {
                     missingPhases.Append("Configure");
+                }
                 if (!_dataLoadedComplete)
                 {
                     if (missingPhases.Length > 0)
+                    {
                         missingPhases.Append(", ");
+                    }
                     missingPhases.Append("DataLoaded");
                 }
 
@@ -447,7 +459,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ScheduleActorDrain()
         {
             if (Interlocked.CompareExchange(ref _actorWakeScheduled, 1, 0) != 0)
+            {
                 return;
+            }
             try
             {
                 TriggerCustomEvent(
@@ -469,7 +483,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void TryDrain()
         {
             if (Interlocked.CompareExchange(ref _drainToken, 1, 0) != 0)
+            {
                 return;
+            }
             DrainActor();
         }
 
@@ -497,7 +513,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void RequestActorYield(string reason, string detail = null)
         {
             if (Interlocked.CompareExchange(ref _actorYieldRequested, 1, 0) != 0)
+            {
                 return;
+            }
 
             _actorYieldReason = reason ?? string.Empty;
             _actorYieldDetail = detail ?? string.Empty;
@@ -518,10 +536,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryYieldActorForTime(string scope, string detail)
         {
             if (Volatile.Read(ref _actorYieldRequested) != 0)
+            {
                 return true;
+            }
 
             if (_actorCycleStopwatch.ElapsedMilliseconds < MaxActorDurationMs)
+            {
                 return false;
+            }
 
             RequestActorYield("time", string.Format("{0}:{1}", scope, detail));
             return true;
@@ -550,7 +572,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Build 1109 [FREEZE-PROOF]: Early warning for queue saturation
             int _actorQd = _cmdQueue.Count;
             if (_actorQd > 100)
+            {
                 Print("[ACTOR_WARN] Queue depth=" + _actorQd + " -- possible backlog");
+            }
             BeginActorCycle();
             try
             {
@@ -566,7 +590,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print("[V12_INLINE_ACTOR] " + ex);
                     }
                     if (Volatile.Read(ref _actorYieldRequested) != 0)
+                    {
                         break;
+                    }
                     if (_actorCycleStopwatch.ElapsedMilliseconds >= MaxActorDurationMs)
                     {
                         RequestActorYield("time", "post-command");
@@ -579,7 +605,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _actorCycleStopwatch.Stop();
                 Interlocked.Exchange(ref _drainToken, 0);
                 if (!_cmdQueue.IsEmpty)
+                {
                     ScheduleActorDrain();
+                }
             }
         }
 
@@ -668,7 +696,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             int depth = Interlocked.Decrement(ref _flattenScopeDepth);
             if (depth > 0)
+            {
                 return;
+            }
 
             Interlocked.Exchange(ref _flattenScopeDepth, 0);
             isFlattenRunning = false;
@@ -851,7 +881,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ResumeAccountOrderQueuePump()
         {
             if (!_accountOrderQueue.IsEmpty)
+            {
                 try
+            }
                 {
                     TriggerCustomEvent(o => ProcessAccountOrderQueue(), null);
                 }
@@ -861,7 +893,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ResumeAccountExecutionQueuePump()
         {
             if (!_accountExecutionQueue.IsEmpty)
+            {
                 try
+            }
                 {
                     TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null);
                 }

@@ -52,7 +52,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (marketPosition == MarketPosition.Flat)
+                {
                     HandleFlatPositionUpdate(acctName); // [B967-FIX-01]
+                }
                 BroadcastSyncTargetState();
             }
             catch (Exception ex)
@@ -66,7 +68,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             HandleFlatPosition_SyncExpected(acctName);
             if (HandleFlatPosition_ReconcileOrphans())
+            {
                 return;
+            }
             HandleFlatPosition_CleanupActivePositions();
         }
 
@@ -109,7 +113,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 var ord = kvp.Value;
                 if (
+                {
                     ord != null
+                }
                     && !IsOrderTerminal(ord.OrderState)
                     && activePositions.TryGetValue(kvp.Key, out var pos)
                     && pos.ExecutingAccount?.Name == flatAcctName
@@ -154,7 +160,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions.ToArray())
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 PositionInfo pos = kvp.Value;
                 if (pos.EntryFilled && pos.RemainingContracts > 0)
                 {
@@ -162,7 +170,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (stopOrders.TryGetValue(kvp.Key, out var stopOrder))
                     {
                         if (
+                        {
                             stopOrder != null
+                        }
                             && (
                                 stopOrder.OrderState == OrderState.Working
                                 || stopOrder.OrderState == OrderState.Accepted
@@ -176,7 +186,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (tDict != null && tDict.TryGetValue(kvp.Key, out var tOrder))
                         {
                             if (
+                            {
                                 tOrder != null
+                            }
                                 && (tOrder.OrderState == OrderState.Working || tOrder.OrderState == OrderState.Accepted)
                             )
                                 CancelOrderSafe(tOrder, pos);
@@ -187,10 +199,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             foreach (string key in positionsToCleanup)
+            {
                 CleanupPosition(key);
+            }
 
             if (positionsToCleanup.Count > 0)
+            {
                 Print("Cleanup complete - Strategy still running, ready for new entries.");
+            }
         }
 
         // Build 935 [CB-B935-002]: Target count broadcast extracted from OnPositionUpdate.
@@ -198,7 +214,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V14 ADAPTIVE VISIBILITY: Broadcast current position size to panel
             if (State != State.Realtime)
+            {
                 return;
+            }
 
             // Build 1102Y-V2 [U-04]: Use live InitialTargetCount when in trade; fallback to dashboard count when flat.
             int syncCount = activeTargetCount;
@@ -230,7 +248,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (execution == null || execution.Order == null)
+            {
                 return;
+            }
             // Capture all values from Execution -- NT8 may recycle the object after callback returns
             string _on = execution.Order.Name ?? string.Empty;
             string _eid = executionId ?? string.Empty;
@@ -257,10 +277,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (string.IsNullOrEmpty(orderName))
+                {
                     return;
+                }
 
                 if (ProcessOnExecution_Dedup(orderName, executionId, quantity, execution))
+                {
                     return;
+                }
 
                 ProcessOnExecution_TrackCompliance(execution);
 
@@ -268,13 +292,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // 1. STOP LOSS FILL - Manual OCO: Cancel all remaining targets
                 // ============================================================
                 if (orderName.StartsWith("Stop_"))
+                {
                     ProcessOnExecution_HandleStopFill(orderName, price, quantity);
+                }
                 // ============================================================
                 // 2. TARGET 1-5 FILL - Reduce stop quantity (unified loop)
                 // V12.1101E [SK-01/A-1]: First-Writer-Wins guard prevents double-decrement.
                 // ============================================================
                 else if (
+                {
                     orderName.StartsWith("T1_")
+                }
                     || orderName.StartsWith("T2_")
                     || orderName.StartsWith("T3_")
                     || orderName.StartsWith("T4_")
@@ -290,7 +318,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Example: Long 4 contracts, stop at 4. Trim 2 (now Long 2). If stop stays at 4,
                 // getting stopped out would SELL 4 (close 2 + go SHORT 2) = DISASTER.
                 else if (orderName.StartsWith("Trim_"))
+                {
                     ProcessOnExecution_HandleTrimFill(orderName, price, quantity);
+                }
 
                 // Build 1105: Shadow callback injection -- closes 100-500ms leader flatten gap.
                 // ManageTrailingStops covers steady-state trailing. This covers immediate
@@ -357,12 +387,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string ProcessOnExecution_ExtractEntryName(string name, string prefix)
         {
             if (!name.StartsWith(prefix))
+            {
                 return "";
+            }
             string entryPart = name.Substring(prefix.Length);
             // Strip timestamp suffix if present (format: _123456789012345)
             int lastUnderscore = entryPart.LastIndexOf('_');
             if (lastUnderscore > 0 && entryPart.Length - lastUnderscore > 10)
+            {
                 entryPart = entryPart.Substring(0, lastUnderscore);
+            }
             return entryPart;
         }
 
@@ -386,7 +420,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (tDict != null && tDict.TryGetValue(entryName, out var tOrder))
                     {
                         if (
+                        {
                             tOrder != null
+                        }
                             && (tOrder.OrderState == OrderState.Working || tOrder.OrderState == OrderState.Accepted)
                         )
                         {
@@ -407,7 +443,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     stopOrders.TryRemove(entryName, out _);
                     if (pendingStopReplacements.TryRemove(entryName, out _))
+                    {
                         Interlocked.Decrement(ref pendingReplacementCount);
+                    }
                     activePositions.TryRemove(entryName, out _);
                     entryOrders.TryRemove(entryName, out _);
                 }
@@ -459,7 +497,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         var tDict = GetTargetOrdersDictionary(targetNum);
                         if (tDict != null)
+                        {
                             tDict.TryRemove(entryName, out _);
+                        }
                     }
                     return;
                 }
@@ -489,7 +529,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var tDict = GetTargetOrdersDictionary(targetNum);
                     if (tDict != null)
+                    {
                         tDict.TryRemove(entryName, out _);
+                    }
                 }
             }
         }

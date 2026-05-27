@@ -37,7 +37,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void PropagateMasterPriceMove(Order masterOrder, double newLimit, double newStop, int newMasterQty = 0)
         {
             if (!EnableSIMA || masterOrder == null || masterOrder.Account != this.Account)
+            {
                 return;
+            }
 
             // [BUILD 924 -- Fix C] Raise propagation flag before dispatch; finally block clears it.
             _propagationActive = true;
@@ -49,7 +51,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool isTargetMove;
                 int masterTargetNum;
                 if (
+                {
                     !PropagateMaster_IdentifyMove(
+                }
                         masterOrder,
                         out masterEntryName,
                         out isEntryMove,
@@ -124,11 +128,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var tDict = GetTargetOrdersDictionary(t);
                     if (tDict == null)
+                    {
                         continue;
+                    }
                     foreach (var kvp in tDict)
                     {
                         if (
+                        {
                             kvp.Value == masterOrder
+                        }
                             && activePositions.TryGetValue(kvp.Key, out var mp)
                             && !mp.IsFollower
                         )
@@ -152,7 +160,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // [INLINE] Fast-path: ADR-019 lock-free symmetry dispatch lookup
             if (
+            {
                 symmetryMasterEntryToDispatch.TryGetValue(masterEntryName, out string dispatchId)
+            }
                 && symmetryDispatchById.TryGetValue(dispatchId, out var ctx)
             )
             {
@@ -183,17 +193,29 @@ namespace NinjaTrader.NinjaScript.Strategies
                 // Old order checked IsRMATrade first -> RETEST master classified as "RMA" -> fallback
                 // propagation targets RMA followers and silently skips RETEST followers.
                 if (masterPosForType.IsTRENDTrade)
+                {
                     masterTradeType = "TREND";
+                }
                 else if (masterPosForType.IsRetestTrade)
+                {
                     masterTradeType = "RETEST"; // <- before RMA
+                }
                 else if (masterPosForType.IsRMATrade)
+                {
                     masterTradeType = "RMA";
+                }
                 else if (masterPosForType.IsMOMOTrade)
+                {
                     masterTradeType = "MOMO";
+                }
                 else if (masterPosForType.IsFFMATrade)
+                {
                     masterTradeType = "FFMA";
+                }
                 else
+                {
                     masterTradeType = "OR";
+                }
             }
             return masterTradeType;
         }
@@ -209,7 +231,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions)
             {
                 if (!kvp.Value.IsFollower || kvp.Value.ExecutingAccount == null)
+                {
                     continue;
+                }
 
                 // Null masterTradeType: add all followers
                 if (masterTradeType == null)
@@ -220,7 +244,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Type-match via segment parsing + boolean fallback
                 if (ResolveFollowersViaScan_ProcessEntry(kvp.Value, kvp.Key, masterTradeType))
+                {
                     fallback.Add(kvp.Key);
+                }
             }
             return fallback;
         }
@@ -267,7 +293,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string extracted = sig.Substring(typeUs + 1, lastUs - typeUs - 1);
                     // Validate against known set -- rejects garbage from unusual account names
                     if (IsValidTradeTypeToken(extracted))
+                    {
                         followerType = extracted.Split('_')[0]; // normalize to base type
+                    }
                 }
             }
 
@@ -275,15 +303,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (followerType == null)
             {
                 if (pos.IsTRENDTrade)
+                {
                     followerType = "TREND";
+                }
                 else if (pos.IsRetestTrade)
+                {
                     followerType = "RETEST";
+                }
                 else if (pos.IsMOMOTrade)
+                {
                     followerType = "MOMO";
+                }
                 else if (pos.IsFFMATrade)
+                {
                     followerType = "FFMA";
+                }
                 else
+                {
                     followerType = "RMA";
+                }
             }
 
             return followerType == masterTradeType;
@@ -297,7 +335,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // Base types
             if (
+            {
                 token == "OR"
+            }
                 || token == "RMA"
                 || token == "TREND"
                 || token == "RETEST"
@@ -308,7 +348,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Build 930 Fix P2: Suffix-marker support
             if (
+            {
                 token.StartsWith("FFMA_")
+            }
                 || token.StartsWith("MOMO_")
                 || token.StartsWith("OR_")
                 || token.StartsWith("RMA_")
@@ -335,9 +377,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (string fleetEntryName in followerEntryNames)
             {
                 if (!activePositions.TryGetValue(fleetEntryName, out var pos))
+                {
                     continue;
+                }
                 if (!pos.IsFollower || pos.ExecutingAccount == null)
+                {
                     continue;
+                }
 
                 if (isEntryMove)
                 {
@@ -346,13 +392,19 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // on every user-drag, and historically resubmitted Limit followers at price 0.
                     double effectiveEntryPrice = newLimit > 0 ? newLimit : newStop;
                     if (effectiveEntryPrice <= 0)
+                    {
                         continue; // both zero -- NT8 callback race, skip safely
+                    }
                     PropagateMasterEntryMove(fleetEntryName, pos, effectiveEntryPrice, newMasterQty);
                 }
                 else if (isStopMove)
+                {
                     PropagateMasterStopMove(fleetEntryName, pos, newStop);
+                }
                 else if (isTargetMove)
+                {
                     PropagateMasterTargetMove(fleetEntryName, pos, masterTargetNum, newLimit);
+                }
             }
         }
 
@@ -364,16 +416,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void PropagateMasterStopMove(string fleetEntryName, PositionInfo pos, double newStop)
         {
             if (newStop <= 0)
+            {
                 return;
+            }
             // [FIX-PM-03]: Skip stop propagation for followers whose entry hasn't filled yet.
             // When the master bracket stop first becomes Working (after master fill), this fires for
             // all dispatched followers. Unfilled followers have no live stop order to move, and the
             // log noise ("Stop move: A -> B" at dispatch time) was incorrectly suggesting a problem.
             if (!pos.EntryFilled)
+            {
                 return;
+            }
             double roundedStop = Instrument.MasterInstrument.RoundToTickSize(newStop);
             if (Math.Abs(pos.CurrentStopPrice - roundedStop) <= tickSize / 2)
+            {
                 return;
+            }
 
             Print(
                 string.Format(
@@ -395,18 +453,28 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void PropagateMasterTargetMove(string fleetEntryName, PositionInfo pos, int targetNum, double newLimit)
         {
             if (newLimit <= 0)
+            {
                 return;
+            }
             var targetDict = GetTargetOrdersDictionary(targetNum);
             if (targetDict == null)
+            {
                 return;
+            }
             if (!targetDict.TryGetValue(fleetEntryName, out var tOrder) || tOrder == null)
+            {
                 return;
+            }
             if (tOrder.OrderState != OrderState.Working && tOrder.OrderState != OrderState.Accepted)
+            {
                 return;
+            }
 
             double roundedLimit = Instrument.MasterInstrument.RoundToTickSize(newLimit);
             if (Math.Abs(tOrder.LimitPrice - roundedLimit) <= tickSize / 2)
+            {
                 return;
+            }
 
             Print(
                 string.Format(
@@ -486,9 +554,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (!entryOrders.TryGetValue(fleetEntryName, out var fEntry) || fEntry == null)
+            {
                 return;
+            }
             if (fEntry.OrderState != OrderState.Working && fEntry.OrderState != OrderState.Accepted)
+            {
                 return;
+            }
 
             double roundedLimit = Instrument.MasterInstrument.RoundToTickSize(newLimit);
             // [FIX-PM-02b]: For StopMarket/StopLimit orders price lives in StopPrice (LimitPrice is always 0).
@@ -522,7 +594,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool priceChanged = Math.Abs(fEffectivePrice - roundedLimit) > tickSize / 2;
             bool quantityChanged = scaledQty != fEntry.Quantity;
             if (!priceChanged && !quantityChanged)
+            {
                 return;
+            }
 
             Print(
                 string.Format(
@@ -678,7 +752,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             Order newEntry = SubmitFollowerReplacement_CreateEntry(acct, fleetSignalName, price, qty, spec);
             if (
+            {
                 !SubmitFollowerReplacement_SubmitEntry(
+            }
                     acct,
                     newEntry,
                     fleetSignalName,
@@ -731,14 +807,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             expectedDelta = 0;
             PositionInfo trackedPos;
             if (
+            {
                 !zeroStartReasserted
+            }
                 && activePositions.TryGetValue(fleetSignalName, out trackedPos)
                 && trackedPos != null
             )
             {
                 int qtyDiff = qty - trackedPos.TotalContracts;
                 if (qtyDiff != 0)
+                {
                     expectedDelta = trackedPos.Direction == MarketPosition.Long ? qtyDiff : -qtyDiff;
+                }
             }
         }
 
@@ -793,7 +873,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             catch (Exception submitEx)
             {
                 if (!zeroStartReasserted && expectedDelta != 0)
+                {
                     AddExpectedPositionDeltaLocked(expectedKey, -expectedDelta);
+                }
 
                 Print("[FSM] SUBMIT FAIL: replacement submit threw for " + fleetSignalName + ": " + submitEx.Message);
                 return false;
@@ -830,14 +912,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     if (!string.IsNullOrEmpty(fsm966.ReplacingCancelOrderId))
+                    {
                         ctx._orderIdToFsmKey.TryRemove(fsm966.ReplacingCancelOrderId, out _);
+                    }
 
                     fsm966.EntryOrder = _ne966;
                     fsm966.State = FollowerBracketState.Submitted;
                     fsm966.ReplacingCancelOrderId = null;
                     fsm966.LastUpdateUtc = DateTime.UtcNow;
                     if (!string.IsNullOrEmpty(_ne966.OrderId))
+                    {
                         ctx._orderIdToFsmKey[_ne966.OrderId] = _fsn966;
+                    }
 
                     // [QTY-SYNC]: Sync PositionInfo to new size so SubmitBracketOrders sum-assertion passes.
                     PositionInfo pos966;
@@ -908,7 +994,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _orderArrayPool.Return(orderArray);
             }
             if (tDict != null)
+            {
                 tDict[spec.EntryName] = newTargetOrder;
+            }
             Print(
                 "[FSM_TGT] Target replacement submitted: T"
                     + spec.TargetNum

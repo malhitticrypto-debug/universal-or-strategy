@@ -41,7 +41,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             bool _shouldExit;
             ManageTrail_AdaptiveThrottleTick(out _shouldExit);
             if (_shouldExit)
+            {
                 return;
+            }
 
             // V8.30: Thread-safe snapshot iteration - prevents "Collection was modified" exception
             var positionSnapshot = activePositions.ToArray();
@@ -52,12 +54,18 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // V8.30: Verify position still exists (may have been removed by callback thread)
                 if (!activePositions.ContainsKey(entryName))
+                {
                     continue;
+                }
 
                 if (!pos.EntryFilled || !pos.BracketSubmitted)
+                {
                     continue;
+                }
                 if (pos.IsFollower && SymmetryGuardIsAnchorPending(entryName))
+                {
                     continue;
+                }
 
                 // Increment tick counter on every call
                 pos.TicksSinceEntry++;
@@ -69,13 +77,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                         : Math.Min(pos.ExtremePriceSinceEntry, Close[0]);
 
                 if (ManageTrail_RunPerTradeBranches(entryName, pos))
+                {
                     continue;
+                }
 
                 // Standard TREND/RETEST are EMA-only; point-based BE/T1/T2/T3 is RMA-only for these trade types.
                 bool isTrendOrRetestTrade = pos.IsTRENDTrade || pos.IsRetestTrade;
                 bool allowPointBasedTrailing = !isTrendOrRetestTrade || pos.IsRMATrade;
                 if (!allowPointBasedTrailing)
+                {
                     continue;
+                }
                 double _newStopPrice = pos.CurrentStopPrice;
                 int _newTrailLevel = pos.CurrentTrailLevel;
                 ManageTrail_RunPointBasedTrailing(entryName, pos, ref _newStopPrice, ref _newTrailLevel);
@@ -105,7 +117,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // V12.12: Diagnostic -- log leader trail levels for fleet sync visibility
             if (leaderLongMaxLevel > 0 || leaderShortMaxLevel > 0)
+            {
                 Print(
+            }
                     $"[SIMA] Fleet Sync: Leader trail levels -- Long={leaderLongMaxLevel}, Short={leaderShortMaxLevel}"
                 );
 
@@ -130,12 +144,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 PositionInfo ldr = kvp.Value;
                 if (ldr.IsFollower || !ldr.EntryFilled || !ldr.BracketSubmitted)
+                {
                     continue;
+                }
 
                 if (ldr.Direction == MarketPosition.Long)
+                {
                     leaderLongMaxLevel = Math.Max(leaderLongMaxLevel, ldr.CurrentTrailLevel);
+                }
                 else if (ldr.Direction == MarketPosition.Short)
+                {
                     leaderShortMaxLevel = Math.Max(leaderShortMaxLevel, ldr.CurrentTrailLevel);
+                }
             }
         }
 
@@ -151,21 +171,31 @@ namespace NinjaTrader.NinjaScript.Strategies
                 PositionInfo fol = kvp.Value;
 
                 if (!fol.IsFollower)
+                {
                     continue;
+                }
                 if (!fol.EntryFilled || !fol.BracketSubmitted)
+                {
                     continue;
+                }
                 if (!activePositions.ContainsKey(entryName2))
+                {
                     continue;
+                }
 
                 int targetLevel = (fol.Direction == MarketPosition.Long) ? leaderLongMaxLevel : leaderShortMaxLevel;
 
                 // V12.12: Guard -- skip if no leader exists for this direction (targetLevel==0)
                 if (targetLevel == 0)
+                {
                     continue;
+                }
 
                 // Only sync UP -- never regress a follower already at a higher level
                 if (fol.CurrentTrailLevel >= targetLevel)
+                {
                     continue;
+                }
 
                 double syncStopPrice = CalculateStopForLevel(fol, targetLevel);
 
@@ -201,9 +231,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // Adjust throttle based on tick frequency
                 if (tickCountInLastSecond > 50)
+                {
                     adaptiveThrottleMs = Math.Min(500, adaptiveThrottleMs + 50); // Increase throttle under load
+                }
                 else if (tickCountInLastSecond < 20)
+                {
                     adaptiveThrottleMs = Math.Max(100, adaptiveThrottleMs - 25); // Decrease throttle when calm
+                }
 
                 tickCountInLastSecond = 0;
                 lastTickCountReset = now;
@@ -241,15 +275,21 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V8.2: TREND Entry 1 - starts with fixed 2pt stop, switches to EMA9 trail when price crosses EMA
             if (pos.IsTRENDTrade && pos.IsTRENDEntry1 && !pos.IsRMATrade)
+            {
                 return TrailHandler_TREND_E1(entryName, pos);
+            }
 
             // V8.2: TREND Entry 2 uses EMA15 trailing stop (1.1x ATR from live EMA15)
             if (pos.IsTRENDTrade && pos.IsTRENDEntry2 && !pos.IsRMATrade)
+            {
                 return TrailHandler_TREND_E2(entryName, pos);
+            }
 
             // V8.4: RETEST trade - Phase 1: Wait for price to cross 9 EMA, Phase 2: Trail at 9 EMA
             if (pos.IsRetestTrade && !pos.IsRMATrade)
+            {
                 return TrailHandler_RETEST(entryName, pos);
+            }
 
             return false;
         }

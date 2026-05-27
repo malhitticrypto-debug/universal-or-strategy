@@ -42,41 +42,77 @@ namespace NinjaTrader.NinjaScript.Strategies
                     : action + "|" + (DateTime.UtcNow.Ticks / TimeSpan.TicksPerMinute).ToString();
 
             if (TryHandleFleet_Trim(action, parts))
+            {
                 return true;
+            }
             if (TryHandleFleet_Lock50(action))
+            {
                 return true;
+            }
             if (TryHandleFleet_FlattenOnly(action))
+            {
                 return true;
+            }
             if (TryHandleFleet_Flatten(action, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_CancelAll(action, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_ResetMemory(action))
+            {
                 return true;
+            }
             if (TryHandleFleet_LongShort(action, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_OrLong(action, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_OrShort(action, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_TrendManualLimit(action, parts, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_RetestManualLimit(action, parts, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_FfmaManualLimit(action, parts, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_FfmaManualMarket(action, cmdId))
+            {
                 return true;
+            }
             if (TryHandleFleet_CloseTarget(action))
+            {
                 return true;
+            }
             if (TryHandleFleet_MoveTarget(action, parts))
+            {
                 return true;
+            }
             if (TryHandleFleet_FleetState(action, parts))
+            {
                 return true;
+            }
             if (TryHandleFleet_ToggleAccount(action, parts))
+            {
                 return true;
+            }
             if (TryHandleFleet_SetShadow(action, parts))
+            {
                 return true;
+            }
             return false;
         }
 
@@ -94,7 +130,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_Lock50(string action)
         {
             if (action != "LOCK_50")
+            {
                 return false;
+            }
 
             // [1102Z-F]: IPC LOCK_50 -- Lock 50% of unrealized profit on all active positions.
             // Delegates to ExecuteRunnerAction which already handles all account routing.
@@ -106,7 +144,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_FlattenOnly(string action)
         {
             if (action != "FLATTEN_ONLY")
+            {
                 return false;
+            }
 
             // V12.21: Flatten Only (Close Positions) - preserve pending orders
             if (EnableSIMA)
@@ -124,7 +164,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (pos.Instrument.FullName == Instrument.FullName && pos.MarketPosition != MarketPosition.Flat)
                     {
                         if (pos.MarketPosition == MarketPosition.Long)
+                        {
                             SubmitOrderUnmanaged(
+                        }
                                 0,
                                 OrderAction.Sell,
                                 OrderType.Market,
@@ -135,7 +177,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 "FlattenOnly_ExitLong"
                             );
                         else
+                        {
                             SubmitOrderUnmanaged(
+                        }
                                 0,
                                 OrderAction.BuyToCover,
                                 OrderType.Market,
@@ -155,10 +199,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_Flatten(string action, string cmdId)
         {
             if (action != "FLATTEN")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             // V12 SIMA: Use multi-account flatten when enabled
             if (EnableSIMA)
@@ -177,10 +225,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_CancelAll(string action, string cmdId)
         {
             if (action != "CANCEL_ALL")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             // V12.13c: Only cancels pending entry orders (stops/targets on active positions are preserved)
             if (EnableSIMA)
@@ -198,7 +250,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Order order in Account.Orders)
                 {
                     if (
+                    {
                         order != null
+                    }
                         && order.Instrument.FullName == Instrument.FullName
                         && (
                             order.OrderState == OrderState.Working
@@ -211,7 +265,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         string oName = order.Name;
                         if (
+                        {
                             oName.StartsWith("Stop_")
+                        }
                             || oName.StartsWith("S_")
                             || oName.StartsWith("T1_")
                             || oName.StartsWith("T2_")
@@ -247,9 +303,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in masterBroker996c.Orders.ToArray())
             {
                 if (order == null || order.Instrument?.FullName != Instrument?.FullName)
+                {
                     continue;
+                }
                 if (
+                {
                     order.OrderState == OrderState.Cancelled
+                }
                     || order.OrderState == OrderState.CancelPending
                     || order.OrderState == OrderState.CancelSubmitted
                     || order.OrderState == OrderState.Filled
@@ -257,7 +317,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 )
                     continue;
                 if (masterHasPosition)
+                {
                     continue; // Master has live position: preserve all.
+                }
                 CancelOrderOnAccount(order, masterBroker996c);
                 cancelled++;
             }
@@ -289,7 +351,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (IsFleetAccount(acct))
                 {
                     if (acct == this.Account)
+                    {
                         continue; // already processed above
+                    }
                     cancelled += CancelAll_ProcessSingleFleetAccount(acct, masterHasPosition);
                 }
             }
@@ -306,7 +370,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in acct.Orders)
             {
                 if (
+                {
                     order != null
+                }
                     && order.Instrument.FullName == Instrument.FullName
                     && (
                         order.OrderState == OrderState.Working
@@ -319,7 +385,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     string oName = order.Name;
                     if (
+                    {
                         oName.StartsWith("Stop_")
+                    }
                         || oName.StartsWith("S_")
                         || oName.StartsWith("T1_")
                         || oName.StartsWith("T2_")
@@ -331,7 +399,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // Build 1104.1: Preserve brackets ONLY if FSM is active AND Master has position.
                         // If Master is FLAT, orphaned follower brackets MUST be swept regardless of FSM state.
                         if (acctHasActiveFsm && masterHasPosition)
+                        {
                             continue;
+                        }
                     }
 
                     CancelOrderOnAccount(order, acct);
@@ -362,7 +432,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_ResetMemory(string action)
         {
             if (action != "RESET_MEMORY")
+            {
                 return false;
+            }
 
             int resetAcctCount = 0;
             foreach (Account acct in Account.All)
@@ -383,10 +455,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_LongShort(string action, string cmdId)
         {
             if (action != "LONG" && action != "SHORT")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             if (isTosSyncMode)
             {
@@ -400,9 +476,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     Print($"[SYNC] ToS Handshake Received -> Executing {action} Fleet Entry");
                     if (action == "LONG")
+                    {
                         isLongArmed = false;
+                    }
                     else
+                    {
                         isShortArmed = false;
+                    }
                 }
             }
 
@@ -460,10 +540,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_OrLong(string action, string cmdId)
         {
             if (action != "OR_LONG")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             if (isTosSyncMode)
             {
@@ -488,10 +572,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_OrShort(string action, string cmdId)
         {
             if (action != "OR_SHORT")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             if (isTosSyncMode)
             {
@@ -516,17 +604,23 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_TrendManualLimit(string action, string[] parts, string cmdId)
         {
             if (action != "TREND_MANUAL_LIMIT")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             if (parts.Length > 3)
             {
                 string dir = parts[2].Trim().ToUpperInvariant();
                 MarketPosition mp = dir == "LONG" ? MarketPosition.Long : MarketPosition.Short;
                 if (
+                {
                     double.TryParse(
+                }
                         parts[3],
                         System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture,
@@ -547,17 +641,23 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_RetestManualLimit(string action, string[] parts, string cmdId)
         {
             if (action != "RETEST_MANUAL_LIMIT")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             if (parts.Length > 3)
             {
                 string dir = parts[2].Trim().ToUpperInvariant();
                 MarketPosition mp = dir == "LONG" ? MarketPosition.Long : MarketPosition.Short;
                 if (
+                {
                     double.TryParse(
+                }
                         parts[3],
                         System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture,
@@ -578,17 +678,23 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_FfmaManualLimit(string action, string[] parts, string cmdId)
         {
             if (action != "FFMA_MANUAL_LIMIT")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             if (parts.Length > 3)
             {
                 string dir = parts[2].Trim().ToUpperInvariant();
                 MarketPosition mp = dir == "LONG" ? MarketPosition.Long : MarketPosition.Short;
                 if (
+                {
                     double.TryParse(
+                }
                         parts[3],
                         System.Globalization.NumberStyles.Float,
                         System.Globalization.CultureInfo.InvariantCulture,
@@ -599,7 +705,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     double ffmaStopDist = CalculateATRStopDistance(RMAStopATRMultiplier);
                     if (ffmaStopDist <= 0)
+                    {
                         ffmaStopDist = MinimumStop;
+                    }
                     int contracts = CalculatePositionSize(ffmaStopDist);
                     Enqueue(ctx => ctx.ExecuteFFMALimitEntry(price, mp, contracts));
                 }
@@ -611,10 +719,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_FfmaManualMarket(string action, string cmdId)
         {
             if (action != "FFMA_MANUAL_MARKET")
+            {
                 return false;
+            }
 
             if (!MetadataGuardDuplicate(cmdId, action))
+            {
                 return true;
+            }
 
             double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
             double ema9Value = ema9[0];
@@ -622,7 +734,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             double stopPrice = direction == MarketPosition.Long ? Low[0] : High[0];
             double ffmaStopDist = Math.Min(Math.Abs(currentPrice - stopPrice), MaximumStop);
             if (ffmaStopDist < tickSize * 2)
+            {
                 ffmaStopDist = tickSize * 2;
+            }
             int contracts = CalculatePositionSize(ffmaStopDist);
             Enqueue(ctx => ctx.ExecuteFFMAManualMarketEntry(contracts));
             return true;
@@ -631,7 +745,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_CloseTarget(string action)
         {
             if (!action.StartsWith("CLOSE_T"))
+            {
                 return false;
+            }
 
             int targetNum = 0;
             if (action.Length > 7 && int.TryParse(action.Substring(7, 1), out targetNum))
@@ -645,7 +761,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_MoveTarget(string action, string[] parts)
         {
             if (!action.StartsWith("MOVE_TARGET") && action != "SET_TARGET_PRICE")
+            {
                 return false;
+            }
 
             if (parts.Length >= 3)
             {
@@ -653,7 +771,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string priceStr = parts[2].Trim();
                 int targetNum = 0;
                 if (
+                {
                     targetId.Length >= 2
+                }
                     && targetId.StartsWith("T")
                     && int.TryParse(targetId.Substring(1), out targetNum)
                     && targetNum >= 1
@@ -665,7 +785,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // Build 1107: Absolute price move (from live control center)
                         double absPrice;
                         if (
+                        {
                             double.TryParse(priceStr, NumberStyles.Float, CultureInfo.InvariantCulture, out absPrice)
+                        }
                             && absPrice > 0
                         )
                         {
@@ -679,11 +801,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                         string distance = priceStr.ToLowerInvariant();
                         double profitPoints = 0;
                         if (distance == "1pt")
+                        {
                             profitPoints = 1.0;
+                        }
                         else if (distance == "2pt")
+                        {
                             profitPoints = 2.0;
+                        }
                         else
+                        {
                             return true;
+                        }
                         MoveSpecificTarget(targetNum, profitPoints);
                     }
                 }
@@ -695,7 +823,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_FleetState(string action, string[] parts)
         {
             if (
+            {
                 action.StartsWith("GET_FLEET")
+            }
                 || action == "SET_SIMA"
                 || action == "SET_LEADER_ACCOUNT"
                 || action == "REQUEST_FLEET_STATE"
@@ -711,7 +841,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_ToggleAccount(string action, string[] parts)
         {
             if (!action.StartsWith("TOGGLE_ACCOUNT"))
+            {
                 return false;
+            }
 
             HandleToggleAccountCommand(parts);
             return true;
@@ -720,7 +852,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool TryHandleFleet_SetShadow(string action, string[] parts)
         {
             if (action != "SET_SHADOW")
+            {
                 return false;
+            }
 
             if (parts.Length >= 2)
             {

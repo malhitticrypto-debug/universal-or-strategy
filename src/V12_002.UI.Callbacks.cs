@@ -72,7 +72,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     DependencyObject parent = VisualTreeHelper.GetParent(ChartControl);
                     while (parent != null && !(parent is Grid))
+                    {
                         parent = VisualTreeHelper.GetParent(parent);
+                    }
 
                     if (parent is Grid parentGrid)
                     {
@@ -139,11 +141,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool IsPointerInPriceArea(MouseEventArgs e)
         {
             if (ChartPanel == null || e == null)
+            {
                 return false;
+            }
 
             Point mouseInPanel = e.GetPosition(ChartPanel as System.Windows.IInputElement);
             if (
+            {
                 mouseInPanel.X < 0
+            }
                 || mouseInPanel.X > ChartPanel.W
                 || mouseInPanel.Y < 0
                 || mouseInPanel.Y > ChartPanel.H
@@ -157,11 +163,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void OnChartMouseMove(object sender, MouseEventArgs e)
         {
             if (_isTerminating)
+            {
                 return;
+            }
 
             bool shouldWarn = IsClickTraderArmed() && IsPointerInPriceArea(e);
             if (shouldWarn == _chartHoverRedActive)
+            {
                 return;
+            }
 
             if (shouldWarn)
             {
@@ -178,7 +188,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void OnChartMouseLeave(object sender, MouseEventArgs e)
         {
             if (!_chartHoverRedActive)
+            {
                 return;
+            }
 
             SetChartBorderWarning(false);
             _chartHoverRedActive = false;
@@ -187,14 +199,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SetChartBorderWarning(bool active)
         {
             if (_chartHoverOverlay == null)
+            {
                 return;
+            }
             _chartHoverOverlay.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void ClearClickTraderBorderIfActive()
         {
             if (!_chartHoverRedActive)
+            {
                 return;
+            }
 
             if (ChartControl == null)
             {
@@ -205,21 +221,29 @@ namespace NinjaTrader.NinjaScript.Strategies
             Action clearWarning = () =>
             {
                 if (!_chartHoverRedActive)
+                {
                     return;
+                }
                 SetChartBorderWarning(false);
                 _chartHoverRedActive = false;
             };
 
             if (ChartControl.Dispatcher.CheckAccess())
+            {
                 clearWarning();
+            }
             else
+            {
                 ChartControl.Dispatcher.InvokeAsync(clearWarning);
+            }
         }
 
         private void ClearClickTraderBorderIfInactive()
         {
             if (IsClickTraderArmed())
+            {
                 return;
+            }
             ClearClickTraderBorderIfActive();
         }
 
@@ -231,16 +255,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void OnChartClick(object sender, MouseButtonEventArgs e)
         {
             if (!HandleChartClick_ValidateMode(out bool rmaActive, out bool momoActive))
+            {
                 return;
+            }
 
             try
             {
                 if (ChartControl == null || ChartPanel == null)
+                {
                     return;
+                }
 
                 double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
                 if (!HandleChartClick_ConvertPrice(e, momoActive, currentPrice, out double clickPrice))
+                {
                     return;
+                }
 
                 if (momoActive)
                 {
@@ -287,7 +317,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Build 1102Z: UI Safety Fence -- Ignore clicks outside the actual price plotting area
             // This prevents trades from triggering when clicking on the side panel, price axis, or scrollbars.
             if (
+            {
                 mouseInPanel.X < 0
+            }
                 || mouseInPanel.X > ChartPanel.W
                 || mouseInPanel.Y < 0
                 || mouseInPanel.Y > ChartPanel.H
@@ -308,9 +340,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Clamp Y to valid range
             double yInPanel = mouseInPanel.Y;
             if (yInPanel < 0)
+            {
                 yInPanel = 0;
+            }
             if (yInPanel > effectivePriceHeight)
+            {
                 yInPanel = effectivePriceHeight;
+            }
 
             // Convert: Y=0 is top (maxPrice), Y=effectivePriceHeight is bottom (minPrice)
             double yRatio = yInPanel / effectivePriceHeight;
@@ -373,7 +409,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             Enqueue(ctx => ctx.ExecuteRMAEntryV2(capturedRmaPrice, capturedDir, capturedRmaContracts));
 
             if (isRMAButtonClicked)
+            {
                 HandleChartClick_DeactivateRma();
+            }
         }
 
         private void HandleChartClick_DeactivateRma()
@@ -511,7 +549,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions.ToArray())
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 PositionInfo pos = kvp.Value;
                 string entryName = kvp.Key;
 
@@ -522,7 +562,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (
+                {
                     !ValidateTargetActionContext(
+                }
                         pos,
                         entryName,
                         targetType,
@@ -563,7 +605,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             targetContracts = 0;
 
             if (
+            {
                 !ExecuteTarget_ValidateContext(
+            }
                     pos,
                     entryName,
                     targetType,
@@ -647,7 +691,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             targetContracts = 0;
 
             if (
+            {
                 !TryResolveTargetContext(
+            }
                     pos,
                     targetType,
                     out targetNumber,
@@ -689,9 +735,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (targetOrders.TryGetValue(entryName, out var existingOrder))
             {
                 if (existingOrder != null && !IsOrderTerminal(existingOrder.OrderState))
+                {
                     CancelOrderSafe(existingOrder, pos);
+                }
                 else
+                {
                     targetOrders.TryRemove(entryName, out _);
+                }
             }
 
             Order marketOrder = SubmitExitOrderForPosition(
@@ -703,7 +753,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             );
 
             if (marketOrder != null)
+            {
                 Print(
+            }
                     string.Format(
                         "? {0} MARKET FILL: {1} - Closing {2} contracts at market",
                         targetType,
@@ -712,7 +764,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     )
                 );
             else
+            {
                 Print(
+            }
                     string.Format(
                         "ERROR {0} MARKET FILL FAILED: {1} - Could not close {2} contracts",
                         targetType,
@@ -810,7 +864,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     );
                 }
                 else
+                {
                     targetOrders.TryRemove(entryName, out _);
+                }
             }
         }
 
@@ -823,7 +879,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (
+            {
                 !MoveTargetOrder_Validate(
+            }
                     targetType,
                     quantity,
                     out int targetNumber,
@@ -836,7 +894,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (targetOrders.TryGetValue(entryName, out existingTarget) && existingTarget != null)
             {
                 if (
+                {
                     MoveTargetOrder_PrepareFollowerReplace(
+                }
                         entryName,
                         pos,
                         targetNumber,
@@ -864,7 +924,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             targetOrders = null;
 
             if (!TryParseTargetNumber(targetType, out targetNumber))
+            {
                 return false;
+            }
 
             // Runner targets are trail-only: do not submit limit orders.
             if (IsRunnerTarget(targetNumber))
@@ -874,7 +936,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (quantity <= 0)
+            {
                 return false;
+            }
 
             targetOrders = GetTargetOrdersDictionary(targetNumber);
             return targetOrders != null;
@@ -890,10 +954,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (IsOrderTerminal(existingTarget.OrderState))
+            {
                 return false;
+            }
 
             if (pos == null || !pos.IsFollower || pos.ExecutingAccount == null)
+            {
                 return false;
+            }
 
             OrderAction exitAct = pos.Direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
             string targetOrderName = "T" + targetNumber + "_" + entryName;
@@ -972,7 +1040,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (pos == null || quantity <= 0)
+            {
                 return null;
+            }
 
             OrderAction exitAction = pos.Direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
             double limit = orderType == OrderType.Limit ? limitPrice : 0;
@@ -992,7 +1062,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     null
                 );
                 if (exitOrder == null)
+                {
                     return null;
+                }
 
                 pos.ExecutingAccount.Submit(new[] { exitOrder });
                 return exitOrder;
@@ -1015,7 +1087,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             targetFilled = false;
 
             if (!TryParseTargetNumber(targetType, out targetNumber))
+            {
                 return false;
+            }
 
             targetOrders = GetTargetOrdersDictionary(targetNumber);
             targetContracts = GetTargetContracts(pos, targetNumber);
@@ -1027,11 +1101,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             targetNumber = 0;
             if (string.IsNullOrWhiteSpace(targetType))
+            {
                 return false;
+            }
 
             string normalized = targetType.Trim().ToUpperInvariant();
             if (!normalized.StartsWith("T"))
+            {
                 return false;
+            }
 
             return int.TryParse(normalized.Substring(1), out targetNumber) && targetNumber >= 1 && targetNumber <= 5;
         }
@@ -1070,7 +1148,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (var kvp in activePositions.ToArray())
                 {
                     if (!activePositions.ContainsKey(kvp.Key))
+                    {
                         continue;
+                    }
 
                     if (ValidateRunnerPosition(kvp.Key, kvp.Value, out int runnerContracts))
                     {
@@ -1148,7 +1228,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             );
 
             if (runnerMarketOrder != null)
+            {
                 Print(
+            }
                     string.Format(
                         "? RUNNER MARKET CLOSE: {0} - Closing {1} contracts at market",
                         entryName,
@@ -1156,7 +1238,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     )
                 );
             else
+            {
                 Print(
+            }
                     string.Format(
                         "ERROR RUNNER MARKET CLOSE FAILED: {0} - Could not close {1} contracts",
                         entryName,

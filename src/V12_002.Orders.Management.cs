@@ -37,7 +37,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SubmitBracketOrders(string entryName, PositionInfo pos)
         {
             if (
+            {
                 !ValidateBracketEntryGuard(
+            }
                     entryName,
                     pos,
                     out double validatedStopPrice,
@@ -59,7 +61,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     bracketOcoId
                 );
                 if (stopOrder == null)
+                {
                     return;
+                }
 
                 SubmitTargetOrdersLoop(
                     entryName,
@@ -130,7 +134,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // [938-BRACKET] Confirm full bracket submitted for follower accounts.
             if (isFollowerSubmit)
+            {
                 Print(
+            }
                     string.Format(
                         "[938-BRACKET] Follower bracket submitted: {0} T1={1:F2} Stop={2:F2}",
                         entryName,
@@ -146,14 +152,20 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int targetQty = GetTargetContracts(pos, targetNum);
                 if (targetQty <= 0)
+                {
                     continue;
+                }
 
                 bool isRunnerSlot = IsRunnerTarget(targetNum);
 
                 if (isRunnerSlot)
+                {
                     bracketMsg.AppendFormat(" | T{0}:{1}@trail", targetNum, targetQty);
+                }
                 else
+                {
                     bracketMsg.AppendFormat(" | T{0}:{1}@{2:F2}", targetNum, targetQty, GetTargetPrice(pos, targetNum));
+                }
             }
 
             Print(bracketMsg.ToString());
@@ -190,7 +202,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int targetQty = GetTargetContracts(pos, targetNum);
                 if (targetQty <= 0)
+                {
                     continue; // skip orphan/zero fills
+                }
 
                 // Universal Ladder: runner detection is slot-based only -- T(n)Type == Runner.
                 if (IsRunnerTarget(targetNum))
@@ -254,9 +268,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     );
                     // [BUILD 924 - Fix B / Director's Note] Null-guard after CreateOrder matches S-015 pattern.
                     if (tOrd != null)
+                    {
                         pos.ExecutingAccount.Submit(new[] { tOrd });
+                    }
                     else
+                    {
                         Print(
+                    }
                             string.Format(
                                 "[TARGET_WARN] Follower target T{0} CreateOrder returned null for {1}.",
                                 targetNum,
@@ -281,7 +299,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         null
                     );
                     if (tOrd != null)
+                    {
                         Account.Submit(new[] { tOrd });
+                    }
                     limitOrder = tOrd;
                 }
 
@@ -390,7 +410,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     null
                 );
                 if (sOrd != null)
+                {
                     Account.Submit(new[] { sOrd });
+                }
                 stopOrder = sOrd;
             }
 
@@ -423,7 +445,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             bracketOcoId = string.Empty;
 
             if (pos.BracketSubmitted)
+            {
                 return false;
+            }
 
             // Validate stop price
             validatedStopPrice = ValidateStopPrice(pos.Direction, pos.InitialStopPrice);

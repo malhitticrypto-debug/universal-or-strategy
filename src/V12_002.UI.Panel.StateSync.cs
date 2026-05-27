@@ -13,7 +13,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdatePanelState()
         {
             if (rootContainer == null || _isTerminating)
+            {
                 return;
+            }
             UIStateSnapshot snapshot = GetUiSnapshot();
 
             double price = snapshot.LastPrice;
@@ -58,9 +60,13 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             UpdateRmaButtonVisual(snapshot.IsRmaModeActive);
             if (trendRmaToggle != null)
+            {
                 trendRmaToggle.Opacity = snapshot.IsTrendRmaMode ? 1.0 : 0.5;
+            }
             if (retestRmaToggle != null)
+            {
                 retestRmaToggle.Opacity = snapshot.IsRetestRmaMode ? 1.0 : 0.5;
+            }
 
             UpdateHubStatusLed(snapshot);
             UpdateTelemetryDisplay(snapshot);
@@ -74,7 +80,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _currentLiveEntryName = livePosition.EntryName;
                 SyncLiveTargetRows(livePosition);
                 if (liveStopRow != null)
+                {
                     liveStopRow.Visibility = System.Windows.Visibility.Visible;
+                }
                 return;
             }
 
@@ -83,7 +91,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _currentLiveEntryName = null;
                 SetLiveTargetRowsVisible(false);
                 if (liveStopRow != null)
+                {
                     liveStopRow.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 UpdateTargetVisibility(count);
             }
         }
@@ -97,15 +107,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             else
             {
                 if (t1Button != null)
+                {
                     t1Button.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (t2Button != null)
+                {
                     t2Button.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (t3Button != null)
+                {
                     t3Button.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (t4Button != null)
+                {
                     t4Button.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (t5Button != null)
+                {
                     t5Button.Visibility = System.Windows.Visibility.Collapsed;
+                }
             }
         }
 
@@ -114,15 +134,25 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (!visible)
             {
                 if (liveT1Row != null)
+                {
                     liveT1Row.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (liveT2Row != null)
+                {
                     liveT2Row.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (liveT3Row != null)
+                {
                     liveT3Row.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (liveT4Row != null)
+                {
                     liveT4Row.Visibility = System.Windows.Visibility.Collapsed;
+                }
                 if (liveT5Row != null)
+                {
                     liveT5Row.Visibility = System.Windows.Visibility.Collapsed;
+                }
             }
             // When visible=true, individual rows are controlled by SyncLiveTargetRows
         }
@@ -152,7 +182,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     break;
             }
             if (row != null)
+            {
                 row.Visibility = visible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+            }
         }
 
         private void SyncLiveTargetRows(UILivePositionSnapshot livePosition)
@@ -163,7 +195,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool active = target != null && target.IsVisible;
                 SetLiveTargetRowVisible(t, active);
                 if (!active || target == null)
+                {
                     continue;
+                }
 
                 TextBox priceBox = GetLiveTargetPriceBox(t);
                 if (priceBox != null && !priceBox.IsFocused)
@@ -182,7 +216,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (liveStopRow != null)
             {
                 if (liveStopPrice != null)
+                {
                     liveStopPrice.Text =
+                }
                         livePosition.StopPrice > 0
                             ? Instrument.MasterInstrument.FormatPrice(livePosition.StopPrice)
                             : "--";
@@ -231,14 +267,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdateHubStatusLed(UIStateSnapshot snapshot)
         {
             if (hubStatusLed == null)
+            {
                 return;
+            }
 
             if (_isTerminating)
+            {
                 hubStatusLed.Background = RedFg;
+            }
             else if (snapshot.MasterMarketPosition != MarketPosition.Flat)
+            {
                 hubStatusLed.Background = GreenFg;
+            }
             else
+            {
                 hubStatusLed.Background = CyanFg;
+            }
 
             hubStatusLed.ToolTip = snapshot.StatusMessage ?? string.Empty;
         }
@@ -334,7 +378,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdateTrendIndicator(UIStateSnapshot snapshot)
         {
             if (trendText == null || trendIndicator == null)
+            {
                 return;
+            }
 
             double currentPrice = snapshot.LastPrice;
             double ema9Value = snapshot.Ema9Value;
@@ -358,7 +404,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SyncModeChipVisuals(string mode)
         {
             foreach (
+            {
                 Button btn in new[]
+            }
                 {
                     modeOrbButton,
                     modeRmaButton,
@@ -370,7 +418,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             )
             {
                 if (btn == null)
+                {
                     continue;
+                }
                 btn.Background = BtnBg;
                 btn.Foreground = TextMuted;
                 btn.BorderBrush = BtnBorder;
@@ -414,7 +464,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Button btn = countButtons[i];
                 if (btn == null)
+                {
                     continue;
+                }
 
                 bool isActive = (i + 1) == count;
                 btn.Background = isActive ? CyanBg : BtnBg;
@@ -426,7 +478,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdateOrText(TextBlock target, string label, string hiText, string loText, string rangeText)
         {
             if (target == null)
+            {
                 return;
+            }
             target.Inlines.Clear();
             target.Inlines.Add(
                 new System.Windows.Documents.Run(label + ": ")
@@ -444,7 +498,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void UpdateEmaText(TextBlock target, string label, string value, SolidColorBrush valueColor)
         {
             if (target == null)
+            {
                 return;
+            }
             target.Inlines.Clear();
             target.Inlines.Add(new System.Windows.Documents.Run(label) { Foreground = TextMuted });
             target.Inlines.Add(new System.Windows.Documents.Run(value) { Foreground = valueColor });
@@ -453,7 +509,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string GetPriceText(double value)
         {
             if (double.IsNaN(value) || value <= 0)
+            {
                 return "--";
+            }
             return Instrument.MasterInstrument.FormatPrice(value);
         }
 
@@ -461,26 +519,46 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             UIConfigSnapshot config = snapshot.Config ?? new UIConfigSnapshot();
             if (svT1Val != null)
+            {
                 svT1Val.Text = FormatPanelDouble(config.Target1Value);
+            }
             if (svT2Val != null)
+            {
                 svT2Val.Text = FormatPanelDouble(config.Target2Value);
+            }
             if (svT3Val != null)
+            {
                 svT3Val.Text = FormatPanelDouble(config.Target3Value);
+            }
             if (svT4Val != null)
+            {
                 svT4Val.Text = FormatPanelDouble(config.Target4Value);
+            }
             if (svT5Val != null)
+            {
                 svT5Val.Text = FormatPanelDouble(config.Target5Value);
+            }
 
             if (svT1Type != null)
+            {
                 SetComboSelection(svT1Type, GetPanelTargetModeText(config.Target1Type));
+            }
             if (svT2Type != null)
+            {
                 SetComboSelection(svT2Type, GetPanelTargetModeText(config.Target2Type));
+            }
             if (svT3Type != null)
+            {
                 SetComboSelection(svT3Type, GetPanelTargetModeText(config.Target3Type));
+            }
             if (svT4Type != null)
+            {
                 SetComboSelection(svT4Type, GetPanelTargetModeText(config.Target4Type));
+            }
             if (svT5Type != null)
+            {
                 SetComboSelection(svT5Type, GetPanelTargetModeText(config.Target5Type));
+            }
 
             if (strVal != null)
             {

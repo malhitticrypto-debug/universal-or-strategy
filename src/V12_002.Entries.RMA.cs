@@ -43,7 +43,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             if (currentATR <= 0)
             {
@@ -63,7 +65,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 var levels = CalculateTrendSplitLevels(contracts);
                 var brackets = SubmitTrendSplitBrackets(levels);
                 if (brackets == null)
+                {
                     return; // Null-abort from bracket submission
+                }
                 FinalizeTrendSplitEntry(levels, brackets);
             }
             catch (Exception ex)
@@ -263,7 +267,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     linkedTRENDEntries.TryRemove(levels.Entry1Name, out removedPartner);
                     linkedTRENDEntries.TryRemove(levels.Entry2Name, out removedPartner);
                     if (entryOrder1 != null && !IsOrderTerminal(entryOrder1.OrderState))
+                    {
                         CancelOrderSafe(entryOrder1, null);
+                    }
                     Print(
                         "[ENTRY_ABORT] TrendSplit E2 NULL -- E1 cancel issued for "
                             + levels.Entry1Name
@@ -387,17 +393,23 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (!RmaIntelligenceEnabled)
+                {
                     return;
+                }
 
                 foreach (var kvp in entryOrders)
                 {
                     Order order = kvp.Value;
                     if (order == null || order.OrderState != OrderState.Working)
+                    {
                         continue;
+                    }
 
                     PositionInfo pos;
                     if (!activePositions.TryGetValue(kvp.Key, out pos) || !pos.IsRMATrade)
+                    {
                         continue;
+                    }
 
                     double currentPrice = Close[0];
                     double level = pos.EntryPrice;
@@ -405,11 +417,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                     // Phase 9.2: Initialize ClosestApproachTicks on first observation.
                     if (pos.ClosestApproachTicks <= 0)
+                    {
                         pos.ClosestApproachTicks = double.MaxValue;
+                    }
 
                     // Phase 9.2: Track closest approach as a monotonic minimum.
                     if (distTicks < pos.ClosestApproachTicks)
+                    {
                         pos.ClosestApproachTicks = distTicks;
+                    }
 
                     if (distTicks <= RmaProximityTicks)
                     {
@@ -473,7 +489,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         else
                         {
                             if (GetDrawObject("Prox_" + kvp.Key) != null)
+                            {
                                 RemoveDrawObject("Prox_" + kvp.Key);
+                            }
                         }
                     }
                 }

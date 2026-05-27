@@ -83,27 +83,39 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void HandleFleetCommand(string action, string[] parts)
         {
             if (HandleFleet_GetFleet(action))
+            {
                 return;
+            }
             if (HandleFleet_SetSima(action, parts))
+            {
                 return;
+            }
             if (HandleFleet_DiagFleet(action))
+            {
                 return;
+            }
             if (HandleFleet_SetLeader(action, parts))
+            {
                 return;
+            }
             HandleFleet_RequestFleetState(action);
         }
 
         private bool HandleFleet_GetFleet(string action)
         {
             if (!action.StartsWith("GET_FLEET", StringComparison.OrdinalIgnoreCase))
+            {
                 return false;
+            }
 
             var fleetAccounts = GetFleetAccountsSnapshot();
             var aliasMap = BuildFleetAliasMap(fleetAccounts);
             StringBuilder sb = new StringBuilder("CONFIG|FLEET");
             sb.Append("|COUNT:").Append(fleetAccounts.Count);
             foreach (var acct in fleetAccounts)
+            {
                 sb.Append('|').Append(GetIpcFleetIdentity(acct.Name, aliasMap));
+            }
             SendResponseToRemote(sb.ToString());
             Print("[SIMA] GET_FLEET -> Responded with account list");
             return true;
@@ -112,7 +124,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool HandleFleet_SetSima(string action, string[] parts)
         {
             if (action != "SET_SIMA")
+            {
                 return false;
+            }
 
             if (parts.Length > 1)
             {
@@ -127,7 +141,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool HandleFleet_DiagFleet(string action)
         {
             if (action != "DIAG_FLEET")
+            {
                 return false;
+            }
 
             // T-Q1: Toggle catch logging flag
             _diagFleet = !_diagFleet;
@@ -146,7 +162,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     bool isActive = false;
                     activeFleetAccounts.TryGetValue(acct.Name, out isActive);
                     if (isActive)
+                    {
                         active++;
+                    }
                     Print($"[DIAG]   {acct.Name} -> {(isActive ? "? ACTIVE" : "[X] INACTIVE")}");
                 }
             }
@@ -158,7 +176,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool HandleFleet_SetLeader(string action, string[] parts)
         {
             if (action != "SET_LEADER_ACCOUNT")
+            {
                 return false;
+            }
 
             if (parts.Length > 1)
             {
@@ -174,7 +194,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void HandleFleet_RequestFleetState(string action)
         {
             if (action != "REQUEST_FLEET_STATE")
+            {
                 return;
+            }
 
             StringBuilder fsb = new StringBuilder("FLEET_STATE|");
             fsb.Append(Instrument.FullName).Append("|");
@@ -198,7 +220,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             fsb.Append(string.Join(";", acctStates));
             SendResponseToRemote(fsb.ToString());
             if (!string.IsNullOrEmpty(_stickyLeaderAccount))
+            {
                 SendResponseToRemote("SET_LEADER_ACCOUNT|" + _stickyLeaderAccount);
+            }
         }
 
         // =========================================================================
@@ -206,11 +230,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SendResponseToRemote(string response)
         {
             if (connectedClients == null)
+            {
                 return;
+            }
 
             // Diagnostic: Log what we are sending and to how many clients
             if (response.Contains("SYNC_TARGET_STATE"))
+            {
                 Print($"V14 IPC: Broadcasting SYNC_TARGET_STATE to {connectedClients.Count} clients");
+            }
 
             byte[] responseBytes = Encoding.UTF8.GetBytes(response + "\n");
             List<int> disconnectedClientIds = new List<int>();
@@ -272,15 +300,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (var kvp in activePositions.ToArray())
                 {
                     if (!activePositions.ContainsKey(kvp.Key))
+                    {
                         continue;
+                    }
                     PositionInfo pos = kvp.Value;
                     string entryName = kvp.Key;
 
                     if (!pos.EntryFilled || pos.RemainingContracts <= 0)
+                    {
                         continue;
+                    }
 
                     if (
+                    {
                         !FlattenSpecificTarget_ResolveTarget(
+                    }
                             targetNumber,
                             pos,
                             out int qtyToClose,
@@ -301,7 +335,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Build 1108.003 [D1]: Pre-cancel stop when closing the entire remaining position.
                     // Without this, follower accounts can have a working stop + market exit simultaneously.
                     if (qtyToClose >= pos.RemainingContracts)
+                    {
                         FlattenSpecificTarget_RequestStopCancel(entryName);
+                    }
 
                     FlattenSpecificTarget_SubmitMarketExit(entryName, pos, qtyToClose, targetName);
                 }
@@ -368,7 +404,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (targetDict != null && targetDict.TryGetValue(entryName, out Order targetOrder))
             {
                 if (
+                {
                     targetOrder != null
+                }
                     && (
                         targetOrder.OrderState == OrderState.Working
                         || targetOrder.OrderState == OrderState.Accepted
@@ -404,7 +442,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string.Format("Close{0}_{1}", targetName, entryName)
             );
             if (closeOrder != null)
+            {
                 Print(
+            }
                     string.Format(
                         "V10.3: Closing {0} ({1} contracts) at market for {2}",
                         targetName,
@@ -413,7 +453,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     )
                 );
             else
+            {
                 Print(
+            }
                     string.Format(
                         "V10.3: FAILED to close {0} ({1} contracts) at market for {2}",
                         targetName,

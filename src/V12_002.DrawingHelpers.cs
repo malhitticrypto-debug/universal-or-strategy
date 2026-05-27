@@ -36,9 +36,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void DrawORBox()
         {
             if (sessionHigh == double.MinValue || sessionLow == double.MaxValue)
+            {
                 return;
+            }
             if (orStartDateTime == DateTime.MinValue || orEndDateTime == DateTime.MinValue)
+            {
                 return;
+            }
 
             try
             {
@@ -204,11 +208,15 @@ namespace NinjaTrader.NinjaScript.Strategies
         private object GetDrawObject(string tag)
         {
             if (DrawObjects == null)
+            {
                 return null;
+            }
             foreach (var o in DrawObjects)
             {
                 if (o.Tag == tag)
+                {
                     return o;
+                }
             }
             return null;
         }
@@ -218,7 +226,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string GetStableHash(string input)
         {
             if (string.IsNullOrEmpty(input))
+            {
                 return "00000000";
+            }
             uint hash = 2166136261;
             foreach (char c in input)
             {

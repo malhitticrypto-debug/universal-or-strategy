@@ -41,7 +41,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 HorizontalAlignment = HorizontalAlignment.Stretch,
             };
             if (width > 0)
+            {
                 btn.Width = width;
+            }
             return btn;
         }
 
@@ -87,7 +89,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 VerticalContentAlignment = VerticalAlignment.Center,
             };
             if (width > 0)
+            {
                 tb.Width = width;
+            }
             return tb;
         }
 
@@ -95,20 +99,28 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // Navigation keys bubble to parent (no e.Handled)
             if (TryHandleNavigationKey(e.Key))
+            {
                 return;
+            }
 
             // Stop event from bubbling to NinjaTrader chart - prevents symbol search
             e.Handled = true;
 
             // Null safety
             if (textBox == null)
+            {
                 return;
+            }
 
             // Deletion operations (modify TextBox directly)
             if (TryHandleBackspace(textBox, e.Key))
+            {
                 return;
+            }
             if (TryHandleDelete(textBox, e.Key))
+            {
                 return;
+            }
 
             // Character mapping (numeric, special, space)
             string keyChar;
@@ -214,11 +226,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 IsTextSearchEnabled = false,
             };
             if (width > 0)
+            {
                 cb.Width = width;
+            }
             for (int i = 0; i < items.Length; i++)
+            {
                 cb.Items.Add(new ComboBoxItem { Content = items[i], Foreground = TextPrimary });
+            }
             if (cb.Items.Count > 0)
+            {
                 cb.SelectedIndex = 0;
+            }
             return cb;
         }
 
@@ -280,7 +298,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             Grid row = new Grid { Visibility = Visibility.Collapsed, Height = 22 };
             if (targetNum > 1)
+            {
                 row.Margin = new Thickness(0, 2, 0, 0);
+            }
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -364,7 +384,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string info = "  [" + depth + "] " + shortName;
 
                     if (current is FrameworkElement fe)
+                    {
                         info +=
+                    }
                             " Name="
                             + fe.Name
                             + " W="
@@ -401,14 +423,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                             var ch = grid.Children[i];
                             string childType = ch.GetType().Name;
                             if (childType.Contains("ChartTrader") || childType.Contains("Trader"))
+                            {
                                 info += "\n      ** Trader child at index " + i + ": " + ch.GetType().FullName;
+                            }
                         }
                     }
 
                     Print(info);
 
                     if (current is Window)
+                    {
                         break;
+                    }
                     current = VisualTreeHelper.GetParent(current);
                     depth++;
                 }
@@ -425,7 +451,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (ChartControl == null)
+                {
                     return null;
+                }
                 var ownerChart = ChartControl.OwnerChart;
                 if (ownerChart == null)
                 {
@@ -440,7 +468,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         Print("V12 PANEL: Strategy 0 found " + found.GetType().FullName + " Vis=" + found.Visibility);
                         if (found.Visibility == Visibility.Visible)
+                        {
                             return found;
+                        }
                         Print("V12 PANEL: Strategy 0 -- ChartTrader not Visible, skipping");
                         return null;
                     }
@@ -461,16 +491,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private Grid FindDescendantGrid(DependencyObject parent, int minColumns)
         {
             if (parent == null)
+            {
                 return null;
+            }
             int childCount = VisualTreeHelper.GetChildrenCount(parent);
             for (int i = 0; i < childCount; i++)
             {
                 var child = VisualTreeHelper.GetChild(parent, i);
                 if (child is Grid g && g.ColumnDefinitions.Count >= minColumns)
+                {
                     return g;
+                }
                 var result = FindDescendantGrid(child, minColumns);
                 if (result != null)
+                {
                     return result;
+                }
             }
             return null;
         }
@@ -575,7 +611,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     object ct = ctProp.GetValue(chartTab);
                     if (ct is FrameworkElement fe && fe.Visibility == Visibility.Visible)
+                    {
                         return fe;
+                    }
                 }
 
                 string[] fieldNames = new string[]
@@ -592,7 +630,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         object ct = fi.GetValue(chartTab);
                         if (ct is FrameworkElement fe && fe.Visibility == Visibility.Visible)
+                        {
                             return fe;
+                        }
                     }
                 }
 
@@ -600,7 +640,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var found = FindChildElementByTypeName(depObj, "ChartTrader");
                     if (found != null && found.Visibility == Visibility.Visible)
+                    {
                         return found;
+                    }
                 }
 
                 Print(
@@ -629,7 +671,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         foreach (UIElement child in grid.Children)
                         {
                             if (
+                            {
                                 child is FrameworkElement fe
+                            }
                                 && child.GetType().Name.Contains("ChartTrader")
                                 && fe.Visibility == Visibility.Visible
                             )
@@ -653,10 +697,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Window chartWindow = Window.GetWindow(ChartControl);
                 if (chartWindow == null)
+                {
                     return null;
+                }
                 var found = FindChildElementByTypeName(chartWindow, "ChartTrader");
                 if (found != null && found.Visibility == Visibility.Visible)
+                {
                     return found;
+                }
             }
             catch (Exception ex)
             {
@@ -674,7 +722,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 Window chartWindow = Window.GetWindow(ChartControl);
                 if (chartWindow == null)
+                {
                     return null;
+                }
 
                 List<Button> allBuyButtons = FindAllButtonsByText(chartWindow, "Buy Mkt");
                 for (int b = 0; b < allBuyButtons.Count; b++)
@@ -683,9 +733,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     while (parent != null)
                     {
                         if (parent is FrameworkElement fe && fe.GetType().Name.Contains("ChartTrader"))
+                        {
                             return fe;
+                        }
                         if (parent is Window)
+                        {
                             break;
+                        }
                         parent = VisualTreeHelper.GetParent(parent);
                     }
                 }
@@ -709,7 +763,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (typeName == "ChartTab" || typeName.Contains("ChartTab"))
                 {
                     if (current is Grid chartTabGrid && chartTabGrid.ColumnDefinitions.Count >= 2)
+                    {
                         return chartTabGrid;
+                    }
 
                     // Search ALL descendants (not just direct children) for target Grid
                     var descendantGrid = FindDescendantGrid(current, 2);
@@ -726,10 +782,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (current is Grid grid && grid.ColumnDefinitions.Count >= 2)
+                {
                     bestCandidate = grid;
+                }
 
                 if (current is Window)
+                {
                     break;
+                }
                 current = VisualTreeHelper.GetParent(current);
             }
 
@@ -739,16 +799,22 @@ namespace NinjaTrader.NinjaScript.Strategies
         private FrameworkElement FindChildElementByTypeName(DependencyObject parent, string typeNameFragment)
         {
             if (parent == null)
+            {
                 return null;
+            }
             int childCount = VisualTreeHelper.GetChildrenCount(parent);
             for (int i = 0; i < childCount; i++)
             {
                 var child = VisualTreeHelper.GetChild(parent, i);
                 if (child is FrameworkElement fe && fe.GetType().Name.Contains(typeNameFragment))
+                {
                     return fe;
+                }
                 var result = FindChildElementByTypeName(child, typeNameFragment);
                 if (result != null)
+                {
                     return result;
+                }
             }
             return null;
         }
@@ -757,7 +823,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             var list = new List<Button>();
             if (parent == null)
+            {
                 return list;
+            }
 
             int childCount = VisualTreeHelper.GetChildrenCount(parent);
             for (int i = 0; i < childCount; i++)
@@ -767,7 +835,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (child is Button btn)
                 {
                     if (btn.Content != null && btn.Content.ToString() == text)
+                    {
                         list.Add(btn);
+                    }
                 }
 
                 list.AddRange(FindAllButtonsByText(child, text));

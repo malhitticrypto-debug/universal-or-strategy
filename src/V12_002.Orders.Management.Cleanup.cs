@@ -37,7 +37,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CleanupPosition(string entryName)
         {
             if (string.IsNullOrEmpty(entryName))
+            {
                 return;
+            }
             try
             {
                 PositionInfo cleanupPosRef;
@@ -49,10 +51,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 );
 
                 if (pendingStopReplacements.TryRemove(entryName, out _))
+                {
                     Interlocked.Decrement(ref pendingReplacementCount);
+                }
 
                 if (cancelledStops > 0 || cancelledTargets > 0 || cancelledEntries > 0)
+                {
                     Print(
+                }
                         string.Format(
                             "CLEANUP SUMMARY for {0}: Stops={1} Targets={2} Entries={3}",
                             entryName,
@@ -63,11 +69,15 @@ namespace NinjaTrader.NinjaScript.Strategies
                     );
 
                 if (EvaluateFollowerRepairBlock(entryName))
+                {
                     return;
+                }
 
                 int followerExpected = 0;
                 if (
+                {
                     activePositions.TryGetValue(entryName, out var metaCheck)
+                }
                     && metaCheck.IsFollower
                     && metaCheck.ExecutingAccount != null
                 )
@@ -106,7 +116,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (stopOrder != null)
                 {
                     if (IsOrderTerminal(stopOrder.OrderState))
+                    {
                         stopOrders.TryRemove(entryName, out _);
+                    }
                     else
                     {
                         CancelOrderSafe(stopOrder, cleanupPosRef);
@@ -114,7 +126,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
                 }
                 else
+                {
                     stopOrders.TryRemove(entryName, out _);
+                }
             }
 
             // T1-T5: TryGetValue only; remove only if terminal; otherwise cancel and keep ref
@@ -122,14 +136,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 var tDict = GetTargetOrdersDictionary(tNum);
                 if (tDict == null)
+                {
                     continue;
+                }
 
                 if (tDict.TryGetValue(entryName, out var tOrder))
                 {
                     if (tOrder != null)
                     {
                         if (IsOrderTerminal(tOrder.OrderState))
+                        {
                             tDict.TryRemove(entryName, out _);
+                        }
                         else
                         {
                             CancelOrderSafe(tOrder, cleanupPosRef);
@@ -176,7 +194,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool EvaluateFollowerRepairBlock(string entryName)
         {
             if (
+            {
                 activePositions.TryGetValue(entryName, out var metaGuardCheck)
+            }
                 && metaGuardCheck.IsFollower
                 && metaGuardCheck.ExecutingAccount != null
             )
@@ -213,14 +233,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 bool removed;
                 removed = activePositions.TryRemove(entryName, out _);
                 if (removed)
+                {
                     SymmetryGuardForgetEntry(entryName);
+                }
             }
 
             // [FIX-ZP-02]: Secondary safety net for SIMA followers -- force purge if broker confirms flat.
             // Guards against lingering non-terminal dict entries preventing HasActiveOrPendingOrderForEntry
             // from returning false even though the actual broker position is already flat.
             if (
+            {
                 followerExpected == 0
+            }
                 && activePositions.TryGetValue(entryName, out var followerCheck)
                 && followerCheck.IsFollower
                 && followerCheck.ExecutingAccount != null
@@ -254,7 +278,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void RemoveGhostOrderRef(Order order, string reason)
         {
             if (order == null)
+            {
                 return;
+            }
 
             var (foundInDict, removedLabel, removedKey) = ScanAndRemoveGhostReferences(order, reason);
 
@@ -299,7 +325,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (var kvp in dict.ToArray())
                 {
                     if (
+                    {
                         kvp.Value == order
+                    }
                         || (kvp.Value != null && order != null && kvp.Value.OrderId == order.OrderId)
                     )
                     {
@@ -329,7 +357,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (foundInDict && removedLabel == "STOP" && !string.IsNullOrEmpty(removedKey))
             {
                 if (
+                {
                     activePositions.TryGetValue(removedKey, out var auditPos)
+                }
                     && auditPos.EntryFilled
                     && auditPos.RemainingContracts > 0
                 )
@@ -361,10 +391,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (!HasActiveOrPendingOrderForEntry(removedKey))
             {
                 if (activePositions.TryGetValue(removedKey, out var purgeCheck) && purgeCheck.RemainingContracts > 0)
+                {
                     return;
+                }
 
                 if (
+                {
                     activePositions.TryGetValue(removedKey, out var ghostMetaCheck)
+                }
                     && ghostMetaCheck.IsFollower
                     && ghostMetaCheck.ExecutingAccount != null
                 )
@@ -409,7 +443,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ClassifyOrphanReason(Order order, string reason)
         {
             if (
+            {
                 order.Name.Contains("RMA")
+            }
                 || order.Name.Contains("OR")
                 || order.Name.Contains("MOMO")
                 || order.Name.Contains("TREND")
@@ -456,21 +492,29 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in Account.Orders)
             {
                 if (order == null)
+                {
                     continue;
+                }
 
                 // Only look at working orders
                 if (order.OrderState != OrderState.Working && order.OrderState != OrderState.Accepted)
+                {
                     continue;
+                }
 
                 // V8.27 CRITICAL FIX: Only process orders for THIS instrument
                 // This prevents cross-instrument cancellation when running multiple strategy instances
                 if (order.Instrument.FullName != Instrument.FullName)
+                {
                     continue;
+                }
 
                 // Check if this order has one of our prefix signatures
                 string name = order.Name;
                 if (
+                {
                     name.StartsWith("Stop_")
+                }
                     || name.StartsWith("T1_")
                     || name.StartsWith("T2_")
                     || name.StartsWith("T3_")
@@ -489,7 +533,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         // Strip timestamp if present
                         int lastUnderscore = entryName.LastIndexOf('_');
                         if (lastUnderscore > 0 && entryName.Length - lastUnderscore > 10)
+                        {
                             entryName = entryName.Substring(0, lastUnderscore);
+                        }
                     }
 
                     // V10 FIX: Handle TRIM execution state update - MOVED TO OnExecutionUpdate
@@ -511,7 +557,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order brokerOrder in Account.Orders)
             {
                 if (
+                {
                     brokerOrder != null
+                }
                     && !string.IsNullOrEmpty(brokerOrder.OrderId)
                     && (brokerOrder.OrderState == OrderState.Working || brokerOrder.OrderState == OrderState.Accepted)
                 )
@@ -530,7 +578,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         foreach (Order fleetOrder in acct.Orders)
                         {
                             if (
+                            {
                                 fleetOrder != null
+                            }
                                 && !string.IsNullOrEmpty(fleetOrder.OrderId)
                                 && (
                                     fleetOrder.OrderState == OrderState.Working
@@ -567,7 +617,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     Order trackedOrder = kvp.Value;
                     if (trackedOrder == null)
+                    {
                         continue;
+                    }
 
                     // Only audit orders that SHOULD be alive (Working/Accepted)
                     // Terminal orders are cleaned by OnOrderUpdate; this catches leaks
@@ -612,7 +664,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (Account == null)
+                {
                     return;
+                }
 
                 Print(string.Format("[GHOST_FIX] REVERSE AUDIT START ({0})", reason));
 
@@ -623,7 +677,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 Print(string.Format("[GHOST_FIX] REVERSE AUDIT COMPLETE: {0} ghosts purged", reverseGhosts));
 
                 if (foundOrphans || reverseGhosts > 0)
+                {
                     Print("Orphaned order reconciliation complete.");
+                }
             }
             catch (Exception ex)
             {

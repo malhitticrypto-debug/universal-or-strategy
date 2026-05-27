@@ -37,22 +37,34 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string GetCurrentConfigMode()
         {
             if (isRMAModeActive)
+            {
                 return "RMA";
+            }
             if (isTRENDModeActive)
+            {
                 return "TREND";
+            }
             if (isRetestModeActive)
+            {
                 return "RETEST";
+            }
             if (isMOMOModeActive)
+            {
                 return "MOMO";
+            }
             if (isFFMAModeArmed)
+            {
                 return "FFMA";
+            }
             return "OR";
         }
 
         private void StartIpcServer()
         {
             if (isIpcRunning)
+            {
                 return;
+            }
 
             try
             {
@@ -186,7 +198,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             finally
             {
                 if (connectedClients != null)
+                {
                     connectedClients.TryRemove(session.ClientId, out _);
+                }
                 Print($"V12 IPC: Client Disconnected [id={session.ClientId}]");
 
                 // V12.EPIC-7-QUALITY-006: Explicit cleanup with zombie detection
@@ -232,21 +246,31 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int bytesRead = ProcessClientStream_ReadChunk(stream, buffer);
                 if (bytesRead < 0)
+                {
                     continue;
+                }
                 if (bytesRead == 0)
+                {
                     break;
+                }
 
                 if (
+                {
                     !ProcessClientStream_DecodeUtf8(clientId, utf8Decoder, buffer, bytesRead, charBuf, out string chunk)
+                }
                 )
                     break;
                 lineBuffer.Append(chunk);
 
                 string[] lines = ProcessClientStream_ExtractLines(clientId, lineBuffer, out bool disconnectClient);
                 if (disconnectClient)
+                {
                     break;
+                }
                 if (lines == null)
+                {
                     continue;
+                }
                 foreach (string line in lines)
                 {
                     ProcessClientStream_DispatchLine(session, line);
@@ -309,7 +333,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             string accumulated = lineBuffer.ToString();
             int lastNewline = accumulated.LastIndexOf('\n');
             if (lastNewline < 0)
+            {
                 return null;
+            }
 
             string completeLines = accumulated.Substring(0, lastNewline);
             lineBuffer.Clear();
@@ -340,13 +366,19 @@ namespace NinjaTrader.NinjaScript.Strategies
             NetworkStream stream = session.Stream;
             string message = line.Trim();
             if (string.IsNullOrEmpty(message))
+            {
                 return;
+            }
 
             if (HandleIncomingIpcLine_RespondLayout(stream, message))
+            {
                 return;
+            }
 
             if (!HandleIncomingIpcLine_TryEnqueueCommand(clientId, message))
+            {
                 return;
+            }
 
             HandleIncomingIpcLine_TriggerProcessing();
         }
@@ -355,7 +387,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // Handle GET_LAYOUT (Synchronous Response to THIS client only)
             if (!message.StartsWith("GET_LAYOUT"))
+            {
                 return false;
+            }
 
             // Build 935 [R-04]: Snapshot scalar state under lock; format string outside
             // to minimize critical section duration (removes string allocation from lock).

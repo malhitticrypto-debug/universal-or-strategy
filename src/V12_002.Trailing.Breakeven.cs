@@ -54,7 +54,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string entryName = kvp.Key;
 
                     if (!pos.EntryFilled || pos.RemainingContracts <= 0)
+                    {
                         continue;
+                    }
 
                     MoveStop_SinglePosition(entryName, pos, offsetPoints, lastKnownPrice);
                 }
@@ -79,9 +81,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             double newStopPrice;
             if (pos.Direction == MarketPosition.Long)
+            {
                 newStopPrice = pos.EntryPrice + offsetPoints;
+            }
             else
+            {
                 newStopPrice = pos.EntryPrice - offsetPoints;
+            }
 
             // Round to tick size
             newStopPrice = Instrument.MasterInstrument.RoundToTickSize(newStopPrice);
@@ -206,7 +212,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in searchAcct.Orders)
             {
                 if (
+                {
                     order != null
+                }
                     && order.Name == targetOrderName
                     && order.Instrument.FullName == Instrument.FullName
                     && (order.OrderState == OrderState.Working || order.OrderState == OrderState.Accepted)
@@ -347,7 +355,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions.ToArray())
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
 
                 PositionInfo pos = kvp.Value;
                 string entryName = kvp.Key;
@@ -357,13 +367,17 @@ namespace NinjaTrader.NinjaScript.Strategies
                 if (targetOrder == null)
                 {
                     if (notFoundReason != null)
+                    {
                         Print(notFoundReason);
+                    }
                     continue;
                 }
 
                 // Step 4: Calculate and validate new price
                 if (
+                {
                     !CalculateAndValidateNewTargetPrice(
+                }
                         pos,
                         profitPoints,
                         targetNum,
@@ -373,7 +387,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 )
                 {
                     if (rejectionReason != null)
+                    {
                         Print(rejectionReason);
+                    }
                     continue;
                 }
 
@@ -448,7 +464,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in searchAcct.Orders)
             {
                 if (
+                {
                     order != null
+                }
                     && order.Name == targetOrderName
                     && order.Instrument.FullName == Instrument.FullName
                     && (order.OrderState == OrderState.Working || order.OrderState == OrderState.Accepted)
@@ -568,13 +586,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in activePositions.ToArray())
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
 
                 PositionInfo pos = kvp.Value;
                 string entryName = kvp.Key;
 
                 if (!pos.EntryFilled || pos.PendingCleanup)
+                {
                     continue;
+                }
 
                 // Step 3: Find target order
                 Account searchAcct;

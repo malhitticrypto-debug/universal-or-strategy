@@ -50,7 +50,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                         // If position still exists and needs protection, create emergency stop
                         if (
+                        {
                             activePositions.TryGetValue(kvp.Key, out var pos)
+                        }
                             && pos.EntryFilled
                             && pos.RemainingContracts > 0
                         )
@@ -85,7 +87,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V8.30: Thread-safe check using TryGetValue
             if (!stopOrders.TryGetValue(entryName, out var currentStop))
+            {
                 return;
+            }
 
             try
             {
@@ -109,7 +113,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Route to appropriate handler based on order state
                 if (
+                {
                     currentStop != null
+                }
                     && (
                         currentStop.OrderState == OrderState.CancelPending
                         || currentStop.OrderState == OrderState.Submitted
@@ -121,7 +127,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (
+                {
                     currentStop != null
+                }
                     && (currentStop.OrderState == OrderState.Working || currentStop.OrderState == OrderState.Accepted)
                 )
                 {
@@ -237,7 +245,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 var _tDA = GetTargetOrdersDictionary(_tA);
                 Order _tOA;
                 if (
+                {
                     _tDA != null
+                }
                     && _tDA.TryGetValue(entryName, out _tOA)
                     && _tOA != null
                     && (_tOA.OrderState == OrderState.Working || _tOA.OrderState == OrderState.Accepted)
@@ -263,7 +273,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 var _tD2 = GetTargetOrdersDictionary(_t2);
                 Order _tO2;
                 if (
+                {
                     _tD2 != null
+                }
                     && _tD2.TryGetValue(entryName, out _tO2)
                     && _tO2 != null
                     && (_tO2.OrderState == OrderState.Working || _tO2.OrderState == OrderState.Accepted)
@@ -296,7 +308,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 var _tDB = GetTargetOrdersDictionary(_tB);
                 Order _tOB;
                 if (
+                {
                     _tDB != null
+                }
                     && _tDB.TryGetValue(entryName, out _tOB)
                     && _tOB != null
                     && (_tOB.OrderState == OrderState.Working || _tOB.OrderState == OrderState.Accepted)
@@ -385,7 +399,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string suffix = (DateTime.Now.Ticks % 100000000).ToString();
                 string stopSigName = "S_" + entryName + "_" + suffix;
                 if (stopSigName.Length > 50)
+                {
                     stopSigName = stopSigName.Substring(0, 50);
+                }
                 OrderAction stopExitAction =
                     pos.Direction == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;
                 newStop = SubmitOrderUnmanaged(
@@ -421,7 +437,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 PositionInfo cbReset;
                 if (activePositions.TryGetValue(entryName, out cbReset) && cbReset != null)
+                {
                     cbReset.FlattenAttemptCount = 0;
+                }
             }
 
             pos.CurrentStopPrice = validatedStopPrice;
@@ -454,7 +472,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 cbPos.FlattenAttemptCount++;
                 if (cbPos.FlattenAttemptCount > 3)
+                {
                     circuitOpen = true;
+                }
                 if (circuitOpen)
                 {
                     Print(
@@ -482,9 +502,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 exCbPos.FlattenAttemptCount++;
                 if (exCbPos.FlattenAttemptCount > 3)
+                {
                     flattenBlocked = true;
+                }
                 if (flattenBlocked)
+                {
                     Print(
+                }
                         string.Format(
                             "[CIRCUIT BREAKER] Emergency flatten halted after 3 consecutive failures for {0}. Manual intervention required.",
                             entryName

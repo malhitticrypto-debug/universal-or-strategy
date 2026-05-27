@@ -468,7 +468,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 string key = pair.Substring(0, colonIdx).Trim().Trim('"');
                                 string valStr = pair.Substring(colonIdx + 1).Trim();
                                 if (
+                                {
                                     int.TryParse(
+                                }
                                         valStr,
                                         NumberStyles.Integer,
                                         CultureInfo.InvariantCulture,

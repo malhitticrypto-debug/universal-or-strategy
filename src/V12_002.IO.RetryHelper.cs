@@ -115,7 +115,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Don't retry if it's clearly a permanent permission issue
                     // Use IndexOf with OrdinalIgnoreCase for locale-independent matching
                     if (
+                    {
                         msg.IndexOf("read-only", StringComparison.OrdinalIgnoreCase) >= 0
+                    }
                         || msg.IndexOf("access is denied", StringComparison.OrdinalIgnoreCase) >= 0
                     )
                     {

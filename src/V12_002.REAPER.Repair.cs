@@ -22,7 +22,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             string accountName;
             while (_reaperRepairQueue.TryDequeue(out accountName))
+            {
                 ExecuteReaperRepair(accountName);
+            }
         }
 
         /// <summary>
@@ -47,7 +49,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // NEW: Delegate orphan check to OrphanSafety module
             if (
+            {
                 !ValidateRepairEligibility_OrphanCheck(accountName, activePositions, out repairPos, out repairEntryName)
+            }
             )
             {
                 return false; // Orphan detected, self-heal triggered if threshold reached
@@ -223,7 +227,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (!MetadataGuardRepairAuthorized(accountName, "ExecuteReaperRepair"))
+            {
                 return;
+            }
 
             repairPos.BracketSubmitted = false;
             // B966: background timer -- Enqueue not applicable (would drain on wrong thread).
@@ -250,7 +256,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // Phase7-T1: Pure dispatcher - orchestrates validation chain with early returns
                 if (!ValidateRepairEligibility(accountName, out PositionInfo repairPos, out string repairEntryName))
+                {
                     return;
+                }
 
                 OrderType repairOrderType = repairPos.EntryOrderType;
                 double repairEntryPrice = Instrument.MasterInstrument.RoundToTickSize(repairPos.EntryPrice);
@@ -264,7 +272,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 double currentPrice = lastKnownPrice > 0 ? lastKnownPrice : Close[0];
                 if (!ValidateRepairRiskBounds(accountName, repairOrderType, repairEntryPrice, currentPrice))
+                {
                     return;
+                }
 
                 SubmitRepairOrderWithAuthorization(
                     accountName,

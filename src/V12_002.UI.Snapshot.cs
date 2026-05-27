@@ -259,7 +259,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Return old snapshot to pool
                 if (oldSnapshot != null)
+                {
                     ReturnPooledSnapshot(oldSnapshot);
+                }
             }
             finally
             {

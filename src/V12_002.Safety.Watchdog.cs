@@ -26,7 +26,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             System.Threading.Timer timer = Interlocked.Exchange(ref _watchdogTimer, null);
             if (timer == null)
+            {
                 return;
+            }
 
             timer.Dispose();
             Interlocked.Exchange(ref _watchdogStage, 0);
@@ -43,7 +45,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             long lastBeat = Interlocked.Read(ref _strategyHeartbeatTicks);
             if (lastBeat <= 0)
+            {
                 return;
+            }
 
             long heartbeatAge = DateTime.UtcNow.Ticks - lastBeat;
             if (heartbeatAge <= WatchdogTimeoutTicks)
@@ -79,7 +83,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (stage != 1)
+            {
                 return;
+            }
 
             if (Interlocked.CompareExchange(ref _watchdogStage, 2, 1) == 1)
             {
@@ -92,18 +98,26 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             Account masterAccount = Account;
             if (masterAccount == null || Instrument == null)
+            {
                 return false;
+            }
 
             string instrumentName = Instrument.FullName;
 
             foreach (Position position in masterAccount.Positions)
             {
                 if (position == null || position.Instrument == null)
+                {
                     continue;
+                }
                 if (position.Instrument.FullName != instrumentName)
+                {
                     continue;
+                }
                 if (position.MarketPosition != MarketPosition.Flat)
+                {
                     return true;
+                }
             }
 
             return false;
@@ -113,18 +127,26 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             Account masterAccount = Account;
             if (masterAccount == null || Instrument == null)
+            {
                 return false;
+            }
 
             string instrumentName = Instrument.FullName;
 
             foreach (Order order in masterAccount.Orders.ToArray())
             {
                 if (order == null || order.Instrument == null)
+                {
                     continue;
+                }
                 if (order.Instrument.FullName != instrumentName)
+                {
                     continue;
+                }
                 if (!IsOrderTerminal(order.OrderState))
+                {
                     return true;
+                }
             }
 
             return false;
@@ -142,11 +164,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in masterAccount.Orders.ToArray())
             {
                 if (order == null || order.Instrument == null)
+                {
                     continue;
+                }
                 if (order.Instrument.FullName != instrumentName)
+                {
                     continue;
+                }
                 if (
+                {
                     order.OrderState == OrderState.Working
+                }
                     || order.OrderState == OrderState.Submitted
                     || order.OrderState == OrderState.Accepted
                     || order.OrderState == OrderState.ChangePending
@@ -158,10 +186,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             foreach (Order orderToCancel in ordersToCancel)
+            {
                 CancelOrderOnAccount(orderToCancel, masterAccount);
+            }
 
             if (ordersToCancel.Count > 0)
+            {
                 Print("[WATCHDOG] Cancelled " + ordersToCancel.Count + " master order(s) on strategy thread.");
+            }
         }
 
         private void FlattenWatchdogPositions(Account masterAccount, string instrumentName)
@@ -169,11 +201,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Position position in masterAccount.Positions)
             {
                 if (position == null || position.Instrument == null)
+                {
                     continue;
+                }
                 if (position.Instrument.FullName != instrumentName)
+                {
                     continue;
+                }
                 if (position.MarketPosition == MarketPosition.Flat)
+                {
                     continue;
+                }
 
                 int quantity = position.Quantity;
                 Order flattenOrder =
@@ -200,9 +238,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                         );
 
                 if (flattenOrder == null)
+                {
                     Print("[WATCHDOG] Strategy-thread master close returned null.");
+                }
                 else
+                {
                     Print(
+                }
                         "[WATCHDOG] Strategy-thread master close submitted: " + quantity + " on " + masterAccount.Name
                     );
             }
@@ -212,7 +254,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             Account masterAccount = Account;
             if (masterAccount == null || Instrument == null || _isTerminating || State != State.Realtime)
+            {
                 return;
+            }
             if (!HasWatchdogLeadAccountWorkingOrder())
             {
                 Interlocked.Exchange(ref _watchdogStage, 0);
@@ -220,7 +264,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (!HasWatchdogLeadAccountExposure())
+            {
                 return;
+            }
 
             EnterFlattenScope();
             try
@@ -245,7 +291,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             Account masterAccount = Account;
             if (masterAccount == null || Instrument == null)
+            {
                 return;
+            }
             if (!HasWatchdogLeadAccountWorkingOrder())
             {
                 Interlocked.Exchange(ref _watchdogStage, 0);
@@ -272,11 +320,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in masterAccount.Orders.ToArray())
             {
                 if (order == null || order.Instrument == null)
+                {
                     continue;
+                }
                 if (order.Instrument.FullName != instrumentName)
+                {
                     continue;
+                }
                 if (
+                {
                     order.OrderState == OrderState.Working
+                }
                     || order.OrderState == OrderState.Submitted
                     || order.OrderState == OrderState.Accepted
                     || order.OrderState == OrderState.ChangePending
@@ -299,11 +353,17 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Position position in masterAccount.Positions)
             {
                 if (position == null || position.Instrument == null)
+                {
                     continue;
+                }
                 if (position.Instrument.FullName != instrumentName)
+                {
                     continue;
+                }
                 if (position.MarketPosition == MarketPosition.Flat)
+                {
                     continue;
+                }
 
                 OrderAction closeAction =
                     position.MarketPosition == MarketPosition.Long ? OrderAction.Sell : OrderAction.BuyToCover;

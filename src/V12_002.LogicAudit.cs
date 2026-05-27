@@ -27,7 +27,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // Only print every 10th sample to avoid flooding, but audit all
                 if (i % 10 == 0)
+                {
                     Print(string.Format("  Sample {0}: ATR {1:F2} -> RoundUp: {2:F0}pt", i, testAtr, ceilingDistance));
+                }
             }
 
             Print("");
@@ -66,7 +68,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (i % 10 == 0)
+                {
                     Print(
+                }
                         string.Format(
                             "  Sample {0}: Stop {1:F1}pt -> Qty: {2} (Cost: ${3:F0})",
                             i,
@@ -218,7 +222,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             int trendFinalQty = trendQty9 + trendQty15;
             double trendAnchor = ((ema9Audit * trendQty9) + (ema15Audit * trendQty15)) / Math.Max(1, trendFinalQty);
             if (Instrument != null)
+            {
                 trendAnchor = Instrument.MasterInstrument.RoundToTickSize(trendAnchor);
+            }
 
             Print(
                 string.Format(
@@ -333,7 +339,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 // This is a conceptual check of the queue mechanics
                 if (i % 5 == 0)
+                {
                     Print(string.Format("  Collision Point {0}: Queue Marshaling Verified (TriggerCustomEvent)", i));
+                }
             }
             Print(
                 "  Status: PASS (Cross-thread marshaling uses TriggerCustomEvent to ensure Strategy-Thread isolation)"
@@ -361,7 +369,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string name = kvp.Key;
                     PositionInfo pos = kvp.Value;
                     if (!pos.EntryFilled)
+                    {
                         continue;
+                    }
 
                     if (stopOrders.TryGetValue(name, out var stopOrder))
                     {

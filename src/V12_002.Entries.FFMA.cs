@@ -43,11 +43,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void CheckFFMAConditions()
         {
             if (!isFFMAModeArmed || !FFMAEnabled)
+            {
                 return;
+            }
             if (ema9 == null || rsiIndicator == null || currentATR <= 0)
+            {
                 return;
+            }
             if (CurrentBar < 20)
+            {
                 return;
+            }
 
             try
             {
@@ -74,7 +80,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double stopPrice = High[0];
                     double stopDistance = Math.Min(Math.Abs(currentPrice - stopPrice), MaximumStop);
                     if (stopDistance < tickSize * 2)
+                    {
                         stopDistance = tickSize * 2;
+                    }
                     int contracts = CalculatePositionSize(stopDistance);
                     ExecuteFFMAEntry(MarketPosition.Short, contracts);
                     return;
@@ -95,7 +103,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     double stopPrice = Low[0];
                     double stopDistance = Math.Min(Math.Abs(currentPrice - stopPrice), MaximumStop);
                     if (stopDistance < tickSize * 2)
+                    {
                         stopDistance = tickSize * 2;
+                    }
                     int contracts = CalculatePositionSize(stopDistance);
                     ExecuteFFMAEntry(MarketPosition.Long, contracts);
                     return;
@@ -115,10 +125,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate -- abort if drawdown or daily cap breached.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             try
             {
@@ -308,10 +322,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             if (currentATR <= 0)
             {
@@ -503,10 +521,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V12.Phase7 [C-09]: Compliance enforcement gate.
             if (!IsOrderAllowed())
+            {
                 return;
+            }
             // V12.Phase6 [FLATTEN-GUARD]: Prevent order submission during active flatten
             if (isFlattenRunning)
+            {
                 return;
+            }
 
             if (currentATR <= 0)
             {

@@ -94,7 +94,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             try
             {
                 if (!Dispatch_ValidatePreconditions(tradeType, action, quantity, entryPrice))
+                {
                     return;
+                }
 
                 Dispatch_ResolveFleetSnapshot(
                     tradeType,
@@ -108,7 +110,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     out var symmetryDispatchId
                 );
                 if (fleet.Count == 0)
+                {
                     return;
+                }
 
                 Dispatch_ProcessFleetLoop(
                     fleet,
@@ -216,11 +220,15 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 // V12.1: Skip Master account if its order was already placed by the caller
                 if (acct == this.Account)
+                {
                     continue;
+                }
 
                 // Build 935 [SIMA-B935-001]: Inactive + H-13 + consistency lock delegated to ShouldSkipFleetAccount.
                 if (ShouldSkipFleetAccount(acct, fleet[i], activeAccountSnapshot, dispatchLog))
+                {
                     continue;
+                }
 
                 // [GREPTILE-P0]: Circuit breaker fast-exit BEFORE allocation.
                 // Prevents wasteful CreateOrder + PositionInfo heap allocations when breaker is tripped.
@@ -268,7 +276,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         out double t5TargetPrice
                     );
                     if (!_builtOk)
+                    {
                         continue;
+                    }
                     bool isMarketEntry = (entryOrderType == OrderType.Market);
 
                     // V12.7: Submit only entry for Limit; market entries include stop + non-runner targets.
@@ -320,7 +330,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     if (reservedDelta != 0)
+                    {
                         AddExpectedPositionDeltaLocked(expectedKey, -reservedDelta);
+                    }
 
                     if (registeredForCleanup)
                     {
@@ -332,12 +344,16 @@ namespace NinjaTrader.NinjaScript.Strategies
                         {
                             var targetDict = GetTargetOrdersDictionary(tNum);
                             if (targetDict != null)
+                            {
                                 targetDict.TryRemove(fleetEntryName, out _);
+                            }
                         }
                     }
                     // Phase 6: Clean up proactive FSM on dispatch failure (no-op if not yet created)
                     if (!string.IsNullOrEmpty(fleetEntryName))
+                    {
                         _followerBrackets.TryRemove(fleetEntryName, out _);
+                    }
 
                     dispatchLog.AppendLine($"[DISPATCH] [X] FAILED on {acct.Name}: {ex.Message}");
                 }
@@ -355,14 +371,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             // V14.2 FIX-F7: Pump prime checks BOTH ring and legacy queue
             if ((_photonDispatchRing != null && !_photonDispatchRing.IsEmpty) || !_pendingFleetDispatches.IsEmpty)
+            {
                 try
+            }
                 {
                     TriggerCustomEvent(o => PumpFleetDispatch(), null);
                 }
                 catch (Exception ex)
                 {
                     if (_diagFleet)
+                    {
                         Print("[FLEET_CATCH] ExecuteSmartDispatchEntry pump prime failed: " + ex.Message);
+                    }
                 }
 
             // [Phase 7.2 LATENCY] T_Final: Fleet loop complete (setup+enqueue only; no blocking Submit) -- stop clock, flush forensic report.
@@ -440,7 +460,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (string masterEntryName in masterEntryNames)
                 {
                     if (!string.IsNullOrEmpty(masterEntryName))
+                    {
                         SymmetryGuardRegisterMasterEntry(symmetryDispatchId, masterEntryName);
+                    }
                 }
             }
         }
@@ -651,7 +673,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int targetQty = GetTargetContracts(fleetPos, targetNum);
                 if (targetQty <= 0)
+                {
                     continue;
+                }
 
                 if (IsRunnerTarget(targetNum))
                 {
@@ -716,7 +740,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 var targetDict = GetTargetOrdersDictionary(st.Num);
                 if (targetDict != null)
+                {
                     targetDict[fleetEntryName] = st.Order;
+                }
             }
             registeredForCleanup = true;
             MarkDispatchSyncPending(expectedKey);
@@ -777,7 +803,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             _proxyOrders[_orderIdx++] = entry;
             _proxyOrders[_orderIdx++] = stop;
             foreach (var _st in stagedTargets)
+            {
                 _proxyOrders[_orderIdx++] = _st.Order;
+            }
 
             FleetDispatchSlot _slot = new FleetDispatchSlot
             {
@@ -795,7 +823,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // REAPER-EXPANSION Ticket 2: Circuit breaker check with atomic CAS loop
             if (
+            {
                 !TryIncrementDispatchCountWithCircuitBreaker(
+            }
                     ref syncPending,
                     expectedKey,
                     ref reservedDelta,
@@ -830,7 +860,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     catch (Exception ex)
                     {
                         if (_diagIpc)
+                        {
                             Print("[IPC_CATCH] Dispatch_PublishMarketBracketToPhoton MMIO failed: " + ex.Message);
+                        }
                     }
                 }
             }
@@ -964,7 +996,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // REAPER-EXPANSION Ticket 2: Circuit breaker check with atomic CAS loop
             if (
+            {
                 !TryIncrementDispatchCountWithCircuitBreaker(
+            }
                     ref syncPending,
                     expectedKey,
                     ref reservedDelta,
@@ -988,7 +1022,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     catch (Exception ex)
                     {
                         if (_diagIpc)
+                        {
                             Print("[IPC_CATCH] Dispatch_BuildFollowerOrders MMIO failed: " + ex.Message);
+                        }
                     }
                 }
             }
@@ -1148,7 +1184,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     var targetDict = GetTargetOrdersDictionary(tNum);
                     if (targetDict != null)
+                    {
                         targetDict.TryRemove(fleetEntryName, out _);
+                    }
                 }
                 _followerBrackets.TryRemove(fleetEntryName, out _);
             }

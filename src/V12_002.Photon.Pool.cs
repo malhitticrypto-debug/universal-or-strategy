@@ -130,7 +130,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 int slotIndex = _freeStack[top];
                 Order[] arr = _orderArrays[slotIndex];
                 for (int i = 0; i < MaxOrdersPerSlot; i++)
+                {
                     arr[i] = null;
+                }
                 return new PoolClaimResult { Orders = arr, SlotIndex = slotIndex };
             }
 
@@ -140,7 +142,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             public Order[] GetByIndex(int slotIndex)
             {
                 if (slotIndex < 0 || slotIndex >= _capacity)
+                {
                     return null;
+                }
                 return _orderArrays[slotIndex];
             }
 
@@ -150,10 +154,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             public void ReleaseByIndex(int slotIndex)
             {
                 if (slotIndex < 0 || slotIndex >= _capacity)
+                {
                     return;
+                }
                 Order[] arr = _orderArrays[slotIndex];
                 for (int i = 0; i < MaxOrdersPerSlot; i++)
+                {
                     arr[i] = null;
+                }
                 int top = Interlocked.Increment(ref _freeTop) - 1;
                 if (top < _capacity)
                 {
@@ -180,7 +188,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private static long FnvHash64(string s)
         {
             if (string.IsNullOrEmpty(s))
+            {
                 return 0;
+            }
             long hash = unchecked((long)0xcbf29ce484222325L);
             long prime = unchecked((long)0x100000001b3L);
             for (int i = 0; i < s.Length; i++)
@@ -224,7 +234,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 _ringCount = 0;
 
                 if ((tableCapacity & (tableCapacity - 1)) != 0)
+                {
                     throw new ArgumentException("Table capacity must be power of 2");
+                }
                 _tableKeys = new long[tableCapacity];
                 _tableValues = new int[tableCapacity];
                 _tableMask = tableCapacity - 1;
@@ -240,7 +252,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             public bool ContainsOrAdd(long hash)
             {
                 if (hash == EMPTY_KEY)
+                {
                     hash = 1L;
+                }
 
                 int bucket = (int)(hash & _tableMask);
                 int probes = 0;
@@ -248,14 +262,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     long key = _tableKeys[bucket];
                     if (key == EMPTY_KEY)
+                    {
                         break;
+                    }
                     if (key == hash)
                     {
                         HitCount++;
                         return true;
                     }
                     if (probes > 0)
+                    {
                         CollisionCount++;
+                    }
                     bucket = (bucket + 1) & _tableMask;
                     probes++;
                 }
@@ -267,7 +285,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     int evictIndex = (_ringHead - _ringCount + _ringCapacity) % _ringCapacity;
                     long evictHash = _ringHashes[evictIndex];
                     if (evictHash != EMPTY_KEY)
+                    {
                         TableRemove(evictHash);
+                    }
                     _ringCount--;
                     EvictCount++;
                 }
@@ -285,7 +305,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 int bucket = (int)(hash & _tableMask);
                 while (_tableKeys[bucket] != EMPTY_KEY)
+                {
                     bucket = (bucket + 1) & _tableMask;
+                }
                 _tableKeys[bucket] = hash;
                 _tableValues[bucket] = ringIndex;
                 _tableCount++;
@@ -297,7 +319,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 while (true)
                 {
                     if (_tableKeys[bucket] == EMPTY_KEY)
+                    {
                         return;
+                    }
                     if (_tableKeys[bucket] == hash)
                     {
                         _tableKeys[bucket] = EMPTY_KEY;

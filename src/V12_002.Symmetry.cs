@@ -72,38 +72,56 @@ namespace NinjaTrader.NinjaScript.Strategies
             public void AddFollower(string name)
             {
                 if (string.IsNullOrEmpty(name))
+                {
                     return;
+                }
                 while (true)
                 {
                     string[] cur = Volatile.Read(ref _followers);
                     if (Array.IndexOf(cur, name) >= 0)
+                    {
                         return;
+                    }
                     string[] next = new string[cur.Length + 1];
                     if (cur.Length > 0)
+                    {
                         Array.Copy(cur, 0, next, 0, cur.Length);
+                    }
                     next[cur.Length] = name;
                     if (Interlocked.CompareExchange(ref _followers, next, cur) == cur)
+                    {
                         return;
+                    }
                 }
             }
 
             public void RemoveFollower(string name)
             {
                 if (string.IsNullOrEmpty(name))
+                {
                     return;
+                }
                 while (true)
                 {
                     string[] cur = Volatile.Read(ref _followers);
                     int idx = Array.IndexOf(cur, name);
                     if (idx < 0)
+                    {
                         return;
+                    }
                     string[] next = new string[cur.Length - 1];
                     if (idx > 0)
+                    {
                         Array.Copy(cur, 0, next, 0, idx);
+                    }
                     if (idx < cur.Length - 1)
+                    {
                         Array.Copy(cur, idx + 1, next, idx, cur.Length - idx - 1);
+                    }
                     if (Interlocked.CompareExchange(ref _followers, next, cur) == cur)
+                    {
                         return;
+                    }
                 }
             }
         }
@@ -161,7 +179,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 var existing = kvp.Value;
                 if (
+                {
                     existing.TradeType == normalizedType
+                }
                     && existing.Direction == direction
                     && !existing.Anchor.IsResolved
                     && (now - existing.CreatedUtc) < SymmetryDispatchTtl
@@ -201,18 +221,24 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SymmetryGuardRegisterFollower(string dispatchId, string fleetEntryName)
         {
             if (string.IsNullOrEmpty(dispatchId) || string.IsNullOrEmpty(fleetEntryName))
+            {
                 return;
+            }
 
             symmetryFleetEntryToDispatch[fleetEntryName] = dispatchId;
 
             if (symmetryDispatchById.TryGetValue(dispatchId, out var ctx))
+            {
                 ctx.AddFollower(fleetEntryName);
+            }
         }
 
         private void SymmetryGuardRegisterMasterEntry(string dispatchId, string masterEntryName)
         {
             if (string.IsNullOrEmpty(dispatchId) || string.IsNullOrEmpty(masterEntryName))
+            {
                 return;
+            }
             symmetryMasterEntryToDispatch[masterEntryName] = dispatchId;
         }
 
@@ -223,7 +249,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void SymmetryGuardRollbackDispatch(string dispatchId)
         {
             if (string.IsNullOrEmpty(dispatchId))
+            {
                 return;
+            }
 
             // Remove the dispatch context
             if (symmetryDispatchById.TryRemove(dispatchId, out var ctx))
@@ -264,12 +292,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (masterPos == null || masterPos.IsFollower || averageFillPrice <= 0 || fillQty <= 0)
+            {
                 return;
+            }
 
             SymmetryDispatchContext ctx = null;
 
             if (
+            {
                 !string.IsNullOrEmpty(entryName)
+            }
                 && symmetryMasterEntryToDispatch.TryGetValue(entryName, out var mappedDispatch)
                 && symmetryDispatchById.TryGetValue(mappedDispatch, out var mappedCtx)
             )
@@ -284,7 +316,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (ctx == null)
+            {
                 return;
+            }
 
             // ADR-019: CAS loop over AnchorSnapshot. First writer to publish IsResolved=true wins.
             // Losing CAS retries; on retry the IsResolved guard short-circuits (idempotent).
@@ -293,7 +327,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 AnchorSnapshot cur = ctx.Anchor;
                 if (cur.IsResolved)
+                {
                     break;
+                }
 
                 double weighted = cur.MasterWeightedFill + averageFillPrice * fillQty;
                 int qty = cur.MasterFilledQuantity + fillQty;
@@ -336,16 +372,26 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 SymmetryDispatchContext ctx = kvp.Value;
                 if (ctx == null || ctx.Anchor.IsResolved)
+                {
                     continue;
+                }
                 if (ctx.Direction != direction)
+                {
                     continue;
+                }
                 if (!string.Equals(ctx.TradeType, norm, StringComparison.Ordinal))
+                {
                     continue;
+                }
                 if (fillTimeUtc - ctx.CreatedUtc > SymmetryDispatchTtl)
+                {
                     continue;
+                }
 
                 if (best == null || ctx.CreatedUtc < best.CreatedUtc)
+                {
                     best = ctx;
+                }
             }
 
             return best;

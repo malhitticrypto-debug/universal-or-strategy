@@ -37,12 +37,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void OnAccountOrderUpdate(object sender, OrderEventArgs e)
         {
             if (e == null || e.Order == null)
+            {
                 return;
+            }
 
             Order order = e.Order;
             Account acct = sender as Account;
             if (acct == null)
+            {
                 return;
+            }
 
             // Phase 2: Enqueue into Actor Mailbox for FSM processing (Shadow Mode)
             // Only process if it's a fleet account and matches our instrument
@@ -64,16 +68,22 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (order.Instrument != null && order.Instrument.FullName != Instrument.FullName)
+            {
                 return;
+            }
 
             // Build 1000: Master account managed order tracking
             if (acct == this.Account && order.Instrument != null && order.Instrument.FullName == Instrument.FullName)
+            {
                 ProcessAccountOrder_UpdateMasterExpected(order);
+            }
             // Build 1104.1: Fleet account expectedPositions tracking (symmetric with Master at line 65)
             // Without this, expectedPositions stays stale after fleet stop/target fills,
             // causing REAPER to see Expected != Actual and trigger false flattens.
             else if (IsFleetAccount(acct))
+            {
                 ProcessAccountOrder_UpdateFleetExpected(order, acct);
+            }
 
             ProcessAccountOrder_EnqueueTerminalUpdate(sender, e, order);
         }
@@ -97,15 +107,21 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Enqueue(ctx =>
                     {
                         if (
+                        {
                             ctx.expectedPositions != null
+                        }
                             && ctx.expectedPositions.TryGetValue(mExpKey, out int currentExp)
                         )
                         {
                             int newExp = 0;
                             if (currentExp > 0)
+                            {
                                 newExp = Math.Max(0, currentExp - filledQty);
+                            }
                             else if (currentExp < 0)
+                            {
                                 newExp = Math.Min(0, currentExp + filledQty);
+                            }
 
                             ctx.SetExpectedPositionLocked(mExpKey, newExp);
                         }
@@ -133,17 +149,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                     Enqueue(ctx =>
                     {
                         if (
+                        {
                             ctx.expectedPositions != null
+                        }
                             && ctx.expectedPositions.TryGetValue(fExpKey, out int fCurrentExp)
                         )
                         {
                             int fNewExp;
                             if (fCurrentExp > 0)
+                            {
                                 fNewExp = Math.Max(0, fCurrentExp - fFilledQty);
+                            }
                             else if (fCurrentExp < 0)
+                            {
                                 fNewExp = Math.Min(0, fCurrentExp + fFilledQty);
+                            }
                             else
+                            {
                                 fNewExp = 0;
+                            }
                             ctx.SetExpectedPositionLocked(fExpKey, fNewExp);
                         }
                     });
@@ -154,7 +178,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessAccountOrder_EnqueueTerminalUpdate(object sender, OrderEventArgs e, Order order)
         {
             if (
+            {
                 order.OrderState != OrderState.Cancelled
+            }
                 && order.OrderState != OrderState.Rejected
                 && order.OrderState != OrderState.Unknown
             )
@@ -171,7 +197,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             catch (Exception ex)
             {
                 if (_diagFleet)
+                {
                     Print("[FLEET_CATCH] OnAccountOrderUpdate trigger failed: " + ex.Message);
+                }
             }
         }
 
@@ -184,7 +212,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Build 1109 [FREEZE-PROOF]: Queue depth warning
             int _oqDepth = _accountOrderQueue.Count;
             if (_oqDepth > 50)
+            {
                 Print("[ORDER_WARN] Account order queue depth=" + _oqDepth);
+            }
             // V12.Phase7 [THREAD-01a]: Buffer-and-wait during flatten (symmetric with ProcessAccountExecutionQueue).
             if (isFlattenRunning)
             {
@@ -195,7 +225,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 catch (Exception ex)
                 {
                     if (_diagFleet)
+                    {
                         Print("[FLEET_CATCH] ProcessAccountOrderQueue flatten gate failed: " + ex.Message);
+                    }
                 }
                 return;
             }
@@ -214,7 +246,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     catch (Exception ex)
                     {
                         if (_diagFleet)
+                        {
                             Print("[FLEET_CATCH] ProcessAccountOrderQueue drain loop failed: " + ex.Message);
+                        }
                     }
                     return;
                 }
@@ -223,14 +257,18 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
             // If items remain after budget exhausted, reschedule for next strategy-thread slice.
             if (!_accountOrderQueue.IsEmpty)
+            {
                 try
+            }
                 {
                     TriggerCustomEvent(o => ProcessAccountOrderQueue(), null);
                 }
                 catch (Exception ex)
                 {
                     if (_diagFleet)
+                    {
                         Print("[FLEET_CATCH] ProcessAccountOrderQueue reschedule failed: " + ex.Message);
+                    }
                 }
         }
 
@@ -316,13 +354,17 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             masterEntryName = null;
             if (order == null || snapshot == null)
+            {
                 return false;
+            }
 
             foreach (var kvp in snapshot)
             {
                 PositionInfo pos = kvp.Value;
                 if (pos == null || pos.IsFollower)
+                {
                     continue;
+                }
 
                 Order trackedEntry;
                 if (entryOrders.TryGetValue(kvp.Key, out trackedEntry) && OrdersMatchByRefOrId(trackedEntry, order))
@@ -339,12 +381,16 @@ namespace NinjaTrader.NinjaScript.Strategies
         {
             followerEntries = null;
             if (string.IsNullOrEmpty(masterEntryName))
+            {
                 return false;
+            }
 
             string dispatchId;
             SymmetryDispatchContext ctx;
             if (
+            {
                 !symmetryMasterEntryToDispatch.TryGetValue(masterEntryName, out dispatchId)
+            }
                 || !symmetryDispatchById.TryGetValue(dispatchId, out ctx)
                 || ctx == null
             )
@@ -368,19 +414,27 @@ namespace NinjaTrader.NinjaScript.Strategies
             dispatchFollowers = null;
 
             if (order == null || order.OrderState != OrderState.Cancelled || order.Account != this.Account)
+            {
                 return false;
+            }
 
             if (!TryFindMasterEntryForOrder(order, snapshot, out masterEntryName))
+            {
                 return false;
+            }
 
             if (!TryGetDispatchFollowerEntries(masterEntryName, out dispatchFollowers))
+            {
                 return false;
+            }
 
             foreach (string followerEntry in dispatchFollowers)
             {
                 FollowerReplaceSpec spec;
                 if (!_followerReplaceSpecs.TryGetValue(followerEntry, out spec) || spec == null)
+                {
                     continue;
+                }
 
                 if (spec.State != FollowerReplaceState.PendingCancel && spec.State != FollowerReplaceState.Submitting)
                 {
@@ -388,10 +442,14 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
 
                 if (!string.Equals(spec.MasterSignalName, masterEntryName, StringComparison.Ordinal))
+                {
                     continue;
+                }
 
                 if (!string.Equals(spec.SignalName, followerEntry, StringComparison.Ordinal))
+                {
                     continue;
+                }
 
                 return true;
             }
@@ -418,7 +476,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Check 1: PendingCancel entry replacement FSM
             FollowerReplaceSpec fsm;
             if (
+            {
                 _followerReplaceSpecs.TryGetValue(matchedEntry, out fsm)
+            }
                 && fsm.State == FollowerReplaceState.PendingCancel
                 && fsm.CancellingOrderId == order.OrderId
             )
@@ -447,7 +507,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (order.Name.StartsWith("Stop_") || order.Name.StartsWith("S_"))
             {
                 if (HandleMatchedFollower_StopReplacement(order))
+                {
                     return true;
+                }
 
                 // Check 4: PendingCleanup purge for terminal stops
                 HandleMatchedFollower_PendingCleanupPurge(order);
@@ -480,10 +542,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             // H06: Top-level follower cancellation gate (state-agnostic, pre-branch).
             // Processes all cancellation types before entry-order conditional logic.
             if (ProcessFollowerCancellationSafe(matchedEntry, matchedPos, order, acctName, reason))
+            {
                 return;
+            }
 
             if (
+            {
                 entryOrders.TryGetValue(matchedEntry, out var entryOrder)
+            }
                 && (entryOrder == order || (entryOrder != null && entryOrder.OrderId == order.OrderId))
                 && !matchedPos.EntryFilled
             )
@@ -500,7 +566,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Build 973: FSM-Aware Guard for Meta-Purge Fix
                     FollowerReplaceSpec fsmGuard;
                     if (
+                    {
                         _followerReplaceSpecs.TryGetValue(matchedEntry, out fsmGuard)
+                    }
                         && fsmGuard.State == FollowerReplaceState.PendingCancel
                         && fsmGuard.CancellingOrderId == order.OrderId
                     )
@@ -561,7 +629,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             // Build 947 FSM: if this cancel was our PendingCancel, submit replacement instead of DESYNC
             FollowerReplaceSpec fsm;
             if (
+            {
                 _followerReplaceSpecs.TryGetValue(matchedEntry, out fsm)
+            }
                 && fsm.State == FollowerReplaceState.PendingCancel
                 && fsm.CancellingOrderId == order.OrderId
             )
@@ -639,7 +709,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     _followerReplaceSpecs.TryRemove(sigName, out _);
                 }
                 if (replacementScheduled)
+                {
                     return true; // FSM-controlled replace cancel -- reservation stays live until resubmit completes.
+                }
             }
 
             return false;
@@ -729,7 +801,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (var _psr in pendingStopReplacements.ToArray())
                 {
                     if (
+                    {
                         _psr.Value.OldOrder == order
+                    }
                         || (_psr.Value.OldOrder != null && _psr.Value.OldOrder.OrderId == order.OrderId)
                     )
                     {
@@ -751,7 +825,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                             } // if (_rQty > 0)
                         } // if (activePositions.TryGetValue)
                         if (pendingStopReplacements.TryRemove(_psr.Key, out _))
+                        {
                             Interlocked.Decrement(ref pendingReplacementCount);
+                        }
                         return true;
                     }
                 }
@@ -771,7 +847,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         PositionInfo _scPos;
                         if (
+                        {
                             activePositions.TryGetValue(_sc.Key, out _scPos)
+                        }
                             && _scPos != null
                             && _scPos.PendingCleanup
                             && _scPos.RemainingContracts <= 0
@@ -804,7 +882,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string masterEntryName;
                 string[] dispatchFollowers;
                 if (
+                {
                     ExecuteFollowerCascade_SuppressMasterReplace(
+                }
                         order,
                         reason,
                         snapshot,
@@ -817,7 +897,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 string orderSignal = order.Name;
                 Dictionary<string, PositionInfo> snapshotByKey = new Dictionary<string, PositionInfo>();
                 foreach (var kvp in snapshot)
+                {
                     snapshotByKey[kvp.Key] = kvp.Value;
+                }
 
                 IEnumerable<string> followerKeys = ExecuteFollowerCascade_ResolveFollowers(
                     orderSignal,
@@ -830,7 +912,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     PositionInfo cascadePos;
                     if (
+                    {
                         !snapshotByKey.TryGetValue(followerKey, out cascadePos)
+                    }
                         || cascadePos == null
                         || !cascadePos.IsFollower
                     )
@@ -858,9 +942,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                     }
 
                     if (!cascadePos.EntryFilled)
+                    {
                         ExecuteFollowerCascade_CleanupUnfilled(masterEntryName, orderSignal, followerKey, cascadePos);
+                    }
                     else
+                    {
                         ExecuteFollowerCascade_EmergencyFlattenFilled(
+                    }
                             masterEntryName,
                             orderSignal,
                             followerKey,
@@ -899,7 +987,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (!string.IsNullOrEmpty(masterEntryName) && dispatchFollowers != null && dispatchFollowers.Length > 0)
+            {
                 return dispatchFollowers;
+            }
 
             // [BUILD 984] [FIX-B]: Delimiter-anchored match replaces bidirectional .Contains().
             // Bidirectional .Contains() caused accidental cascade of unrelated positions:
@@ -967,7 +1057,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 catch (Exception ex)
                 {
                     if (_diagFleet)
+                    {
                         Print("[FLEET_CATCH] ExecuteFollowerCascade desync cleanup failed: " + ex.Message);
+                    }
                 }
             }
         }
@@ -1002,7 +1094,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ProcessFollowerCancellationUnconditional(Order order, string acctName, string reason)
         {
             if (order == null || order.OrderState != OrderState.Cancelled)
+            {
                 return false;
+            }
 
             // Check 1: PendingCancel entry replacement FSM
             var replaceSpecsSnapshot = _followerReplaceSpecs.ToArray();
@@ -1031,7 +1125,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             if (order.Name != null && (order.Name.StartsWith("Stop_") || order.Name.StartsWith("S_")))
             {
                 if (HandleMatchedFollower_StopReplacement(order))
+                {
                     return true;
+                }
 
                 // Check 4: PendingCleanup purge for terminal stops
                 HandleMatchedFollower_PendingCleanupPurge(order);
@@ -1054,10 +1150,14 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessQueuedAccountOrder(QueuedAccountOrderUpdate item)
         {
             if (item.EventArgs == null || item.EventArgs.Order == null)
+            {
                 return;
+            }
             Order order = item.EventArgs.Order;
             if (order.Instrument != null && order.Instrument.FullName != Instrument.FullName)
+            {
                 return;
+            }
 
             string reason = order.OrderState.ToString().ToUpper();
             string acctName = item.Account != null ? item.Account.Name : "UNKNOWN";
@@ -1072,7 +1172,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // H06: Process cancellations BEFORE matched-entry gate (state-agnostic path)
             if (ProcessFollowerCancellationUnconditional(order, acctName, reason))
+            {
                 return;
+            }
 
             // Build 935 [R-01]: Single snapshot -- reused by both identity search and cascade cleanup,
             // eliminating the second activePositions.ToArray() allocation in the cascade path.
@@ -1083,10 +1185,14 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (var kvp in snapshot)
             {
                 if (!activePositions.ContainsKey(kvp.Key))
+                {
                     continue;
+                }
                 PositionInfo pos = kvp.Value;
                 if (!pos.IsFollower || pos.ExecutingAccount == null || pos.ExecutingAccount != item.Account)
+                {
                     continue;
+                }
                 if (TryFindOrderInPosition(order, kvp.Key, out matchedEntry))
                 {
                     matchedPos = pos;
@@ -1095,9 +1201,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (!string.IsNullOrEmpty(matchedEntry) && matchedPos != null && activePositions.ContainsKey(matchedEntry))
+            {
                 HandleMatchedFollowerOrder(matchedEntry, matchedPos, order, acctName, reason);
+            }
             else
+            {
                 ExecuteFollowerCascadeCleanup(EnableSIMA, order, reason, snapshot);
+            }
         }
 
         #endregion

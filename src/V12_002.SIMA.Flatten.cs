@@ -167,9 +167,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Order order in acct.Orders.ToArray())
             {
                 if (order == null || order.Instrument == null)
+                {
                     continue;
+                }
                 if (order.Instrument.FullName != Instrument.FullName)
+                {
                     continue;
+                }
 
                 bool isTerminal =
                     order.OrderState == OrderState.Cancelled
@@ -178,7 +182,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                     || order.OrderState == OrderState.Filled
                     || order.OrderState == OrderState.Rejected;
                 if (isTerminal)
+                {
                     continue;
+                }
 
                 if (item.ZombieSweepOnly)
                 {
@@ -190,7 +196,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                         || order.Name.StartsWith("T4_", StringComparison.OrdinalIgnoreCase)
                         || order.Name.StartsWith("T5_", StringComparison.OrdinalIgnoreCase);
                     if (!isZombieTarget)
+                    {
                         continue;
+                    }
                 }
 
                 ordersToCancel.Add(order);
@@ -220,9 +228,13 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Position position in acct.Positions)
             {
                 if (position.Instrument.FullName != Instrument.FullName)
+                {
                     continue;
+                }
                 if (position.MarketPosition == MarketPosition.Flat)
+                {
                     continue;
+                }
 
                 int qty = position.Quantity;
                 OrderAction closeAction =
@@ -237,9 +249,13 @@ namespace NinjaTrader.NinjaScript.Strategies
                             ? SubmitOrderUnmanaged(0, OrderAction.Sell, OrderType.Market, qty, 0, 0, "", sigName)
                             : SubmitOrderUnmanaged(0, OrderAction.BuyToCover, OrderType.Market, qty, 0, 0, "", sigName);
                     if (masterClose != null)
+                    {
                         closedCount++;
+                    }
                     else
+                    {
                         Print(
+                    }
                             string.Format(
                                 "[FLATTEN_PUMP] Master close FAILED (null): {0} {1}",
                                 position.MarketPosition,
@@ -268,7 +284,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             }
 
             if (closedCount > 0)
+            {
                 Print(
+            }
                     string.Format(
                         "[FLATTEN_PUMP] {0}: Closed {1} position(s) [{2}]",
                         acct.Name,
@@ -312,7 +330,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void EmergencyFlattenSingleFleetAccount(Account acct)
         {
             if (acct == null)
+            {
                 return;
+            }
             Print(string.Format("[DEAD-01] EmergencyFlatten: Initiating kill for {0}", acct.Name));
 
             try
@@ -325,7 +345,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 foreach (Order o in acct.Orders)
                 {
                     if (
+                    {
                         o.Instrument.FullName == Instrument.FullName
+                    }
                         && (
                             o.OrderState == OrderState.Working
                             || o.OrderState == OrderState.Submitted
@@ -405,7 +427,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ClosePositionsOnlyApexAccounts()
         {
             if (!EnableSIMA)
+            {
                 return;
+            }
 
             isFlattenRunning = true;
             Print("[SIMA] ====== GLOBAL POSITIONS CLOSE START (CHUNKED) ======");
@@ -415,7 +439,9 @@ namespace NinjaTrader.NinjaScript.Strategies
             foreach (Account acct in snapshot)
             {
                 if (!IsFleetAccount(acct))
+                {
                     continue;
+                }
                 // ZombieSweepOnly=true: cancel only zombie targets, then market close
                 _pendingFlattenOps.Enqueue(
                     new FlattenWorkItem
