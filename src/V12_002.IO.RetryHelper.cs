@@ -51,15 +51,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                     // Track failure immediately
                     Interlocked.Increment(ref _ioRetryFailures);
 
-                    // Log failure (non-critical, best-effort)
-                    try
-                    {
-                        Print(string.Format("[IO_FAIL_FAST] {0} failed: {1}", operationName, ex.Message));
-                    }
-                    catch
-                    {
-                        // Swallow logging errors
-                    }
+                    // Note: Cannot log from static context (Print() is non-static)
+                    // Logging removed to maintain fail-fast semantics
 
                     throw; // Fail fast - propagate immediately
                 }
