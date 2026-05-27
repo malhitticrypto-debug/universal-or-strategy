@@ -628,7 +628,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                     break;
 
                 default:
-                    Print($"[UI] Unknown target action: {action}");
+                    Print(string.Format("[UI] Unknown target action: {0}", action));
                     break;
             }
         }
