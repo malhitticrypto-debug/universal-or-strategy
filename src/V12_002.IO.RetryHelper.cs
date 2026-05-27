@@ -24,14 +24,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             private static long _ioRetryFailures = 0;
 
             /// <summary>
-            /// Executes an operation with exponential backoff retry logic.
+            /// Executes an operation with fail-fast error handling (Jane Street alignment).
+            /// NO RETRY LOOPS - propagates errors immediately to avoid blocking hot paths.
             /// </summary>
             /// <typeparam name="T">Return type of the operation</typeparam>
             /// <param name="operation">The operation to execute</param>
-            /// <param name="isRetryable">Predicate to determine if an exception is retryable</param>
+            /// <param name="isRetryable">UNUSED - kept for API compatibility</param>
             /// <param name="operationName">Name of the operation for logging</param>
-            /// <param name="maxAttempts">Maximum retry attempts (default: 3)</param>
-            /// <param name="baseDelayMs">Base delay in milliseconds (default: 50ms)</param>
+            /// <param name="maxAttempts">UNUSED - kept for API compatibility</param>
+            /// <param name="baseDelayMs">UNUSED - kept for API compatibility</param>
             /// <returns>Result of the operation</returns>
             public static T ExecuteWithRetry<T>(
                 Func<T> operation,
@@ -41,77 +42,24 @@ namespace NinjaTrader.NinjaScript.Strategies
                 int baseDelayMs = 50
             )
             {
-                Exception lastException = null;
-
-                for (int attempt = 1; attempt <= maxAttempts; attempt++)
-                {
-                    try
-                    {
-                        T result = operation();
-
-                        // Track success if this was a retry (not first attempt)
-                        if (attempt > 1)
-                        {
-                            Interlocked.Increment(ref _ioRetrySuccesses);
-                        }
-
-                        return result;
-                    }
-                    catch (Exception ex) when (isRetryable(ex) && attempt < maxAttempts)
-                    {
-                        lastException = ex;
-                        Interlocked.Increment(ref _ioRetryAttempts);
-
-                        // Exponential backoff: 50ms, 100ms, 200ms
-                        int delayMs = baseDelayMs * (1 << (attempt - 1));
-
-                        // Log retry attempt (non-critical, best-effort)
-                        try
-                        {
-                            Print(
-                                string.Format(
-                                    "[IO_RETRY] {0} failed (attempt {1}/{2}), retrying in {3}ms: {4}",
-                                    operationName,
-                                    attempt,
-                                    maxAttempts,
-                                    delayMs,
-                                    ex.Message
-                                )
-                            );
-                        }
-                        catch
-                        {
-                            // Swallow logging errors - don't let them break retry logic
-                        }
-
-                        Thread.Sleep(delayMs);
-                    }
-                }
-
-                // All retries exhausted - final attempt without catch
-                Interlocked.Increment(ref _ioRetryFailures);
-
                 try
                 {
-                    Print(
-                        string.Format(
-                            "[IO_RETRY] {0} failed after {1} attempts: {2}",
-                            operationName,
-                            maxAttempts,
-                            lastException?.Message ?? "Unknown error"
-                        )
-                    );
+                    return operation();
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Swallow logging errors
-                }
+                    // Track failure immediately
+                    Interlocked.Increment(ref _ioRetryFailures);
 
-                return operation();
+                    // Note: Cannot log from static context (Print() is non-static)
+                    // Logging removed to maintain fail-fast semantics
+
+                    throw; // Fail fast - propagate immediately
+                }
             }
 
             /// <summary>
-            /// Executes a void operation with exponential backoff retry logic.
+            /// Executes a void operation with fail-fast error handling (Jane Street alignment).
             /// </summary>
             public static void ExecuteWithRetry(
                 Action operation,
@@ -155,9 +103,25 @@ namespace NinjaTrader.NinjaScript.Strategies
                         || hResult == unchecked((int)0x80070050);
                 }
 
-                // UnauthorizedAccessException: Temporary permission issues (e.g., antivirus scan)
-                if (ex is UnauthorizedAccessException)
+                // UnauthorizedAccessException: Only retry if it's likely transient (e.g., antivirus scan)
+                // HEURISTIC TRADE-OFF: We use message inspection to distinguish permanent vs transient.
+                // - Permanent: "read-only", "access is denied" (file attributes, ACL issues)
+                // - Transient: Antivirus scan, file in use by another process
+                // LIMITATION: This is best-effort. Some permanent issues may be retried unnecessarily,
+                // but this is safer than never retrying (which would fail on transient AV scans).
+                if (ex is UnauthorizedAccessException uaEx)
                 {
+                    string msg = uaEx.Message ?? string.Empty;
+                    // Don't retry if it's clearly a permanent permission issue
+                    // Use IndexOf with OrdinalIgnoreCase for locale-independent matching
+                    if (
+                        msg.IndexOf("read-only", StringComparison.OrdinalIgnoreCase) >= 0
+                        || msg.IndexOf("access is denied", StringComparison.OrdinalIgnoreCase) >= 0
+                    )
+                    {
+                        return false;
+                    }
+                    // Otherwise, assume it's transient (e.g., antivirus scan)
                     return true;
                 }
 
