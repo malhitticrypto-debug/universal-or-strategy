@@ -62,7 +62,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         orStartInZone.Day,
                         sessionEndTime.Hours,
                         sessionEndTime.Minutes,
-                        sessionEndTime.Seconds
+                        sessionEndTime.Seconds,
+                        DateTimeKind.Unspecified
                     ).AddDays(1); // ADD ONE DAY for overnight sessions!
                 }
                 else
@@ -74,7 +75,8 @@ namespace NinjaTrader.NinjaScript.Strategies
                         orStartInZone.Day,
                         sessionEndTime.Hours,
                         sessionEndTime.Minutes,
-                        sessionEndTime.Seconds
+                        sessionEndTime.Seconds,
+                        DateTimeKind.Unspecified
                     );
                 }
 
