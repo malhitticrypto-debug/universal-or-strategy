@@ -225,7 +225,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 break;
                             default:
                                 // Invalid target number - should never reach here
-                                break;
+                                return;
                         }
                         Print(string.Format("[SYNC_ALL] T{0} {1}: Repriced -> {2:F2}", targetNum, entryName, newPrice));
                         refreshed++;
@@ -303,7 +303,7 @@ namespace NinjaTrader.NinjaScript.Strategies
                                 break;
                             default:
                                 // Invalid target number - should never reach here
-                                break;
+                                return;
                         }
                         Print(
                             string.Format(
