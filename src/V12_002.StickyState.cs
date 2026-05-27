@@ -544,7 +544,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private bool ParseJsonBool(string json, string key)
         {
             string pattern = string.Format("\"{0}\": ", key);
-            int startIdx = json.IndexOf(pattern);
+            int startIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (startIdx < 0)
             {
                 return false;
@@ -564,7 +564,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private string ParseJsonString(string json, string key)
         {
             string pattern = string.Format("\"{0}\": \"", key);
-            int startIdx = json.IndexOf(pattern);
+            int startIdx = json.IndexOf(pattern, StringComparison.Ordinal);
             if (startIdx < 0)
             {
                 return string.Empty;

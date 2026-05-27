@@ -148,10 +148,7 @@ namespace UniversalOrStrategy.Tests
                                 };
 
                                 // Correct release: Clear -> Barrier -> Release
-                                if (slot >= 0 && slot < photonSideband.Length)
-                                {
-                                    photonSideband[slot] = default(FleetDispatchSideband);
-                                }
+                                photonSideband[slot] = default(FleetDispatchSideband);
                                 Thread.MemoryBarrier();
                                 Interlocked.Exchange(ref poolAvailability[slot], 1);
                                 break;
