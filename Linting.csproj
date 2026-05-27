@@ -22,6 +22,13 @@
     <!-- StyleCop configuration -->
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
   </PropertyGroup>
+  
+  <!-- CLS Compliance (CA1014) - Epic 1 PR #3 -->
+  <ItemGroup>
+    <AssemblyAttribute Include="System.CLSCompliantAttribute">
+      <_Parameter1>true</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
 
   <ItemGroup>
     <!-- EPIC-6: Include minimal source to enable compilation and analyzer execution -->
