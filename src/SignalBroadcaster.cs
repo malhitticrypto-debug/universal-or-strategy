@@ -15,7 +15,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Complete trade signal with all bracket order details.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct TradeSignal
         {
@@ -51,7 +51,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Trailing stop update signal.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct TrailUpdateSignal
         {
@@ -66,7 +66,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Master broadcasts every stop update, slaves mirror exact price.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct StopUpdateSignal
         {
@@ -81,7 +81,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Master broadcasts when pending entry order price changes.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct EntryUpdateSignal
         {
@@ -95,7 +95,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Master broadcasts when pending entry order is cancelled.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct OrderCancelSignal
         {
@@ -108,7 +108,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Target management action signal (v5.12 feature).
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct TargetActionSignal
         {
@@ -137,7 +137,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Flatten all positions signal.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct FlattenSignal
         {
@@ -149,7 +149,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Manual breakeven signal.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct BreakevenSignal
         {
@@ -162,7 +162,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// Allows the TCP owner to broadcast commands to all other strategy instances.
         /// Struct for zero-allocation hot path (Jane Street HFT pattern).
         /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
-        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
         public struct ExternalCommandSignal
         {
