@@ -541,7 +541,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     if (Position != null && Position.MarketPosition != MarketPosition.Flat)
                         flattenQty = Math.Max(flattenQty, Position.Quantity);
                 }
-                catch { }
+                catch
+                {
+                    // Swallow: Position access may throw if broker connection is lost during flatten
+                }
 
                 string sigName = "EF_" + entryName;
                 if (sigName.Length > 50)

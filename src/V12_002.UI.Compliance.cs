@@ -410,7 +410,10 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null);
             }
-            catch { }
+            catch
+            {
+                // Swallow: TriggerCustomEvent may throw if strategy is terminating or chart is disposed
+            }
         }
 
         // [BUILD 984] Cap per-invocation drain to prevent strategy-thread starvation during broker replay bursts.
@@ -431,7 +434,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null);
                 }
-                catch { }
+                catch
+                {
+                    // Swallow: TriggerCustomEvent may throw if strategy is terminating
+                }
                 return;
             }
 
@@ -447,7 +453,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     {
                         TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null);
                     }
-                    catch { }
+                    catch
+                    {
+                        // Swallow: TriggerCustomEvent may throw if strategy is terminating
+                    }
                     return;
                 }
                 ProcessQueuedExecution(item);
@@ -459,7 +468,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     TriggerCustomEvent(o => ProcessAccountExecutionQueue(), null);
                 }
-                catch { }
+                catch
+                {
+                    // Swallow: TriggerCustomEvent may throw if strategy is terminating
+                }
 
             // Update the compliance log once after draining all queued events
             if (EnableComplianceHub && !isFlattenRunning)

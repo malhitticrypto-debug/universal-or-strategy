@@ -474,6 +474,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 case Key.D:
                     Enqueue(ctx => ctx.ExecuteRunnerAction("disabletrail"));
                     break;
+                default:
+                    // Unhandled key - no action
+                    break;
             }
         }
 
@@ -622,6 +625,10 @@ namespace NinjaTrader.NinjaScript.Strategies
 
                 case "cancel":
                     ExecuteTarget_Cancel(entryName, pos, targetType, targetOrders, targetContracts);
+                    break;
+
+                default:
+                    Print($"[UI] Unknown target action: {action}");
                     break;
             }
         }

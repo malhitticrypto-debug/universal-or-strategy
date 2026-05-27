@@ -281,7 +281,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     string desyncTag = "SIMA_DESYNC_" + accountName;
                     RemoveDrawObject(desyncTag);
                 }
-                catch { }
+                catch
+                {
+                    // Swallow: RemoveDrawObject may throw if chart object doesn't exist or chart is disposed
+                }
             }
             catch (Exception ex)
             {

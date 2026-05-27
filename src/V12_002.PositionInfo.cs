@@ -353,6 +353,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 case 5:
                     pos.T5Filled = true;
                     break;
+                default:
+                    // Invalid target number - should never reach here
+                    break;
             }
         }
 
