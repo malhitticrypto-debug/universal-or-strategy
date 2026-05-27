@@ -10,12 +10,12 @@ namespace NinjaTrader.NinjaScript.Strategies
     public static class SignalBroadcaster
     {
         #region Signal Data Classes
-
-        /// <summary>
-        /// Complete trade signal with all bracket order details
-        /// </summary>
-        public class TradeSignal
-        {
+    
+            /// <summary>
+            /// Complete trade signal with all bracket order details
+            /// </summary>
+            public class TradeSignal : EventArgs
+            {
             public string SignalId { get; set; }
             public string Instrument { get; set; } // V7.1: For instrument filtering
             public MarketPosition Direction { get; set; }
@@ -47,7 +47,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// <summary>
         /// Trailing stop update signal
         /// </summary>
-        public class TrailUpdateSignal
+        public class TrailUpdateSignal : EventArgs
         {
             public string SignalId { get; set; }
             public double NewStopPrice { get; set; }
@@ -59,7 +59,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// V8.1: Full stop synchronization signal
         /// Master broadcasts every stop update, slaves mirror exact price
         /// </summary>
-        public class StopUpdateSignal
+        public class StopUpdateSignal : EventArgs
         {
             public string TradeId { get; set; } // Links to original entry
             public double NewStopPrice { get; set; } // Master's new stop price
@@ -71,7 +71,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// V8.1: Entry order price update signal
         /// Master broadcasts when pending entry order price changes
         /// </summary>
-        public class EntryUpdateSignal
+        public class EntryUpdateSignal : EventArgs
         {
             public string TradeId { get; set; } // Links to original entry
             public double NewEntryPrice { get; set; } // Master's new entry price
@@ -82,7 +82,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// V8.1: Order cancellation signal
         /// Master broadcasts when pending entry order is cancelled
         /// </summary>
-        public class OrderCancelSignal
+        public class OrderCancelSignal : EventArgs
         {
             public string TradeId { get; set; } // Links to original entry
             public string Reason { get; set; } // Why cancelled
@@ -92,7 +92,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// <summary>
         /// Target management action signal (v5.12 feature)
         /// </summary>
-        public class TargetActionSignal
+        public class TargetActionSignal : EventArgs
         {
             public string SignalId { get; set; }
             public TargetType Target { get; set; } // T1, T2, or Runner
@@ -118,7 +118,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// <summary>
         /// Flatten all positions signal
         /// </summary>
-        public class FlattenSignal
+        public class FlattenSignal : EventArgs
         {
             public string Reason { get; set; }
             public DateTime Timestamp { get; set; }
@@ -127,7 +127,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// <summary>
         /// Manual breakeven signal
         /// </summary>
-        public class BreakevenSignal
+        public class BreakevenSignal : EventArgs
         {
             public string SignalId { get; set; } // Empty = all positions
             public DateTime Timestamp { get; set; }
@@ -137,7 +137,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// V10.2: External command signal (from TCP Remote)
         /// Allows the TCP owner to broadcast commands to all other strategy instances
         /// </summary>
-        public class ExternalCommandSignal
+        public class ExternalCommandSignal : EventArgs
         {
             public string Command { get; set; }
             public string TargetSymbol { get; set; }

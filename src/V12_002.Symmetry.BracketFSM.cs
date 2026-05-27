@@ -342,6 +342,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                     fsm.State = FollowerBracketState.Rejected;
                     fsm.LastBrokerError = evt.ErrorMessage;
                     break;
+
+                default:
+                    // Unhandled order state - no FSM transition
+                    break;
             }
 
             if (fsm.State != oldState)

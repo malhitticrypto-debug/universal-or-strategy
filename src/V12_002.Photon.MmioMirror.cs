@@ -117,12 +117,18 @@ namespace NinjaTrader.NinjaScript.Strategies
                 {
                     _accessor.Dispose();
                 }
-                catch { }
+                catch
+                {
+                    // Swallow: Dispose may throw if already disposed or handle is invalid
+                }
                 try
                 {
                     _mmf.Dispose();
                 }
-                catch { }
+                catch
+                {
+                    // Swallow: Dispose may throw if already disposed or handle is invalid
+                }
             }
 
             // Diagnostic helper; not on the hot path.
