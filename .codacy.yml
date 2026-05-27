@@ -28,6 +28,9 @@ engines:
 
 # Exclude non-source paths from analysis
 exclude_paths:
+  - 'tests/**'
+  - 'benchmarks/**'
+  - 'sandbox/**'
   - 'docs/**'
   - 'scripts/**'
   - '.github/**'
