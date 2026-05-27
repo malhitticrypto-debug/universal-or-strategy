@@ -9,8 +9,106 @@ argument-hint: <epic-slug> <ticket-number> <pr-number>
 **Mode:** Engineer (Manual-parity)
 **Protocol:** V12 High-Precision TDD Gate
 
-You are the V12 TDD Engineer. You are executing ticket $2 of epic $1 manually. 
+You are the V12 TDD Engineer. You are executing ticket $2 of epic $1 manually.
 Your goal is to implement the changes and drive them to 100/100 PHS on PR #$3.
+
+---
+
+## VERIFICATION GATES (MANDATORY)
+
+All 4 gates from epic-run MUST be executed before implementation:
+
+### GATE 1: INTAKE (Director Approval)
+**Switch to: v12-epic-planner mode**
+
+Hand off this exact task:
+```
+EPIC: $1
+TASK: Review ticket scope in docs/brain/$1/ticket-$2.md
+OUTPUT: Summarize ticket scope, CYC targets, and extraction plan
+STOP at [INTAKE-GATE] and do not proceed.
+```
+
+When v12-epic-planner outputs [INTAKE-GATE], present the summary to Director.
+
+**GATE 1 CHECKPOINT:**
+> "Ticket scope: [summary]. Does this match your intent? Reply YES to proceed or give corrections."
+
+- YES: advance to GATE 2
+- Corrections: relay to v12-epic-planner, re-run intake
+
+---
+
+### GATE 2: PLAN REVIEW (Independent Agent)
+**Switch to: v12-epic-planner mode**
+
+Hand off this exact task:
+```
+EPIC: $1
+TASK: Review extraction plan in docs/brain/$1/ticket-$2.md
+VERIFY:
+  - Sub-method names are descriptive
+  - CYC targets are realistic
+  - No logic duplication
+  - Caller impact is minimal
+OUTPUT: Write plan review to docs/brain/$1/ticket-$2-review.md
+STOP at [PLAN-GATE] and do not proceed.
+```
+
+When v12-epic-planner outputs [PLAN-GATE], present key findings.
+
+**GATE 2 CHECKPOINT:**
+> "Plan review complete. Key findings: [top 3]. Type APPROVED to proceed or provide feedback."
+
+- APPROVED: advance to GATE 2.3
+- Feedback: relay to v12-epic-planner, re-run plan review
+
+---
+
+### GATE 2.3: SENTINEL AUDIT (Manual Review)
+**MANUAL TASK (Greptile MCP not working)**
+
+Director must manually verify:
+1. Read ticket file: `docs/brain/$1/ticket-$2.md`
+2. Use Semgrep or manual audit to check:
+   - No new `lock()` statements
+   - ASCII-only compliance
+   - FSM/Actor pattern followed
+   - No hardcoded secrets
+3. Document findings in: `docs/brain/$1/ticket-$2-sentinel.md`
+
+**GATE 2.3 CHECKPOINT:**
+> "Sentinel Audit complete. Verdict: [PASSED/REVISION REQUIRED]. Gaps found: [list]. Reply GO to proceed to GATE 3 or REVISE to update the plan."
+
+- GO: advance to GATE 3
+- REVISE: update ticket, re-run GATE 2
+
+---
+
+### GATE 3: DNA VALIDATION (Compliance Check)
+**Switch to: v12-epic-planner mode**
+
+Hand off this exact task:
+```
+EPIC: $1
+TASK: Validate ticket against V12 DNA principles
+INPUT: @docs/brain/$1/ticket-$2.md @docs/standards/JANE_STREET_DEVIATIONS.md
+VERIFY:
+  - Zero locks (FSM/Actor pattern)
+  - ASCII-only (no Unicode)
+  - Complexity ≤15 target
+  - No illegal states possible
+OUTPUT: Update ticket-$2.md with DNA compliance notes
+STOP at [VALIDATE-GATE] and do not proceed.
+```
+
+When v12-epic-planner outputs [VALIDATE-GATE], present compliance summary.
+
+**GATE 3 CHECKPOINT:**
+> "DNA validation complete. [N issues resolved]. Type GO to begin implementation or HOLD to review."
+
+- GO: advance to Step 1 (Implementation)
+- HOLD: wait for Director review, then re-validate
 
 ---
 
