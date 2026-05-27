@@ -176,11 +176,12 @@ namespace NinjaTrader.NinjaScript.Strategies
                 catch (SecurityException ex)
                 {
                     Print(string.Format("[IO_SECURITY] {0}", ex.Message));
-                    Interlocked.Exchange(ref _csvHeaderCreated, 0);
+                    // P0-3 FIX: Do NOT reset flag - prevents unbounded Task.Run spawn on persistent errors
                 }
-                catch
+                catch (Exception ex)
                 {
-                    Interlocked.Exchange(ref _csvHeaderCreated, 0);
+                    Print(string.Format("[IO_ERROR] CSV header creation failed: {0}", ex.Message));
+                    // P0-3 FIX: Do NOT reset flag - prevents unbounded Task.Run spawn on persistent errors
                 }
             });
         }

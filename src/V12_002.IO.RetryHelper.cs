@@ -24,14 +24,15 @@ namespace NinjaTrader.NinjaScript.Strategies
             private static long _ioRetryFailures = 0;
 
             /// <summary>
-            /// Executes an operation with exponential backoff retry logic.
+            /// Executes an operation with fail-fast error handling (Jane Street alignment).
+            /// NO RETRY LOOPS - propagates errors immediately to avoid blocking hot paths.
             /// </summary>
             /// <typeparam name="T">Return type of the operation</typeparam>
             /// <param name="operation">The operation to execute</param>
-            /// <param name="isRetryable">Predicate to determine if an exception is retryable</param>
+            /// <param name="isRetryable">UNUSED - kept for API compatibility</param>
             /// <param name="operationName">Name of the operation for logging</param>
-            /// <param name="maxAttempts">Maximum retry attempts (default: 3)</param>
-            /// <param name="baseDelayMs">Base delay in milliseconds (default: 50ms)</param>
+            /// <param name="maxAttempts">UNUSED - kept for API compatibility</param>
+            /// <param name="baseDelayMs">UNUSED - kept for API compatibility</param>
             /// <returns>Result of the operation</returns>
             public static T ExecuteWithRetry<T>(
                 Func<T> operation,
@@ -41,85 +42,31 @@ namespace NinjaTrader.NinjaScript.Strategies
                 int baseDelayMs = 50
             )
             {
-                Exception lastException = null;
-
-                for (int attempt = 1; attempt <= maxAttempts; attempt++)
-                {
-                    try
-                    {
-                        T result = operation();
-
-                        // Track success if this was a retry (not first attempt)
-                        if (attempt > 1)
-                        {
-                            Interlocked.Increment(ref _ioRetrySuccesses);
-                        }
-
-                        return result;
-                    }
-                    catch (Exception ex) when (isRetryable(ex) && attempt < maxAttempts)
-                    {
-                        lastException = ex;
-                        Interlocked.Increment(ref _ioRetryAttempts);
-
-                        // Exponential backoff: 50ms, 100ms, 200ms
-                        int delayMs = baseDelayMs * (1 << (attempt - 1));
-
-                        // Log retry attempt (non-critical, best-effort)
-                        try
-                        {
-                            Print(
-                                string.Format(
-                                    "[IO_RETRY] {0} failed (attempt {1}/{2}), retrying in {3}ms: {4}",
-                                    operationName,
-                                    attempt,
-                                    maxAttempts,
-                                    delayMs,
-                                    ex.Message
-                                )
-                            );
-                        }
-                        catch
-                        {
-                            // Swallow logging errors - don't let them break retry logic
-                        }
-
-                        Thread.Sleep(delayMs);
-                    }
-                }
-
-                // All retries exhausted - final attempt with proper failure tracking
                 try
                 {
                     return operation();
                 }
-                catch (Exception finalEx)
+                catch (Exception ex)
                 {
-                    // Only increment failure counter if final attempt also fails
+                    // Track failure immediately
                     Interlocked.Increment(ref _ioRetryFailures);
 
+                    // Log failure (non-critical, best-effort)
                     try
                     {
-                        Print(
-                            string.Format(
-                                "[IO_RETRY] {0} failed after {1} attempts: {2}",
-                                operationName,
-                                maxAttempts,
-                                finalEx.Message
-                            )
-                        );
+                        Print(string.Format("[IO_FAIL_FAST] {0} failed: {1}", operationName, ex.Message));
                     }
                     catch
                     {
                         // Swallow logging errors
                     }
 
-                    throw; // Re-throw to preserve stack trace
+                    throw; // Fail fast - propagate immediately
                 }
             }
 
             /// <summary>
-            /// Executes a void operation with exponential backoff retry logic.
+            /// Executes a void operation with fail-fast error handling (Jane Street alignment).
             /// </summary>
             public static void ExecuteWithRetry(
                 Action operation,
