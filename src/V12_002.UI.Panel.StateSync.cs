@@ -147,6 +147,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 case 5:
                     row = liveT5Row;
                     break;
+                default:
+                    // Invalid target number - should never reach here
+                    break;
             }
             if (row != null)
                 row.Visibility = visible ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;

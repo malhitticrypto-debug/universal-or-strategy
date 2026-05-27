@@ -371,6 +371,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         if (_placementGrid != null && _placementGrid.Children.Contains(rootContainer))
                             _placementGrid.Children.Remove(rootContainer);
                         break;
+
+                    default:
+                        // Unknown placement mode - no cleanup action
+                        break;
                 }
             }
             catch (Exception ex)

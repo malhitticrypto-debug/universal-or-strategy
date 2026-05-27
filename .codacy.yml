@@ -61,5 +61,13 @@ ignore:
   
   # Legacy ATM module (scheduled for SIMA extraction)
   - 'src/V12_002.Atm.cs'
+  
+  # Jane Street Deviation #1: Struct-based events (zero-allocation hot path)
+  # Reason: Signal broadcast is a hot path (1000+ calls/sec). EventArgs inheritance
+  # would cause 1000+ heap allocations/sec = GC pressure during trading.
+  # Struct pattern = stack allocation = zero GC impact.
+  # Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1
+  # Suppressions: CA1003 (EventArgs inheritance)
+  - 'src/SignalBroadcaster.cs'
 
 # Made with Bob

@@ -12,9 +12,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Signal Data Classes
 
         /// <summary>
-        /// Complete trade signal with all bracket order details
+        /// Complete trade signal with all bracket order details.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class TradeSignal
+        public struct TradeSignal
         {
             public string SignalId { get; set; }
             public string Instrument { get; set; } // V7.1: For instrument filtering
@@ -45,9 +48,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// Trailing stop update signal
+        /// Trailing stop update signal.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class TrailUpdateSignal
+        public struct TrailUpdateSignal
         {
             public string SignalId { get; set; }
             public double NewStopPrice { get; set; }
@@ -56,10 +62,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// V8.1: Full stop synchronization signal
-        /// Master broadcasts every stop update, slaves mirror exact price
+        /// V8.1: Full stop synchronization signal.
+        /// Master broadcasts every stop update, slaves mirror exact price.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class StopUpdateSignal
+        public struct StopUpdateSignal
         {
             public string TradeId { get; set; } // Links to original entry
             public double NewStopPrice { get; set; } // Master's new stop price
@@ -68,10 +77,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// V8.1: Entry order price update signal
-        /// Master broadcasts when pending entry order price changes
+        /// V8.1: Entry order price update signal.
+        /// Master broadcasts when pending entry order price changes.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class EntryUpdateSignal
+        public struct EntryUpdateSignal
         {
             public string TradeId { get; set; } // Links to original entry
             public double NewEntryPrice { get; set; } // Master's new entry price
@@ -79,10 +91,13 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// V8.1: Order cancellation signal
-        /// Master broadcasts when pending entry order is cancelled
+        /// V8.1: Order cancellation signal.
+        /// Master broadcasts when pending entry order is cancelled.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class OrderCancelSignal
+        public struct OrderCancelSignal
         {
             public string TradeId { get; set; } // Links to original entry
             public string Reason { get; set; } // Why cancelled
@@ -90,9 +105,12 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// Target management action signal (v5.12 feature)
+        /// Target management action signal (v5.12 feature).
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class TargetActionSignal
+        public struct TargetActionSignal
         {
             public string SignalId { get; set; }
             public TargetType Target { get; set; } // T1, T2, or Runner
@@ -116,28 +134,37 @@ namespace NinjaTrader.NinjaScript.Strategies
         }
 
         /// <summary>
-        /// Flatten all positions signal
+        /// Flatten all positions signal.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class FlattenSignal
+        public struct FlattenSignal
         {
             public string Reason { get; set; }
             public DateTime Timestamp { get; set; }
         }
 
         /// <summary>
-        /// Manual breakeven signal
+        /// Manual breakeven signal.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class BreakevenSignal
+        public struct BreakevenSignal
         {
             public string SignalId { get; set; } // Empty = all positions
             public DateTime Timestamp { get; set; }
         }
 
         /// <summary>
-        /// V10.2: External command signal (from TCP Remote)
-        /// Allows the TCP owner to broadcast commands to all other strategy instances
+        /// V10.2: External command signal (from TCP Remote).
+        /// Allows the TCP owner to broadcast commands to all other strategy instances.
+        /// Struct for zero-allocation hot path (Jane Street HFT pattern).
+        /// Codacy CA1003 suppressed: EventArgs inheritance causes heap allocation.
+        /// Decision: docs/standards/JANE_STREET_DEVIATIONS.md #1.
         /// </summary>
-        public class ExternalCommandSignal
+        public struct ExternalCommandSignal
         {
             public string Command { get; set; }
             public string TargetSymbol { get; set; }
@@ -149,49 +176,58 @@ namespace NinjaTrader.NinjaScript.Strategies
         #region Events
 
         /// <summary>
-        /// Fired when Master generates a new trade signal
+        /// Fired when Master generates a new trade signal.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<TradeSignal> OnTradeSignal;
+        public static event Action<TradeSignal> OnTradeSignal;
 
         /// <summary>
-        /// Fired when Master updates trailing stop
+        /// Fired when Master updates trailing stop.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<TrailUpdateSignal> OnTrailUpdate;
+        public static event Action<TrailUpdateSignal> OnTrailUpdate;
 
         /// <summary>
-        /// Fired when Master updates trailing stop update request (v5.12)
+        /// Fired when Master updates trailing stop update request (v5.12).
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<TargetActionSignal> OnTargetAction;
+        public static event Action<TargetActionSignal> OnTargetAction;
 
         /// <summary>
-        /// Fired when Master requests flatten all
+        /// Fired when Master requests flatten all.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<FlattenSignal> OnFlattenAll;
+        public static event Action<FlattenSignal> OnFlattenAll;
 
         /// <summary>
-        /// Fired when Master requests manual breakeven
+        /// Fired when Master requests manual breakeven.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<BreakevenSignal> OnBreakevenRequest;
+        public static event Action<BreakevenSignal> OnBreakevenRequest;
 
         /// <summary>
-        /// V8.1: Fired when Master updates any stop (for full synchronization)
+        /// V8.1: Fired when Master updates any stop (for full synchronization).
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<StopUpdateSignal> OnStopUpdate;
+        public static event Action<StopUpdateSignal> OnStopUpdate;
 
         /// <summary>
-        /// V8.1: Fired when Master updates pending entry order price
+        /// V8.1: Fired when Master updates pending entry order price.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<EntryUpdateSignal> OnEntryUpdate;
+        public static event Action<EntryUpdateSignal> OnEntryUpdate;
 
         /// <summary>
-        /// V8.1: Fired when Master cancels a pending entry order
+        /// V8.1: Fired when Master cancels a pending entry order.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<OrderCancelSignal> OnOrderCancel;
+        public static event Action<OrderCancelSignal> OnOrderCancel;
 
         /// <summary>
-        /// V10.2: Fired when an external TCP command is received
+        /// V10.2: Fired when an external TCP command is received.
+        /// Action delegate for struct-based zero-allocation events.
         /// </summary>
-        public static event EventHandler<ExternalCommandSignal> OnExternalCommand;
+        public static event Action<ExternalCommandSignal> OnExternalCommand;
 
         #endregion
 
@@ -202,8 +238,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         /// the exception is caught and remaining subscribers still receive the signal.
         /// Prevents a single faulty handler from breaking the entire fan-out chain.
         /// V12.Phase7.2: Added performance profiling to detect slow subscribers.
+        /// V12.Phase8: Updated for Action<T> delegates (struct-based zero-allocation events).
         /// </summary>
-        private static void SafeInvoke<T>(EventHandler<T> handler, T args)
+        private static void SafeInvoke<T>(Action<T> handler, T args)
         {
             if (handler == null)
                 return;
@@ -214,7 +251,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             {
                 try
                 {
-                    ((EventHandler<T>)d).Invoke(null, args);
+                    ((Action<T>)d).Invoke(args);
                 }
                 catch (Exception)
                 {

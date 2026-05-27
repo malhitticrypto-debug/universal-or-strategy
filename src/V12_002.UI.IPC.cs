@@ -492,6 +492,10 @@ namespace NinjaTrader.NinjaScript.Strategies
                         Print(string.Format("[IPC] Security violation: {0}", action));
                         // TODO: Disconnect client (Phase 5)
                         return;
+
+                    default:
+                        Print(string.Format("[IPC] Unknown validation result: {0}", validationResult));
+                        return;
                 }
 
                 // Build 942 [FIX-2]: Diag commands handled here; removes 2 branches from chain below (CS-R1140)
