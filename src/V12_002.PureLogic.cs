@@ -19,7 +19,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         public static int[] GetTargetDistribution(int contracts, int targetCount)
         {
             if (contracts <= 0)
+            {
                 return new int[5];
+            }
 
             // Clamp count to [1, 5]
             int count = Math.Max(1, Math.Min(5, targetCount));
@@ -30,7 +32,9 @@ namespace NinjaTrader.NinjaScript.Strategies
 
             // Distribute base and remainder (scalp preference: extras go to T1 first)
             for (int i = 0; i < count; i++)
+            {
                 buckets[i] = baseQty + (i < remainder ? 1 : 0);
+            }
 
             // Audit: Ensure sum matches input
             int sum = buckets.Sum();
@@ -57,14 +61,18 @@ namespace NinjaTrader.NinjaScript.Strategies
         )
         {
             if (double.IsNaN(stopPoints) || stopPoints <= 0 || pointValue <= 0)
+            {
                 return Math.Max(1, minContracts);
+            }
 
             double stopDollars = stopPoints * pointValue;
             double slippageCushionDollars = slippageCushionPoints * pointValue;
             double effectiveRisk = maxRiskAmount - slippageCushionDollars;
 
             if (effectiveRisk <= 0)
+            {
                 return Math.Max(1, minContracts);
+            }
 
             int contracts;
             try
@@ -85,7 +93,9 @@ namespace NinjaTrader.NinjaScript.Strategies
         public static double CalculateATRStopDistance(double atr, double atrMultiplier, double minStop, double maxStop)
         {
             if (atr <= 0)
+            {
                 return minStop;
+            }
 
             double rawStop = atr * atrMultiplier;
             double ceilingStop = Math.Ceiling(rawStop);
