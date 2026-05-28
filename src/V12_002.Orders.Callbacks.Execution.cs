@@ -246,7 +246,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private void ProcessOnExecutionUpdate(
             string orderName,
             string executionId,
-            string orderId,
+            string _,
             int orderFilled,
             OrderState orderState,
             double price,

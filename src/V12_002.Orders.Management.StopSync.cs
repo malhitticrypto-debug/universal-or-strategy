@@ -536,7 +536,7 @@ namespace NinjaTrader.NinjaScript.Strategies
         private (bool canProceed, PositionInfo pos) ValidateStopOrderPreconditions(
             string entryName,
             int quantity,
-            double stopPrice,
+            double _,
             MarketPosition direction,
             bool isRecovery
         )
