@@ -538,6 +538,23 @@ namespace NinjaTrader.NinjaScript.Strategies
             catch (Exception ex)
             {
                 Print(string.Format("(!) CRITICAL CreateNewStopOrder for {0}: {1}", entryName, ex.ToString()));
+                Print(
+                    string.Format("(!) Attempting emergency flatten for {0} due to stop creation failure...", entryName)
+                );
+                try
+                {
+                    FlattenPositionByName(entryName);
+                }
+                catch (Exception flatEx)
+                {
+                    Print(
+                        string.Format(
+                            "(!) CRITICAL: Emergency flatten also failed for {0}: {1}",
+                            entryName,
+                            flatEx.ToString()
+                        )
+                    );
+                }
                 // Do NOT rethrow - position safety requires stop order attempt to complete
             }
         }

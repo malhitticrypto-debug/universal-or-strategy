@@ -102,8 +102,9 @@ namespace NinjaTrader.NinjaScript.Strategies
                 }
                 catch (Exception ex)
                 {
-                    // Unexpected error - release guard and log
+                    // Unexpected error - release guard, drain queue, and log
                     isFlattenRunning = false;
+                    while (_pendingFlattenOps.TryDequeue(out _)) { } // Prevent stale work items
                     Print("[FLATTEN] CRITICAL: Unexpected error in FlattenAllApexAccounts: " + ex.ToString());
                     // Do NOT rethrow - remaining fleet accounts still need flattening
                 }

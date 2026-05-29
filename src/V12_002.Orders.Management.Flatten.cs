@@ -225,7 +225,7 @@ namespace NinjaTrader.NinjaScript.Strategies
             catch (Exception ex)
             {
                 Print("CRITICAL: Unexpected exception in FlattenAll: " + ex.ToString());
-                // Do NOT rethrow - remaining fleet accounts still need flattening
+                // Do NOT rethrow - log and continue to allow caller to proceed
             }
             finally
             {
